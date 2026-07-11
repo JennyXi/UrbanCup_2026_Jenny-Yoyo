@@ -14,9 +14,36 @@ class AgentProfile:
     digital_access: bool
     family_assistance: Optional[bool]
     segment: str
+    coupon_awareness_probability: Optional[float] = None
+    coupon_claim_probability: Optional[float] = None
+    independent_ride_hailing: Optional[bool] = None
 
     def to_dict(self) -> dict:
         return asdict(self)
+
+
+def validate_agent_profile(agent: AgentProfile) -> None:
+    """Validate optional coupon-access attributes without requiring calibration."""
+    for field_name in (
+        "coupon_awareness_probability",
+        "coupon_claim_probability",
+    ):
+        value = getattr(agent, field_name)
+        if value is not None and (
+            isinstance(value, bool)
+            or not isinstance(value, (int, float))
+            or not 0.0 <= value <= 1.0
+        ):
+            raise ValueError(f"{field_name} must be None or a number in [0, 1]")
+
+    if (
+        agent.independent_ride_hailing is not None
+        and not isinstance(agent.independent_ride_hailing, bool)
+    ):
+        raise ValueError("independent_ride_hailing must be None or bool")
+
+    if not agent.is_elder and agent.family_assistance is not None:
+        raise ValueError("family_assistance must be None for non-elder agents")
 
 
 def _split_counts(total: int, ratios: List[float]) -> List[int]:
@@ -90,10 +117,22 @@ def summarize_population(agents: List[AgentProfile]) -> dict:
         "age_group_counts": {},
         "elderly_digital_access": {"digital": 0, "non_digital": 0},
         "elderly_assistance": {"assisted": 0, "unassisted": 0},
+        "coupon_attributes": {
+            "awareness_configured": 0,
+            "claim_configured": 0,
+            "independent_ride_hailing_configured": 0,
+        },
     }
 
     for agent in agents:
+        validate_agent_profile(agent)
         summary["age_group_counts"][agent.age_group] = summary["age_group_counts"].get(agent.age_group, 0) + 1
+        if agent.coupon_awareness_probability is not None:
+            summary["coupon_attributes"]["awareness_configured"] += 1
+        if agent.coupon_claim_probability is not None:
+            summary["coupon_attributes"]["claim_configured"] += 1
+        if agent.independent_ride_hailing is not None:
+            summary["coupon_attributes"]["independent_ride_hailing_configured"] += 1
         if agent.is_elder:
             if agent.digital_access:
                 summary["elderly_digital_access"]["digital"] += 1
