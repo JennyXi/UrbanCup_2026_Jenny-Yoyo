@@ -1,0 +1,77 @@
+{
+  "calibration_id": "shanghai_synthetic_nine_zone_initial",
+  "reference_city": "Shanghai",
+  "model_type": "synthetic_concentric_functional_zones",
+  "total_agents": 1000,
+  "distance_unit": "km",
+  "synthetic_area_unit": "synthetic_km2",
+  "age_share_tolerance": 1e-9,
+  "citywide_age_target": {
+    "18-39": 0.40,
+    "40-59": 0.33,
+    "60+": 0.27
+  },
+  "rings": [
+    {"ring_id": "core", "inner_radius": 0, "outer_radius": 3, "modeled_coverage_share": 0.55},
+    {"ring_id": "inner", "inner_radius": 3, "outer_radius": 8, "modeled_coverage_share": 0.38},
+    {"ring_id": "middle", "inner_radius": 8, "outer_radius": 15, "modeled_coverage_share": 0.24},
+    {"ring_id": "suburban", "inner_radius": 15, "outer_radius": 24, "modeled_coverage_share": 0.07},
+    {"ring_id": "peripheral", "inner_radius": 24, "outer_radius": 35, "modeled_coverage_share": 0.045}
+  ],
+  "zones": [
+    {
+      "zone_id": "Z1", "zone_type": "central_employment", "spatial_ring": "core",
+      "within_ring_area_share": 1.00, "radial_distance_from_center": 0.0,
+      "angular_position_degrees": null, "residential_density_factor": 1.10,
+      "base_age_composition": {"18-39": 0.46, "40-59": 0.33, "60+": 0.21}
+    },
+    {
+      "zone_id": "Z2", "zone_type": "inner_new_mixed", "spatial_ring": "inner",
+      "within_ring_area_share": 0.52, "radial_distance_from_center": 5.0,
+      "angular_position_degrees": 30, "residential_density_factor": 1.35,
+      "base_age_composition": {"18-39": 0.45, "40-59": 0.33, "60+": 0.22}
+    },
+    {
+      "zone_id": "Z3", "zone_type": "inner_old_mixed", "spatial_ring": "inner",
+      "within_ring_area_share": 0.48, "radial_distance_from_center": 6.5,
+      "angular_position_degrees": 210, "residential_density_factor": 1.30,
+      "base_age_composition": {"18-39": 0.37, "40-59": 0.31, "60+": 0.32}
+    },
+    {
+      "zone_id": "Z4", "zone_type": "ordinary_residential_A", "spatial_ring": "middle",
+      "within_ring_area_share": 0.30, "radial_distance_from_center": 10.0,
+      "angular_position_degrees": 0, "residential_density_factor": 0.95,
+      "base_age_composition": {"18-39": 0.40, "40-59": 0.33, "60+": 0.27}
+    },
+    {
+      "zone_id": "Z5", "zone_type": "ordinary_residential_B", "spatial_ring": "middle",
+      "within_ring_area_share": 0.34, "radial_distance_from_center": 11.5,
+      "angular_position_degrees": 120, "residential_density_factor": 1.00,
+      "base_age_composition": {"18-39": 0.39, "40-59": 0.33, "60+": 0.28}
+    },
+    {
+      "zone_id": "Z6", "zone_type": "ordinary_residential_C", "spatial_ring": "middle",
+      "within_ring_area_share": 0.36, "radial_distance_from_center": 13.0,
+      "angular_position_degrees": 240, "residential_density_factor": 0.92,
+      "base_age_composition": {"18-39": 0.40, "40-59": 0.32, "60+": 0.28}
+    },
+    {
+      "zone_id": "Z7", "zone_type": "suburban_new_town", "spatial_ring": "suburban",
+      "within_ring_area_share": 1.00, "radial_distance_from_center": 19.5,
+      "angular_position_degrees": 60, "residential_density_factor": 0.70,
+      "base_age_composition": {"18-39": 0.44, "40-59": 0.34, "60+": 0.22}
+    },
+    {
+      "zone_id": "Z8", "zone_type": "peripheral_old_residential", "spatial_ring": "peripheral",
+      "within_ring_area_share": 0.46, "radial_distance_from_center": 27.0,
+      "angular_position_degrees": 170, "residential_density_factor": 0.50,
+      "base_age_composition": {"18-39": 0.37, "40-59": 0.32, "60+": 0.31}
+    },
+    {
+      "zone_id": "Z9", "zone_type": "transit_weak_peripheral", "spatial_ring": "peripheral",
+      "within_ring_area_share": 0.54, "radial_distance_from_center": 31.5,
+      "angular_position_degrees": 300, "residential_density_factor": 0.32,
+      "base_age_composition": {"18-39": 0.36, "40-59": 0.31, "60+": 0.33}
+    }
+  ]
+}
