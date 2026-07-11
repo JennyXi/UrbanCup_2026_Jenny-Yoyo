@@ -54,6 +54,9 @@ def validate_zone_configuration(config: Dict[str, Any]) -> None:
     if tolerance <= 0:
         raise ValueError("age_share_tolerance must be positive")
     _validate_composition(config.get("citywide_age_target"), "citywide_age_target", tolerance)
+    spatial_scale = _require_number(config.get("spatial_scale"), "spatial_scale")
+    if spatial_scale <= 0:
+        raise ValueError("spatial_scale must be positive")
 
     rings = config.get("rings")
     zones = config.get("zones")
@@ -199,13 +202,20 @@ def derive_spatial_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
     validate_zone_configuration(config)
     source = deepcopy(config)
     tolerance = source["age_share_tolerance"]
+    spatial_scale = float(source["spatial_scale"])
     ring_map = {}
     for ring in source["rings"]:
-        inner = float(ring["inner_radius"])
-        outer = float(ring["outer_radius"])
+        base_inner = float(ring["inner_radius"])
+        base_outer = float(ring["outer_radius"])
+        inner = base_inner * spatial_scale
+        outer = base_outer * spatial_scale
         theoretical = math.pi * (outer * outer - inner * inner)
         represented = theoretical * float(ring["modeled_coverage_share"])
         derived_ring = deepcopy(ring)
+        derived_ring["base_inner_radius"] = base_inner
+        derived_ring["base_outer_radius"] = base_outer
+        derived_ring["inner_radius"] = inner
+        derived_ring["outer_radius"] = outer
         derived_ring["theoretical_ring_area"] = theoretical
         derived_ring["represented_ring_area"] = represented
         ring_map[ring["ring_id"]] = derived_ring
@@ -213,7 +223,8 @@ def derive_spatial_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
     zones = []
     for raw_zone in source["zones"]:
         zone = deepcopy(raw_zone)
-        radius = float(zone["radial_distance_from_center"])
+        base_radius = float(zone["radial_distance_from_center"])
+        radius = base_radius * spatial_scale
         angle = zone["angular_position_degrees"]
         if radius == 0:
             x = y = 0.0
@@ -226,6 +237,8 @@ def derive_spatial_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
         capacity = area * float(zone["residential_density_factor"])
         zone.update(
             {
+                "base_radial_distance_from_center": base_radius,
+                "radial_distance_from_center": radius,
                 "centroid_x": x,
                 "centroid_y": y,
                 "synthetic_area": area,
@@ -256,6 +269,7 @@ def derive_spatial_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
 
     derived = {
         "calibration_id": source.get("calibration_id"),
+        "spatial_scale": spatial_scale,
         "total_agents": source.get("total_agents"),
         "distance_unit": source.get("distance_unit"),
         "synthetic_area_unit": source.get("synthetic_area_unit"),
@@ -470,4 +484,3 @@ def build_spatial_audit(
         "difference_by_age_group": derived_config["difference_by_age_group"],
         "quota_audit": allocate_zone_age_quotas(derived_config, total_agents),
     }
-

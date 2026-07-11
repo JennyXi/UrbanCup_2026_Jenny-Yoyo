@@ -19,6 +19,17 @@ All model assumptions are stored in
 - relative residential density;
 - base zone age composition;
 - citywide age target and tolerance.
+- the uniform `spatial_scale` applied to all lengths and areas.
+
+The current `spatial_scale` is `0.82`. Raw configured radii are retained as
+the auditable base geometry. Derived ring radii, zone radial distances,
+centroids, interzonal distances, equivalent radii, and mean intrazonal
+distances are multiplied by 0.82. Theoretical/represented ring area and zone
+synthetic area are multiplied by `0.82² = 0.6724`.
+
+Because every zone area receives the same multiplier, relative residential
+capacity, `population_weight`, calibrated age composition, and zone-by-age
+integer quotas remain unchanged except for floating-point tolerance.
 
 `modeled_coverage_share` is the share of theoretical ring land represented by
 the nine-zone model. It is neither a real built-up-area share nor an empirical

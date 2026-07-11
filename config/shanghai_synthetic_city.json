@@ -2,6 +2,7 @@
   "calibration_id": "shanghai_synthetic_nine_zone_initial",
   "reference_city": "Shanghai",
   "model_type": "synthetic_concentric_functional_zones",
+  "spatial_scale": 0.82,
   "total_agents": 1000,
   "distance_unit": "km",
   "synthetic_area_unit": "synthetic_km2",

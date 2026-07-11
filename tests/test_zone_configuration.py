@@ -35,10 +35,11 @@ class ZoneConfigurationTests(unittest.TestCase):
         self.assertEqual(audit["zone_population_weight_order_descending"][0], "Z7")
         self.assertEqual(audit["area_ratio_interpretation"], "soft_model_complexity_check_only")
         self.assertAlmostEqual(audit["maximum_to_minimum_zone_area_ratio"], 4.963636363636364)
+        self.assertEqual(self.derived["spatial_scale"], 0.82)
 
     def test_coordinates_come_from_full_precision_radius_and_angle(self):
         for zone in self.derived["zones"]:
-            radius = zone["radial_distance_from_center"]
+            radius = zone["base_radial_distance_from_center"] * self.config["spatial_scale"]
             angle = zone["angular_position_degrees"]
             if radius == 0:
                 expected_x = expected_y = 0.0
@@ -56,7 +57,81 @@ class ZoneConfigurationTests(unittest.TestCase):
             self.assertEqual(matrix[first][first], 0.0)
             for second in audit["zone_ids"]:
                 self.assertAlmostEqual(matrix[first][second], matrix[second][first])
-        self.assertAlmostEqual(audit["minimum_nonzero_interzonal_distance"], 5.0)
+        self.assertAlmostEqual(audit["minimum_nonzero_interzonal_distance"], 4.1)
+
+    def test_spatial_scale_changes_lengths_and_areas_but_not_population_or_quotas(self):
+        unscaled_config = deepcopy(self.config)
+        unscaled_config["spatial_scale"] = 1.0
+        unscaled = derive_spatial_configuration(unscaled_config)
+        scaled = self.derived
+        scale = self.config["spatial_scale"]
+        self.assertEqual(scale, 0.82)
+        self.assertAlmostEqual(scaled["total_synthetic_area"], unscaled["total_synthetic_area"] * scale ** 2)
+        for scaled_ring, unscaled_ring in zip(scaled["rings"], unscaled["rings"]):
+            for field in ("inner_radius", "outer_radius"):
+                self.assertAlmostEqual(scaled_ring[field], unscaled_ring[field] * scale)
+            for field in ("theoretical_ring_area", "represented_ring_area"):
+                self.assertAlmostEqual(scaled_ring[field], unscaled_ring[field] * scale ** 2)
+        for scaled_zone, unscaled_zone in zip(scaled["zones"], unscaled["zones"]):
+            for field in (
+                "radial_distance_from_center", "centroid_x", "centroid_y",
+                "equivalent_radius", "mean_intrazonal_distance",
+            ):
+                self.assertAlmostEqual(scaled_zone[field], unscaled_zone[field] * scale)
+            self.assertAlmostEqual(scaled_zone["synthetic_area"], unscaled_zone["synthetic_area"] * scale ** 2)
+            self.assertAlmostEqual(scaled_zone["population_weight"], unscaled_zone["population_weight"])
+            for group in AGE_GROUPS:
+                self.assertAlmostEqual(
+                    scaled_zone["calibrated_age_composition"][group],
+                    unscaled_zone["calibrated_age_composition"][group],
+                    places=12,
+                )
+        self.assertEqual(
+            allocate_zone_age_quotas(scaled, 1000)["quota_matrix"],
+            allocate_zone_age_quotas(unscaled, 1000)["quota_matrix"],
+        )
+
+    def test_scaled_key_city_dimensions_are_derived(self):
+        audit = build_spatial_audit(self.derived)
+        unscaled_config = deepcopy(self.config)
+        unscaled_config["spatial_scale"] = 1.0
+        unscaled = derive_spatial_configuration(unscaled_config)
+        unscaled_audit = build_spatial_audit(unscaled)
+        scale = self.config["spatial_scale"]
+        matrix = audit["zone_to_zone_euclidean_distance"]
+        maximum_centroid = max(
+            matrix[first][second]
+            for index, first in enumerate(audit["zone_ids"])
+            for second in audit["zone_ids"][index + 1:]
+        )
+        z1_maximum = max(matrix["Z1"].values())
+        zones = {zone["zone_id"]: zone for zone in self.derived["zones"]}
+        approximate_diameter = max(
+            matrix[first][second] + zones[first]["equivalent_radius"] + zones[second]["equivalent_radius"]
+            for index, first in enumerate(audit["zone_ids"])
+            for second in audit["zone_ids"][index + 1:]
+        )
+        unscaled_matrix = unscaled_audit["zone_to_zone_euclidean_distance"]
+        unscaled_maximum = max(
+            unscaled_matrix[first][second]
+            for index, first in enumerate(unscaled_audit["zone_ids"])
+            for second in unscaled_audit["zone_ids"][index + 1:]
+        )
+        unscaled_zones = {zone["zone_id"]: zone for zone in unscaled["zones"]}
+        unscaled_diameter = max(
+            unscaled_matrix[first][second]
+            + unscaled_zones[first]["equivalent_radius"]
+            + unscaled_zones[second]["equivalent_radius"]
+            for index, first in enumerate(unscaled_audit["zone_ids"])
+            for second in unscaled_audit["zone_ids"][index + 1:]
+        )
+        self.assertAlmostEqual(maximum_centroid, unscaled_maximum * scale)
+        self.assertAlmostEqual(z1_maximum, max(unscaled_matrix["Z1"].values()) * scale)
+        self.assertAlmostEqual(approximate_diameter, unscaled_diameter * scale)
+        self.assertAlmostEqual(
+            self.derived["total_synthetic_area"],
+            unscaled["total_synthetic_area"] * scale ** 2,
+        )
 
     def test_equivalent_radius_and_intrazonal_distance_are_derived(self):
         audit = build_spatial_audit(self.derived)
@@ -200,6 +275,10 @@ class ZoneConfigurationTests(unittest.TestCase):
         invalid_density["zones"][0]["residential_density_factor"] = 0
         cases.append(invalid_density)
 
+        invalid_scale = deepcopy(self.config)
+        invalid_scale["spatial_scale"] = 0
+        cases.append(invalid_scale)
+
         invalid_city_age = deepcopy(self.config)
         invalid_city_age["citywide_age_target"]["18-39"] = 0.5
         cases.append(invalid_city_age)
@@ -215,4 +294,3 @@ class ZoneConfigurationTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
