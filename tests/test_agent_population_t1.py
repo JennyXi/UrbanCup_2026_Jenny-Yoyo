@@ -1,7 +1,11 @@
 import unittest
+from collections import Counter
 
 from custom.agents.agent_population import (
     AgentProfile,
+    FLEXIBLE_NON_WORKER_SHARES,
+    MEDICAL_NEED_LEVEL_SHARES,
+    PART_TIME_WORKER_SHARE,
     generate_population_agents,
     summarize_population,
     validate_agent_profile,
@@ -14,7 +18,8 @@ class AgentPopulationT1Tests(unittest.TestCase):
 
         self.assertTrue(all(agent.coupon_awareness_probability is None for agent in agents))
         self.assertTrue(all(agent.coupon_claim_probability is None for agent in agents))
-        self.assertTrue(all(agent.independent_ride_hailing is None for agent in agents))
+        self.assertTrue(all(agent.independent_ride_hailing is True for agent in agents if not agent.is_elder))
+        self.assertTrue(all(agent.independent_ride_hailing is None for agent in agents if agent.is_elder))
 
         summary = summarize_population(agents)
         self.assertEqual(
@@ -22,9 +27,33 @@ class AgentPopulationT1Tests(unittest.TestCase):
             {
                 "awareness_configured": 0,
                 "claim_configured": 0,
-                "independent_ride_hailing_configured": 0,
+                "independent_ride_hailing_configured": 73,
             },
         )
+
+    def test_work_and_medical_statuses_are_stable_and_age_appropriate(self):
+        agents = generate_population_agents(total_agents=100, seed=42)
+        for agent in agents:
+            if agent.age_group in {"18-39", "40-59"}:
+                self.assertIn(agent.work_status, {"regular_worker", "flexible_non_worker"})
+                self.assertIsNone(agent.medical_need_level)
+                self.assertTrue(agent.digital_access)
+                self.assertTrue(agent.independent_ride_hailing)
+            else:
+                self.assertIn(agent.work_status, {"retired", "part_time_worker"})
+                self.assertIn(agent.medical_need_level, {"low", "standard", "high"})
+
+    def test_status_share_configuration_scales_with_population(self):
+        self.assertEqual(FLEXIBLE_NON_WORKER_SHARES, {"18-39": 0.10, "40-59": 0.08})
+        self.assertEqual(PART_TIME_WORKER_SHARE, 0.17)
+        self.assertEqual(MEDICAL_NEED_LEVEL_SHARES, {"low": 0.35, "standard": 0.55, "high": 0.10})
+        for total in (50, 100, 200):
+            agents = generate_population_agents(total, seed=47)
+            age_counts = Counter(agent.age_group for agent in agents)
+            status_counts = Counter((agent.age_group, agent.work_status) for agent in agents)
+            self.assertEqual(status_counts[("18-39", "flexible_non_worker")], int(age_counts["18-39"] * 0.10 + 0.5))
+            self.assertEqual(status_counts[("40-59", "flexible_non_worker")], int(age_counts["40-59"] * 0.08 + 0.5))
+            self.assertEqual(status_counts[("60+", "part_time_worker")], int(age_counts["60+"] * 0.17 + 0.5))
 
     def test_family_assistance_only_applies_to_elder_agents(self):
         agents = generate_population_agents(total_agents=100, seed=42)
