@@ -128,3 +128,40 @@ build_spatial_audit
 These functions operate on configuration and aggregate quota data only. They
 do not assign any individual Agent to a zone.
 
+## Home-zone assignment contract
+
+`custom.spatial.home_zone_assignment.assign_home_zones()` consumes the exact
+T4 `quota_matrix`. It does not resample population weights. Assignment uses
+`hashlib.sha256`, not Python's process-randomized built-in `hash()`, and always
+iterates through the explicit order `Z1` to `Z9`. Reordering either the Agent
+input or quota dictionary keys therefore cannot change an individual's
+`agent_id -> home_zone` mapping for a fixed seed.
+
+Age labels must exactly match `18-39`, `40-59`, and `60+`; no fuzzy or implicit
+conversion is performed. `AgentProfile.home_zone` remains optional because an
+Agent may exist before spatial placement. Any later module that requires
+spatial information must explicitly reject `home_zone is None` before using
+it.
+
+## Development scale policy
+
+Population generation and quota allocation remain parameterized by
+`total_agents`. The configured 1000-Agent case is a formal-experiment
+candidate and a quota regression case, not the default scale for initial
+AgentSociety integration.
+
+Recommended progression:
+
+```text
+unit and ordinary Python placement tests: 1000 is allowed
+first end-to-end integration:             50
+mechanism debugging:                     100
+small complete-scenario test:            200
+formal experiment:                       500 or 1000 after resource review
+```
+
+The first integration with weekly plans, destinations, mode choice, or an LLM
+decision layer should explicitly pass `total_agents=50`. Scale should increase
+only after a complete scenario runs, model-call counts are measured, repeated
+per-timestep LLM calls are excluded, output/log volume is controlled, and the
+direction of results is reasonably stable between 100 and 200 Agents.
