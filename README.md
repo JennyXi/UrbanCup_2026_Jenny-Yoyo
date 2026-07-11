@@ -2,7 +2,7 @@
 
 本仓库正在构建一个以上海总体人口结构和空间趋势为参考的九区合成城市，用于研究极端夏季天气、数字接入和出行补贴政策对不同年龄人群潜在出行机会的影响。
 
-当前实现停留在 baseline population、home-zone 安置、七日基础活动、天气响应规则和补贴资格规则。尚未生成活动目的地、正式 OD、交通方式选择、订单或派单结果。
+当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、天气响应规则和补贴资格规则。尚未生成正式 OD、交通方式选择、订单或派单结果。
 
 ## 已完成模块
 
@@ -44,6 +44,15 @@
 
 详细说明见 [`docs/T4_spatial/README.md`](docs/T4_spatial/README.md)。
 
+### T6：Baseline activity destination zone
+
+- 使用purpose attraction与距离衰减为已有activity分配`destination_zone`；
+- 同区选择使用区内平均距离，不把同区视为0 km；
+- work、medical和family destination按Agent固定，其他目的按activity判断；
+- 只更新destination字段，不生成origin、leg、正式OD或distance字段。
+
+详细说明见 [`docs/T6_destination/README.md`](docs/T6_destination/README.md)。
+
 ## 当前核心流程
 
 ```text
@@ -52,6 +61,7 @@ total_agents
 → zone × age_group 精确配额
 → Agent.home_zone
 → Monday–Sunday baseline activities
+→ activity.destination_zone
 → T2天气继续/取消判断
 → T3政策优惠与派单资格
 ```
@@ -71,7 +81,6 @@ python -B -X utf8 -m unittest tests.test_policy_t3 -v
 
 ## 尚未实现
 
-- `destination_zone` 分配；
 - 正式 outbound/return legs 与 OD；
 - 区内或区际出行距离；
 - mode choice；
@@ -79,7 +88,7 @@ python -B -X utf8 -m unittest tests.test_policy_t3 -v
 - 车辆竞争、派单成功、等待时间与拥堵；
 - AgentSociety 端到端仿真。
 
-下一阶段计划为已有 baseline activities 分配 `destination_zone`。该阶段仍不生成正式 leg、OD、distance 或 mode。
+下一阶段仍需把activity sequence展开为正式legs与OD；当前destination分配不生成origin、distance或mode。
 
 ## 合成城市声明
 
