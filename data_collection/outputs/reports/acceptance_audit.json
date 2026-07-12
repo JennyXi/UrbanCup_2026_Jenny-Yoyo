@@ -1,0 +1,98 @@
+{
+  "generated_at": "2026-07-12T09:22:40+08:00",
+  "core_datasets": {
+    "weather_transport_disruptions": {
+      "records": 23,
+      "independent_sources": 5,
+      "source_tier_distribution": {
+        "A": 23,
+        "B": 0,
+        "C": 0,
+        "D": 0
+      },
+      "districts": 9,
+      "subdistricts": 0,
+      "years": [
+        2020,
+        2022
+      ],
+      "missing_cell_rate": 0.5028,
+      "manually_verified": 1,
+      "conflicts": 0,
+      "excluded_candidates": 32,
+      "current_active": 0,
+      "historical_or_expired": 22
+    },
+    "elderly_hailing_access": {
+      "records": 9,
+      "independent_sources": 9,
+      "source_tier_distribution": {
+        "A": 8,
+        "B": 1,
+        "C": 0,
+        "D": 0
+      },
+      "districts": 3,
+      "subdistricts": 0,
+      "years": [],
+      "missing_cell_rate": 0.6875,
+      "manually_verified": 1,
+      "conflicts": 0,
+      "excluded_candidates": 0,
+      "current_active": 8,
+      "historical_or_expired": 0
+    },
+    "ride_hailing_promotion_rules": {
+      "records": 4,
+      "independent_sources": 4,
+      "source_tier_distribution": {
+        "A": 3,
+        "B": 1,
+        "C": 0,
+        "D": 0
+      },
+      "districts": 0,
+      "subdistricts": 0,
+      "years": [
+        2022,
+        2023,
+        2024
+      ],
+      "missing_cell_rate": 0.5246,
+      "manually_verified": 1,
+      "conflicts": 0,
+      "excluded_candidates": 6,
+      "current_active": 0,
+      "historical_or_expired": 1
+    },
+    "subdistrict_elder_support_facts": {
+      "records": 42,
+      "independent_sources": 29,
+      "source_tier_distribution": {
+        "A": 42,
+        "B": 0,
+        "C": 0,
+        "D": 0
+      },
+      "districts": 13,
+      "subdistricts": 6,
+      "years": [
+        2020,
+        2022,
+        2023,
+        2024,
+        2025,
+        2026
+      ],
+      "missing_cell_rate": 0.6304,
+      "manually_verified": 32,
+      "conflicts": 0,
+      "excluded_candidates": 35,
+      "current_active": 0,
+      "historical_or_expired": 0
+    }
+  },
+  "registered_sources": 1744,
+  "used_sources": 41,
+  "rejected_candidates": 73
+}

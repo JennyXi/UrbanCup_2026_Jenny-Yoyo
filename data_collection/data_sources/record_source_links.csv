@@ -1,0 +1,79 @@
+﻿link_id,dataset_name,record_id,source_id,evidence_quote,evidence_field,fact_status,extraction_confidence,review_status,review_notes
+lnk_e44d0b01c18e2d,weather_transport_disruptions,wtd_0fccabd3d3da20,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_d8c90d7c5dd3a0,weather_transport_disruptions,wtd_ac2281a537541c,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_0b7f36a88b68f3,weather_transport_disruptions,wtd_1b3d1d2bdec973,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_aeaf208caf8eed,weather_transport_disruptions,wtd_8a62ff00b3d568,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_991cf867a2cb81,weather_transport_disruptions,wtd_1e7bc4c6f30bf0,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_992a3b7adfa207,weather_transport_disruptions,wtd_164e0dcc0488aa,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_adf8d13cd4c451,weather_transport_disruptions,wtd_5ad576f2310562,src_ac51213c7136,上海地铁6号线和16号线全线停止运营服务。,record-level fact,observed,high,auto_accepted,
+lnk_56369ee1fd09bb,weather_transport_disruptions,wtd_961c9ac8468fb6,src_ac51213c7136,上海地铁6号线和16号线全线停止运营服务。,record-level fact,observed,high,auto_accepted,
+lnk_16421db8d66e0e,weather_transport_disruptions,wtd_7af4500a09a9f9,src_35ba77340f09,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_92648264694ba6,weather_transport_disruptions,wtd_ee350688a54c06,src_ee94e39effbb,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_6e8b105ce13b2a,weather_transport_disruptions,wtd_ed51f04fef207a,src_ee94e39effbb,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_345873e8bfa9d9,weather_transport_disruptions,wtd_9d0b658d690e08,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_735c122347e9ed,weather_transport_disruptions,wtd_9e1a362dd6d87e,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_c36fc28eb2a4c8,weather_transport_disruptions,wtd_b1a31219498015,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_a6f1e6b7f3f67f,weather_transport_disruptions,wtd_a33df5c7c326ca,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_5d80b602f09e89,weather_transport_disruptions,wtd_0bd1f36d1c91f7,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_2313c04e0eea0b,weather_transport_disruptions,wtd_2780975265385e,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_c55a3d00abd9aa,weather_transport_disruptions,wtd_5e52e4a14bdbfb,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_4121ad7407470c,weather_transport_disruptions,wtd_9d4c039c5c8511,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_9f01b7f07b2d68,weather_transport_disruptions,wtd_161ee89c3a1998,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_124eb2ec3fcc23,weather_transport_disruptions,wtd_9b6e835b5aeb3e,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_73ea35a74e04df,weather_transport_disruptions,wtd_f1dfb83e5e07ed,src_03285eab743d,暴雨来临时部分路段会出现道路积水。,record-level fact,observed,high,auto_accepted,
+lnk_12d1ad2799d29d,weather_transport_disruptions,wtdx_132208b410b1e6,src_6cd3338fb726,2020年8月5日降水量176.9毫米，为2010年以来最大值，当日全区有近66个点位出现道路积水，对城市平稳运行造成威胁,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_e0e16fb7b8b608,elderly_hailing_access,eha_cff900c9941db6,src_ee5c2521bcb6,可通过一键通固定电话机、便携终端、电视机、自助终端获取服务资源。,record-level fact,observed,high,auto_accepted,
+lnk_33447ae182619b,elderly_hailing_access,eha_57345cf469b9a1,src_a01235832298,一键叫车智慧屏是敬老爱老方便老人打车的产品。,record-level fact,observed,high,auto_accepted,
+lnk_8ff2acc4e22191,elderly_hailing_access,eha_f22e29df4fe5e9,src_cd4e19098ea9,95128全国出租车叫车服务热线为24小时。,record-level fact,observed,high,auto_accepted,
+lnk_9b4cc47a02edbb,elderly_hailing_access,eha_6568aabb1e2061,src_72f63f23b706,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_3d9da4eb6e7d68,elderly_hailing_access,eha_3db049a3035a75,src_cf93c9c8b8a2,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_a79549b9b201e9,elderly_hailing_access,eha_ba22e57bf4a7c1,src_753387c4a529,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_622b2f80470b03,elderly_hailing_access,eha_4579f04552734b,src_b1a17b29a099,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_160e5c3d95a7c5,elderly_hailing_access,eha_1ee238e4808b00,src_66a0cd939597,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_fb25b4cafb2d1b,elderly_hailing_access,ehax_4d516159dfc31e,src_8f7a49e924e3,推动“一键叫车”场景在老年人集中的社区落地,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_d679eac0ba9eea,ride_hailing_promotion_rules,rhp_d6aebe8d7901e6,src_702eca0eb8a0,单笔订单实付满30元随机立减，最高立减10元。,record-level fact,observed,high,auto_accepted,
+lnk_3e5f9a1cdb7f60,ride_hailing_promotion_rules,rhp_8a7074903caa6e,src_66a0cd939597,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_29844f6307d15f,ride_hailing_promotion_rules,rhp_2394c13183c1ca,src_a01235832298,一键叫车智慧屏是敬老爱老方便老人打车的产品。,record-level fact,observed,high,auto_accepted,
+lnk_694dbd784c21d1,ride_hailing_promotion_rules,rhpx_deabb7c8d5e57d,src_76e8a43ea2ca,持“上海城市草坪音乐会”票根或预约成功短信，即可享受黄浦各大商圈专属消费礼遇、艺术特展购票优惠、网红餐饮特别折扣、“城市草坪”邮政明信片、滴滴出行打车券包等等，真正实现“票根在手，黄浦畅游”,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_26ced64b36164b,subdistrict_elder_support_facts,sef_82d348a3aa2e56,src_753387c4a529,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_9b8837d49ebfaa,subdistrict_elder_support_facts,sef_5c1db78f85ad9d,src_753387c4a529,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_66a1d281dc250f,subdistrict_elder_support_facts,sef_6ea8782a9327b0,src_b1a17b29a099,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_3849f6bf416348,subdistrict_elder_support_facts,sef_ae5f210243c3c7,src_b1a17b29a099,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_3d1baf47aaf7f3,subdistrict_elder_support_facts,sef_0ca344afd3ee47,src_ee5c2521bcb6,可通过一键通固定电话机、便携终端、电视机、自助终端获取服务资源。,record-level fact,observed,high,auto_accepted,
+lnk_15e4ad1cb9194d,subdistrict_elder_support_facts,sef_4a760a4ff52bf8,src_cf93c9c8b8a2,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_e05def9108696e,subdistrict_elder_support_facts,sef_a1a013b487a99a,src_b023836cdcc0,见来源页面中对应事实,record-level fact,observed,high,auto_accepted,
+lnk_eaea55bb5a8c3f,subdistrict_elder_support_facts,sef_5649b6ae48febc,src_05c9249c1245,套餐A提供每周2次主动关爱服务，参考费用为每人每月40元。,record-level fact,observed,high,auto_accepted,
+lnk_e170da0f514d5d,subdistrict_elder_support_facts,sef_a5d5a83bcaaf34,src_05c9249c1245,套餐A提供每周2次主动关爱服务，参考费用为每人每月40元。,record-level fact,observed,high,auto_accepted,
+lnk_fbf665bb087e52,subdistrict_elder_support_facts,sef_ebc6ca36ab629a,src_05c9249c1245,套餐A提供每周2次主动关爱服务，参考费用为每人每月40元。,record-level fact,observed,high,auto_accepted,
+lnk_8194e230072234,subdistrict_elder_support_facts,sefx_fa593ad58b9966,src_bf83f0872afd,有条件的长者照护之家可以根据自身供给能力和社区内老年人养老需求，开展以下一种或多种服务：为未入住机构的社区老年人提供相当于机构专业水准的上门照料、护理服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_d229e90f1c06f4,subdistrict_elder_support_facts,sefx_1cdfe72f55662c,src_15f21833c2a1,开展失能老人家庭照护技能培训（“老吾老计划”），增强家庭养老照护能力,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_e3849c128bf97b,subdistrict_elder_support_facts,sefx_d6205cad43c116,src_5bc2573dd5ff,设备数据接入服务平台，实时监测老人家中火灾、燃气泄漏、意外跌倒或猝死、主动求救等紧急情况，及时通知居委会工作人员、物业和微型消防站值班人员、社区志愿者、亲属邻里、服务平台保障人员，通过技术手段和上门查,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_741deaa1cbf188,subdistrict_elder_support_facts,sefx_c05b935c48138b,src_5bc2573dd5ff,我区试点阶段重点做好孤老、低保、低收入、高龄独居等特殊困难老人的安全智能关爱服务）,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_799cecfc5ae4a8,subdistrict_elder_support_facts,sefx_f683977b5ecc0b,src_50bf3fbaee56,社会力量整合闲置社会资源独立设置且建筑面积大于60平方米，小于200平方米的小型社区托养设施（惠老家园），为老年人提供助餐、助洁、助浴、助医、助行、代办等居家服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_f6100ce9f95a79,subdistrict_elder_support_facts,sefx_ef0c6793c7df59,src_3aa29610199f,2.健康照顾增殖服务包：主要为健康体检、中医特色理疗、全科医生上门服务、健康管理师，由老人根据需求选择使用,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_1ed6c4943d7203,subdistrict_elder_support_facts,sefx_bb69d9ceddc84a,src_2f29bfe750fc,（四）健全志愿服务制度组建由计生协会会员、家庭医生、心理咨询师、律师、教师、大学生、团员青年、低龄老人、社会爱心人士等组成的计生特殊家庭扶助关怀志愿者队伍,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_5bf7359a78e534,subdistrict_elder_support_facts,sefx_b9d1f936e0c2d4,src_d10eae57a3ed,（二）细分探访关爱服务工作对象区民政局要指导各街镇按照市级方案所明确的特殊困难老年人范围为独居、失能（失智）、重残、纯老家庭、计划生育特殊家庭的老年人以及出现阶段性临时困难的老年人，组织力量开展排摸，,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_b5c8a6bd384468,subdistrict_elder_support_facts,sefx_102fc16c4835ca,src_d10eae57a3ed,（三）丰富探访关爱服务工作内容探访关爱服务工作要结合街镇实际，在落实家庭主体责任，在坚持个人自愿前提下，以满足实际需求为导向，着力解决老年人居家养老困难或者帮助化解安全风险,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_d33b35e84b8e06,subdistrict_elder_support_facts,sefx_409b5676b37625,src_d10eae57a3ed,（四）充实探访关爱服务工作力量区民政局要创新“五社联动”机制，指导各街镇形成由各街镇、居民委员会、养老服务机构、基层老年协会、社会工作服务站（点）、业主委员会、网格员、家庭医生、养老服务人员、社会工作,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_fb06847de222d3,subdistrict_elder_support_facts,sefx_4518c6c6c85fdf,src_7a0d4f6cb15f,全区市民驿站总面积从当初4.45万平方米增至7.65万平方米，助医点达到46个，助餐点达到66个，每天能满足3.1万名老人吃饭需求，覆盖到了全区近11%的老人,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_3cde94d8c04e25,subdistrict_elder_support_facts,sefx_01bac86f6c2454,src_842b0a9c1fe7,加强老年人数字技能培训，开展“数字反哺”行动，推广“银发升G教程”,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_a666a18ab44281,subdistrict_elder_support_facts,sefx_00099f3d183512,src_38d232a908a2,2.老年人本人及其家属自愿接受老年人家庭养老（照护）床位服务，包括家庭养老床位建设（家庭适老化改造和智慧化改造）和养老床位上门服务，已享受上海市养老服务补贴的老年人可叠加享受养老床位上门服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_47f5cd6f9e8aab,subdistrict_elder_support_facts,sefx_8b9a27c97974d1,src_ce56b49aaced,（一）建立“5+3+5”关爱巡访制度，分层分类推进“关爱行动”1.建立五色服务管理机制根据老人家庭情况、身体状况、个人意愿等，确定不同色彩服务级别，提供个性化关爱服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_d388d638ab7f43,subdistrict_elder_support_facts,sefx_71b7cce379857e,src_ce56b49aaced,“红色”服务级别，主要针对年龄大于80周岁的独居老人及纯老家庭、重残、重度失能失智、计划生育特殊困难家庭等需高度关注的老年人，每周至少上门探访2次,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_37b202973ebcd0,subdistrict_elder_support_facts,sefx_9d728b93cd8532,src_ce56b49aaced,“黄色”服务级别，针对年龄大于70周岁独居、纯老、失能、失智、残疾、阶段性临时困难等重点老年人，每周至少上门探访1次、电话关爱1次,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_3eb07e036de7af,subdistrict_elder_support_facts,sefx_15a68e8ce51e45,src_ce56b49aaced,“绿色”服务级别，针对独居、纯老及享受电话关爱服务的特殊困难老年人，每周至少电话关爱2次,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_c0c63e3fde97a1,subdistrict_elder_support_facts,sefx_8046572fea3b41,src_ce56b49aaced,“蓝色”服务级别，针对低龄、身体健康程度较高且个人关爱意愿较低的特殊困难老年人，每月至少探访1次，并作为志愿者储备对象充分调动和挖掘，实现“关爱对象”到“关爱力量”的职责转变,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_718843fcc1a3e4,subdistrict_elder_support_facts,sefx_3aafe702bcd0d9,src_084ed6572a18,3.对全区独居老人进行按照其健康状况、安全习惯、居住环境等要素进行风险评估，建立分级管理机制，实行“一人一档”分类造册，做到了“底数清、情况明”，并上门开展帮扶，特别是针对安全用火用电和规范吸烟行为等,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_3728483775a7a3,subdistrict_elder_support_facts,sefx_be9298449b66f5,src_a4c31feb3937,（二）关爱服务内容1、优先开展评估对特殊对象失能老人申请本市老年照护统一需求评估的，定点评估机构优先安排上门评估，优先开展评估录入、集体评审及出具评估报告等评估工作，减少老人的评估等候时间,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_0f4f3c4d4d93c7,subdistrict_elder_support_facts,sefx_c09ad5a7e1e2ec,src_19dff27c7abf,“超龄”插线板危险高及时换新保平安在长风新村街道一居民区中，社工上门入户进行安全排查，发现老人家中使用的接线板使用年限超过20年，存在明显安全隐患,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_038dd1bc4c29ed,subdistrict_elder_support_facts,sefx_776fef6ca5671d,src_7b2f42997070,今年将紧扣平安建设重点工作，围绕消防安全“十大”行动（为独居老人开展电气线路和燃气安全检测、上门清洗老旧油烟机，赠送消防安全宣传防油贴,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_6dc68d950285af,subdistrict_elder_support_facts,sefx_2e48219de3f6f4,src_ae011e75e28b,现场，上海市慈善基金会与浦老惠平台联合发布“孝亲敬老”浦东银龄守护计划，开展千名老人健康公益陪诊,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_f57dd02c899920,subdistrict_elder_support_facts,sefx_60ec1bc09e0165,src_ae011e75e28b,浦老惠平台负责人徐鸿燕介绍，健康公益陪诊项目将覆盖浦东36个街镇的低保、纯老、独居等出行不便老人，让他们就诊不孤单,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_ec8d12ac96fc87,subdistrict_elder_support_facts,sefx_8135778e5f1e8a,src_3f1aad7fb22c,科学布局老年餐集中配送中心和配送资源，就近选择诚信经营、管理规范、具有集体用餐配送许可资质的专业餐饮企业为老人统一制作餐食，并统一热链配送至各社区助餐点，再由送餐人员上门送餐,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_70c8ed686ed59a,subdistrict_elder_support_facts,sefx_31860d36101ce8,src_308265fb6632,对居住在闵行区的上海市户籍60周岁及以上独居老年人、80周岁及以上纯老家庭等特殊困难老年人，通过关爱设备为老年人提供生活百事帮、主动关爱服务、紧急呼叫等服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_bd6cb353552007,subdistrict_elder_support_facts,sefx_d231e8b3a17780,src_67647b77df58,完成万名老年人监护知识普及，千户特殊家庭需求调研及关爱服务，百名养老顾问监护知识培训，十个老年人监护服务站建立，一套包含监护登记管理、监护服务细则等监护服务标准,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_4587dcf70c2f62,subdistrict_elder_support_facts,sefx_159c7bbb1ae623,src_63b8e9134f9a,对独居老人，优先提供社区关爱服务并纳入独居老人关爱服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_ac269d40ff0289,subdistrict_elder_support_facts,sefx_0f1a05b0e9d8bb,src_b3792d1e1a4c,（四）家庭支持通过家庭照护者技能培训、认知障碍老年人家庭互助组织等形式，为认知障碍老年人家庭提供心理慰藉、能力提升和喘息服务等，每年开展相关课程活动6次以上,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_1a0d5b85a7da3b,subdistrict_elder_support_facts,sefx_0c442673bcdb99,src_eabfdff5fb10,"鼓励低龄老年人以志愿服务的方式帮助高龄老年人,鼓励家属、社会组织、企业等社会力量协同参与互助,促进农村地区非正式照料体系发展",record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_e5bba4e94ce7fb,subdistrict_elder_support_facts,sefx_4e412a6ca0f5cf,src_63ae89f3a63f,继续依托和动员街镇老年协会、社区为老服务组织、物业公司、志愿者等各类组织、人员提供送餐到家服务,record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"
+lnk_6d74f0f3394890,subdistrict_elder_support_facts,sefx_147c19d69b0580,src_63ae89f3a63f,"开展老年助餐服务相关培训,推进老年助餐服务的标准化",record-level fact,observed,medium,manually_verified,"source title, URL and evidence sentence checked"

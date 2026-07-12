@@ -1,0 +1,66 @@
+[
+  {
+    "dataset_name": "elderly_hailing_access",
+    "district": "黄浦区",
+    "year": 2018,
+    "query": "黄浦区 2018 老人 叫车",
+    "search_title": "黄浦区 人民政府办公室关于印发 黄浦区 全面推进城区数字化转型“十四五”规划的通知",
+    "page_title": "黄浦区人民政府办公室关于印发黄浦区全面推进城区数字化转型“十四五”规划的通知",
+    "source_url": "https://www.shanghai.gov.cn/hsysjc-zwfwqj2/20250606/0c21397a38624ca7ad38661f6ff51dd4.html",
+    "source_id": "src_8f7a49e924e3",
+    "http_status": 200,
+    "page_hash": "49b5b4f91d7e90a90fb15476b4b21348554be4e993a07d8ecbd3dcd38b746280",
+    "content_type": "html",
+    "evidence_quotes": [
+      "推动“一键叫车”场景在老年人集中的社区落地"
+    ]
+  },
+  {
+    "dataset_name": "elderly_hailing_access",
+    "district": "黄浦区",
+    "year": 2019,
+    "query": "黄浦区 2019 老人 叫车",
+    "search_title": "黄浦区 人民政府办公室关于印发 黄浦区 全面推进城区数字化转型“十四五”规划的通知",
+    "page_title": "黄浦区人民政府办公室关于印发黄浦区全面推进城区数字化转型“十四五”规划的通知",
+    "source_url": "https://www.shanghai.gov.cn/hsysjc-zwfwqj2/20250606/0c21397a38624ca7ad38661f6ff51dd4.html",
+    "source_id": "src_8f7a49e924e3",
+    "http_status": 200,
+    "page_hash": "49b5b4f91d7e90a90fb15476b4b21348554be4e993a07d8ecbd3dcd38b746280",
+    "content_type": "html",
+    "evidence_quotes": [
+      "推动“一键叫车”场景在老年人集中的社区落地"
+    ]
+  },
+  {
+    "dataset_name": "elderly_hailing_access",
+    "district": "黄浦区",
+    "year": 2020,
+    "query": "黄浦区 2020 老人 叫车",
+    "search_title": "黄浦区 人民政府办公室关于印发 黄浦区 全面推进城区数字化转型“十四五”规划的通知",
+    "page_title": "黄浦区人民政府办公室关于印发黄浦区全面推进城区数字化转型“十四五”规划的通知",
+    "source_url": "https://www.shanghai.gov.cn/hsysjc-zwfwqj2/20250606/0c21397a38624ca7ad38661f6ff51dd4.html",
+    "source_id": "src_8f7a49e924e3",
+    "http_status": 200,
+    "page_hash": "49b5b4f91d7e90a90fb15476b4b21348554be4e993a07d8ecbd3dcd38b746280",
+    "content_type": "html",
+    "evidence_quotes": [
+      "推动“一键叫车”场景在老年人集中的社区落地"
+    ]
+  },
+  {
+    "dataset_name": "elderly_hailing_access",
+    "district": "黄浦区",
+    "year": 2025,
+    "query": "黄浦区 2025 老人 叫车",
+    "search_title": "黄浦区 人民政府办公室关于印发 黄浦区 全面推进城区数字化转型“十四五”规划的通知",
+    "page_title": "黄浦区人民政府办公室关于印发黄浦区全面推进城区数字化转型“十四五”规划的通知",
+    "source_url": "https://www.shanghai.gov.cn/hsysjc-zwfwqj2/20250606/0c21397a38624ca7ad38661f6ff51dd4.html",
+    "source_id": "src_8f7a49e924e3",
+    "http_status": 200,
+    "page_hash": "49b5b4f91d7e90a90fb15476b4b21348554be4e993a07d8ecbd3dcd38b746280",
+    "content_type": "html",
+    "evidence_quotes": [
+      "推动“一键叫车”场景在老年人集中的社区落地"
+    ]
+  }
+]

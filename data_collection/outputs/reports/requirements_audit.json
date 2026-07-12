@@ -1,0 +1,153 @@
+{
+  "generated_at": "2026-07-12T09:19:56+08:00",
+  "all_achieved": true,
+  "checks": [
+    {
+      "requirement": "1_four_nonempty_databases",
+      "achieved": true,
+      "evidence": {
+        "weather_transport_disruptions": 12,
+        "elderly_hailing_access": 9,
+        "ride_hailing_promotion_rules": 4,
+        "subdistrict_elder_support_facts": 39
+      }
+    },
+    {
+      "requirement": "2_all_16_districts_searched",
+      "achieved": true,
+      "evidence": {
+        "districts": 16,
+        "results": 125453
+      }
+    },
+    {
+      "requirement": "3_three_search_rounds",
+      "achieved": true,
+      "evidence": [
+        {
+          "search_round": 1,
+          "wave": "round_1_official",
+          "opened_evidence_pages": 2995,
+          "strict_match_sources": 40,
+          "new_core_sources": 14
+        },
+        {
+          "search_round": 2,
+          "wave": "round_2_topic",
+          "opened_evidence_pages": 4608,
+          "strict_match_sources": 71,
+          "new_core_sources": 12
+        },
+        {
+          "search_round": 3,
+          "wave": "round_3_access",
+          "opened_evidence_pages": 4,
+          "strict_match_sources": 1,
+          "new_core_sources": 0
+        }
+      ]
+    },
+    {
+      "requirement": "4_absence_search_completed",
+      "achieved": true,
+      "evidence": {
+        "near_misses": 5
+      }
+    },
+    {
+      "requirement": "5_marginal_additions_declined",
+      "achieved": true,
+      "evidence": [
+        14,
+        12,
+        0
+      ]
+    },
+    {
+      "requirement": "6_all_records_have_source_links",
+      "achieved": true,
+      "evidence": {
+        "core_records": 64,
+        "linked_records": 64
+      }
+    },
+    {
+      "requirement": "7_automated_tests_pass",
+      "achieved": true,
+      "evidence": ".................                                                        [100%]\n17 passed in 2.35s"
+    },
+    {
+      "requirement": "8_sqlite_csv_parquet_generated",
+      "achieved": true,
+      "evidence": {
+        "build_returncode": 0,
+        "exports": true
+      }
+    },
+    {
+      "requirement": "9_required_documents_generated",
+      "achieved": true,
+      "evidence": [
+        "DATA_DICTIONARY.md",
+        "SEARCH_METHODOLOGY.md",
+        "DATABASE_ABSENCE_SEARCH.md",
+        "DATA_QUALITY_REPORT.md",
+        "MODEL_PARAMETER_MAPPING.md",
+        "SOURCE_LIMITATIONS.md",
+        "REPRODUCTION.md"
+      ]
+    },
+    {
+      "requirement": "10_nine_real_subdistrict_prototypes",
+      "achieved": true,
+      "evidence": [
+        {
+          "district": "黄浦区",
+          "subdistrict": "南京东路街道"
+        },
+        {
+          "district": "徐汇区",
+          "subdistrict": "徐家汇街道"
+        },
+        {
+          "district": "长宁区",
+          "subdistrict": "程家桥街道"
+        },
+        {
+          "district": "静安区",
+          "subdistrict": "临汾路街道"
+        },
+        {
+          "district": "普陀区",
+          "subdistrict": "长寿路街道"
+        },
+        {
+          "district": "杨浦区",
+          "subdistrict": "四平路街道"
+        },
+        {
+          "district": "浦东新区",
+          "subdistrict": "周浦镇"
+        },
+        {
+          "district": "松江区",
+          "subdistrict": "新桥镇"
+        },
+        {
+          "district": "崇明区",
+          "subdistrict": "陈家镇"
+        }
+      ]
+    },
+    {
+      "requirement": "11_existing_project_tests_still_pass",
+      "achieved": true,
+      "evidence": ".................                                                        [100%]\n17 passed in 2.35s"
+    },
+    {
+      "requirement": "12_one_command_rebuild",
+      "achieved": true,
+      "evidence": "python scripts/build_all_databases.py"
+    }
+  ]
+}

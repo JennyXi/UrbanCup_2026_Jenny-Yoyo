@@ -1,0 +1,13 @@
+﻿dataset_name,search_round,query_template
+weather_transport_disruptions,1,{district} {year} 暴雨 交通
+weather_transport_disruptions,2,{district} {year} 道路积水
+weather_transport_disruptions,3,{district} {year} 台风 停运
+elderly_hailing_access,1,{district} {year} 老人 叫车
+elderly_hailing_access,2,{district} {year} 一键叫车
+elderly_hailing_access,3,{district} {year} 95128 助老
+ride_hailing_promotion_rules,1,上海 {year} 网约车 优惠
+ride_hailing_promotion_rules,2,上海 {year} 打车券 满减
+ride_hailing_promotion_rules,3,上海 {year} 滴滴 高德 申程 优惠规则
+subdistrict_elder_support_facts,1,{district} {year} 街道 老人 服务
+subdistrict_elder_support_facts,2,{district} {year} 独居老人 志愿 探访
+subdistrict_elder_support_facts,3,{district} {year} 助医 陪诊 数字培训

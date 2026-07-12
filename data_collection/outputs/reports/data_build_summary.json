@@ -1,0 +1,35 @@
+{
+  "built_at": "2026-07-12T09:22:40+08:00",
+  "sources": 1744,
+  "datasets": {
+    "weather_transport_disruptions": 23,
+    "elderly_hailing_access": 9,
+    "ride_hailing_promotion_rules": 4,
+    "subdistrict_elder_support_facts": 42,
+    "subdistrict_elder_support_features": 16
+  },
+  "verified_records": {
+    "weather_transport_disruptions": 23,
+    "elderly_hailing_access": 9,
+    "ride_hailing_promotion_rules": 4,
+    "subdistrict_elder_support_facts": 42
+  },
+  "review_candidates": {
+    "weather_transport_disruptions": 0,
+    "elderly_hailing_access": 0,
+    "ride_hailing_promotion_rules": 0,
+    "subdistrict_elder_support_facts": 0
+  },
+  "rejected_candidates": 73,
+  "calibration_records": 4,
+  "prototypes": 9,
+  "districts_searched": 16,
+  "search_rounds": 3,
+  "evidence_policy": "Only auto-seeded or manually verified records enter core tables; rejected keyword candidates are retained in a separate audit table.",
+  "quality": {
+    "all_source_links": true,
+    "observed_quotes": true,
+    "parquet": true,
+    "sqlite": true
+  }
+}

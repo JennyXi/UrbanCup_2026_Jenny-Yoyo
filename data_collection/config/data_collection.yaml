@@ -1,0 +1,9 @@
+project: shanghai_mobility_evidence
+accessed_at: 2026-07-11
+date_range: [2018-01-01, 2026-07-11]
+user_agent: Shanghai-Mobility-Evidence-Pipeline/1.0
+request_timeout_seconds: 15
+rate_limit_seconds: 0.2
+missing_boolean_policy: null_not_false
+source_policy: no_search_snippet_as_sole_evidence
+stable_ids: sha1_normalized_entity_date_url
