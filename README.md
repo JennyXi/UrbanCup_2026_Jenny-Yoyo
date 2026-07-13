@@ -2,7 +2,7 @@
 
 本仓库正在构建一个以上海总体人口结构和空间趋势为参考的九区合成城市，用于研究极端夏季天气、数字接入和出行补贴政策对不同年龄人群潜在出行机会的影响。
 
-当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、正常天气分时段基础交通供给、天气响应规则和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
+当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、正常天气分时段基础交通供给、天气响应规则、天气交通供给、动态道路拥堵和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
 
 ## 已完成模块
 
@@ -86,9 +86,18 @@
 - 复用 T7 基础速度、T8 时段方向乘数和 T2 天气窗口，按 `base_speed × period_direction_multiplier × weather_speed_multiplier` 分段计算；
 - 暴雨降低步行、公交和网约车速度，地铁保持正常速度；道路容量使用独立乘数，不参与速度计算；
 - 暴雨结束后先进入恢复阶段；高温默认不改变速度；
-- 不实现车辆周转、派单、动态拥堵、活动取消或方式选择，重复运行也不会重复叠加天气影响。
+- 本层自身不实现车辆周转、派单、动态拥堵、活动取消或方式选择；其天气后自由流速度和道路容量信号供 T10 使用，重复运行也不会重复叠加天气影响。
 
 详细说明见 [`docs/T9_weather_supply/README.md`](docs/T9_weather_supply/README.md)。
+
+### T10：动态道路拥堵层
+
+- 接在 T9 天气供给之后，以外生或聚合道路交通量计算天气容量、v/c 和 BPR 动态拥堵速度乘数；
+- 公交和网约车在相同道路状态下共享容量、流量、v/c 与拥堵乘数，同时保留各自的基础速度；
+- 步行和地铁不参与机动车道路容量计算，动态拥堵乘数固定为 1.00；
+- 不实现方式选择、车辆周转、派单、动态等待或动态加价，重复运行不会累计拥堵折减。
+
+详细说明见 [`docs/T10_dynamic_congestion/README.md`](docs/T10_dynamic_congestion/README.md)。
 
 ## 当前核心流程
 
@@ -103,6 +112,7 @@ total_agents
 → 九区多方式OD备选方案
 → 正常天气分时段leg—mode供给
 → 天气对外生交通供给的分段影响
+→ 外生聚合道路流量驱动的动态拥堵
 → T2天气继续/取消判断
 → T3政策优惠与派单资格
 ```
@@ -121,13 +131,14 @@ python -B -X utf8 -m unittest tests.test_policy_t3 -v
 python -B -X utf8 -m unittest tests.test_transport_network -v
 python -B -X utf8 -m unittest tests.test_time_dependent_transport_supply -v
 python -B -X utf8 -m unittest tests.test_weather_transport_supply -v
+python -B -X utf8 -m unittest tests.test_dynamic_road_congestion -v
 ```
 
 ## 尚未实现
 
 - mode choice；
 - 网约车订单、价格计算和优惠实际使用；
-- 车辆竞争、派单成功、等待时间与拥堵；
+- 车辆竞争、派单成功、动态等待与内生交通量生成；
 - AgentSociety 端到端仿真。
 
 下一阶段需要把每条Agent leg与多方式OD备选方案连接起来并实现mode choice；当前交通网络不读取Agent属性，也不生成订单或派单结果。

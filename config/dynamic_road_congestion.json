@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0",
+  "layer_id": "dynamic_exogenous_road_congestion_v1",
+  "road_modes": ["bus", "ride_hailing"],
+  "non_road_modes": ["walk", "metro"],
+  "capacity_unit": "passenger_car_equivalent_per_hour_per_direction",
+  "capacity_profiles": {
+    "aggregate_network": {
+      "normal_road_capacity": 1800.0,
+      "provenance": "model_assumption_for_aggregate_directional_road_state",
+      "sensitivity_range": {"low": 1200.0, "base": 1800.0, "high": 2400.0}
+    }
+  },
+  "congestion_function": {
+    "type": "bpr_speed_multiplier",
+    "alpha": 0.15,
+    "beta": 4.0,
+    "formula": "dynamic_congestion_multiplier = 1 / (1 + alpha * volume_capacity_ratio ^ beta)",
+    "provenance": "model_assumption_for_sensitivity_analysis_not_estimated_from_yoyo_database",
+    "sensitivity_ranges": {
+      "alpha": {"low": 0.05, "base": 0.15, "high": 0.30},
+      "beta": {"low": 2.0, "base": 4.0, "high": 6.0}
+    }
+  },
+  "traffic_volume_input": {
+    "source": "explicit_exogenous_or_aggregate_road_state_input_from_model_runner",
+    "generated_by_this_layer": false,
+    "agent_mode_choice_required": false,
+    "unit": "passenger_car_equivalent_per_hour_per_direction",
+    "notes": "Bus and ride_hailing must receive the same road_state_id, capacity profile and aggregate volume when they share a road state. This layer does not add the evaluated trip to volume."
+  },
+  "calculation_order": [
+    "weather_free_flow_speed = base_speed * period_direction_multiplier * weather_speed_multiplier",
+    "weather_capacity = normal_road_capacity * road_capacity_multiplier",
+    "volume_capacity_ratio = current_road_volume / weather_capacity",
+    "dynamic_congestion_multiplier = congestion_function(volume_capacity_ratio)",
+    "final_speed = weather_free_flow_speed * dynamic_congestion_multiplier"
+  ],
+  "boundaries": {
+    "t7_fields_overwritten": false,
+    "t8_fields_overwritten": false,
+    "t9_fields_overwritten": false,
+    "road_capacity_multiplier_used_directly_as_speed_multiplier": false,
+    "agent_mode_choice_applied": false,
+    "ride_hailing_vehicle_turnover_applied": false,
+    "dispatch_applied": false,
+    "dynamic_waiting_applied": false,
+    "dynamic_pricing_applied": false,
+    "dispatch_failure_applied": false
+  }
+}

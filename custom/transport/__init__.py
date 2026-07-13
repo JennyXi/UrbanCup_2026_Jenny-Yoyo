@@ -22,6 +22,12 @@ from .weather_supply import (
     weather_events_from_t2_config,
     weather_supply_parameters,
 )
+from .dynamic_congestion import (
+    DYNAMIC_CONGESTION_EXTRA_FIELDS,
+    bpr_dynamic_congestion_multiplier,
+    calculate_dynamic_congestion_leg_mode_option,
+    load_dynamic_congestion_configuration,
+)
 
 __all__ = [
     "MODES",
@@ -40,4 +46,8 @@ __all__ = [
     "load_weather_supply_configuration",
     "weather_events_from_t2_config",
     "weather_supply_parameters",
+    "DYNAMIC_CONGESTION_EXTRA_FIELDS",
+    "bpr_dynamic_congestion_multiplier",
+    "calculate_dynamic_congestion_leg_mode_option",
+    "load_dynamic_congestion_configuration",
 ]
