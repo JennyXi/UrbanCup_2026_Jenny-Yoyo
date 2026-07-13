@@ -232,3 +232,18 @@ stats = mod.compute_trip_continue_rates(legs_for_stats)
 print('Stats sample:', stats)
 
 print('All tests passed (subject to probabilistic outcomes).')
+
+# Detailed activity purposes map to the three weather-sensitivity groups.
+assert mod.map_activity_to_weather_purpose('work') == 'work'
+assert mod.map_activity_to_weather_purpose('medical') == 'medical'
+for activity_purpose in (
+    'shopping', 'social_leisure', 'visit',
+    'out_of_home_family_care', 'out_of_home_family_activity',
+):
+    assert mod.map_activity_to_weather_purpose(activity_purpose) == 'daily'
+for removed_purpose in ('social', 'leisure'):
+    try:
+        mod.map_activity_to_weather_purpose(removed_purpose)
+        raise AssertionError('legacy purpose unexpectedly accepted')
+    except ValueError:
+        pass

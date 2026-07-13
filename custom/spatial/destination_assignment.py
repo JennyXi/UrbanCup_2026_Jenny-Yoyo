@@ -22,10 +22,10 @@ DEFAULT_DESTINATION_CONFIG_PATH = Path(__file__).resolve().parents[2] / "config"
 ZONE_IDS = tuple(f"Z{index}" for index in range(1, 10))
 SUPPORTED_PURPOSES = (
     "work", "medical", "visit", "out_of_home_family_care",
-    "out_of_home_family_activity", "shopping", "social", "leisure",
+    "out_of_home_family_activity", "shopping", "social_leisure",
 )
 FAMILY_PURPOSES = {"visit", "out_of_home_family_care", "out_of_home_family_activity"}
-ACTIVITY_LEVEL_PURPOSES = {"shopping", "social", "leisure"}
+ACTIVITY_LEVEL_PURPOSES = {"shopping", "social_leisure"}
 ATTRACTION_FIELDS = ("employment_weight", "medical_weight", "service_weight")
 MECHANISM = "gravity_soft_penalty_extreme_hard_exclusion"
 
@@ -339,7 +339,7 @@ def assign_destination_zones_with_audit(agents: Iterable[Any], weekly_activities
 
     by_group = {}
     total_events = total_exclusions = total_fallbacks = 0
-    for group in ("work", "medical", "family", "shopping", "social", "leisure"):
+    for group in ("work", "medical", "family", "shopping", "social_leisure"):
         values = event_audit[group]
         events = values["selection_event_count"]
         fallbacks = values["fallback_count"]

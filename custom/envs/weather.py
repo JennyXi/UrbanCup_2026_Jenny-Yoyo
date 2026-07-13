@@ -20,6 +20,26 @@ import datetime
 
 WEEK_LABELS = ("W0", "W1", "W2")
 
+# Activity purposes are collapsed only for weather-cancellation sensitivity.
+# The baseline activity records retain their detailed purpose labels.
+WEATHER_PURPOSE_BY_ACTIVITY = {
+    "work": "work",
+    "medical": "medical",
+    "shopping": "daily",
+    "social_leisure": "daily",
+    "visit": "daily",
+    "out_of_home_family_care": "daily",
+    "out_of_home_family_activity": "daily",
+}
+
+
+def map_activity_to_weather_purpose(activity_purpose: str) -> str:
+    """Map a modeled activity type to work/medical/daily weather behavior."""
+    try:
+        return WEATHER_PURPOSE_BY_ACTIVITY[activity_purpose]
+    except KeyError as exc:
+        raise ValueError(f"Unsupported activity purpose for weather: {activity_purpose}") from exc
+
 
 def _parse_time_hhmm(t: str) -> datetime.time:
     try:

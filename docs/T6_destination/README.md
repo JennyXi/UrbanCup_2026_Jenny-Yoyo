@@ -43,23 +43,22 @@ effective_distance(i,i) = mean_intrazonal_distance[i]
 | Purpose | Attraction | Beta |
 |---|---|---:|
 | work | employment_weight | 0.06 |
-| medical | medical_weight | 0.10 |
+| medical | medical_weight | 0.14 |
 | visit / out-of-home family | population_weight | 0.06 |
 | shopping | service_weight | 0.14 |
-| social / leisure | service_weight | 0.10 |
+| social_leisure | service_weight | 0.10 |
 
 Purpose-specific约束：
 
 | Purpose | Soft limit | Extra decay | Hard limit |
 |---|---:|---:|---:|
 | work | 15 km | 0.10 | 30 km |
-| medical | 10 km | 0.12 | 25 km |
+| medical | 12 km | 0.10 | 30 km |
 | visit | 15 km | 0.10 | 30 km |
 | out_of_home_family_care | 12 km | 0.12 | 25 km |
 | out_of_home_family_activity | 12 km | 0.12 | 25 km |
 | shopping | 8 km | 0.18 | 20 km |
-| social | 10 km | 0.14 | 25 km |
-| leisure | 12 km | 0.12 | 25 km |
+| social_leisure | 12 km | 0.12 | 25 km |
 
 `employment_weight` 将 Z1 设为第一就业中心、Z7 设为第二就业中心，并提高 Z6 作为产业就业节点的权重。`medical_weight` 和 `service_weight` 强化 Z7 的综合副中心作用。所有参数均为合成机制，不解释为上海实证值。
 
@@ -68,7 +67,7 @@ Purpose-specific约束：
 - 每名 regular/part-time worker整周复用一个 `work_zone`；Z1、Z7 和 Z6 分别承担主中心、副中心和产业节点就业吸引力；
 - 每名有医疗活动的Agent整周复用一个 `medical_zone`；
 - `visit`、`out_of_home_family_care`、`out_of_home_family_activity`整周复用同一个 `family_zone`；
-- shopping、social、leisure按activity独立分配。
+- shopping、social_leisure按activity独立分配。
 
 work、medical和family在任何天气或政策场景分支前按Agent各抽样一次，之后所有反事实场景复用。Family使用baseline week中实际出现的family purposes的最严格soft/hard约束，避免逐activity抽样绕过约束。
 

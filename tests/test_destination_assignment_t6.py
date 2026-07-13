@@ -88,9 +88,9 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
         seen_same = set()
         for seed in range(20):
             for item in self.assign(seed=seed):
-                if item["activity_purpose"] in {"shopping", "social", "leisure"} and item["home_zone"] == item["destination_zone"]:
+                if item["activity_purpose"] in {"shopping", "social_leisure"} and item["home_zone"] == item["destination_zone"]:
                     seen_same.add(item["activity_purpose"])
-        self.assertEqual(seen_same, {"shopping", "social", "leisure"})
+        self.assertEqual(seen_same, {"shopping", "social_leisure"})
 
     def test_work_and_medical_are_not_all_z1(self):
         assigned = self.assign()
@@ -98,6 +98,31 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
             destinations = {item["destination_zone"] for item in assigned if item["activity_purpose"] == purpose}
             self.assertTrue(destinations)
             self.assertNotEqual(destinations, {"Z1"})
+
+    def test_peripheral_medical_choice_prefers_nearby_options_without_center_binary(self):
+        spatial = {zone["zone_id"]: zone for zone in self.derived["zones"]}
+        destinations = Counter()
+        nearby_choices = 0
+        total = 0
+        for home in ("Z4", "Z5", "Z8", "Z9"):
+            nearest = {
+                zone_id for zone_id, _ in sorted(
+                    ((zone_id, effective_choice_distance(home, zone_id, spatial)) for zone_id in ZONE_IDS),
+                    key=lambda item: item[1],
+                )[:3]
+            }
+            for agent_id in range(200):
+                destination, _ = _choose_zone(
+                    agent_id=f"{home}-{agent_id}", random_key="medical-test",
+                    home_zone=home, purpose="medical", spatial_by_id=spatial,
+                    config=self.config, seed=47,
+                )
+                destinations[destination] += 1
+                nearby_choices += destination in nearest
+                total += 1
+        self.assertGreaterEqual(nearby_choices / total, 0.60)
+        self.assertLess((destinations["Z1"] + destinations["Z7"]) / total, 0.50)
+        self.assertGreater(len(destinations), 4)
 
     def test_z7_workers_may_work_in_z7_without_candidate_restriction(self):
         seen_destinations = set()
@@ -300,7 +325,7 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
 
         removable = next(
             item for item in self.activities
-            if item["activity_purpose"] in {"shopping", "social", "leisure"}
+            if item["activity_purpose"] in {"shopping", "social_leisure"}
         )
         reduced_input = [
             item for item in self.activities

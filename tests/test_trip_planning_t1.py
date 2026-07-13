@@ -77,9 +77,10 @@ class BaselineActivityPlanningTests(unittest.TestCase):
         result = generate_weekly_activity_plan_with_audit(agent, WEEK_START, 31)
         audit = result["audit"]
         self.assertEqual(audit["modeled_activity_slot_count"] + audit["no_in_scope_slot_count"], audit["total_candidate_slots"])
-        self.assertEqual(audit["fixed_activity_slot_count"], 5)
+        self.assertGreaterEqual(audit["fixed_activity_slot_count"], 5)
         self.assertGreater(audit["no_in_scope_slot_count"], audit["empty_agent_day_count"])
-        self.assertEqual(audit["slot_breakdown"]["weekday_evening_activity"]["total_candidate_slots"], 5)
+        self.assertEqual(audit["slot_breakdown"]["weekday_activity"]["total_candidate_slots"], 15)
+        self.assertEqual(audit["slot_breakdown"]["weekend_activity"]["total_candidate_slots"], 8)
         aggregate = generate_seven_day_activity_plans_with_audit([agent, placed_agent(8, "40-59")], WEEK_START, 31)["audit"]
         self.assertEqual(aggregate["modeled_activity_slot_count"] + aggregate["no_in_scope_slot_count"], aggregate["total_candidate_slots"])
 
@@ -119,6 +120,50 @@ class BaselineActivityPlanningTests(unittest.TestCase):
                     found_empty_weekend_slot = True
                     break
             self.assertTrue(found_empty_weekend_slot, age)
+
+    def test_daily_activity_count_limits_and_weekend_four_activity_tail(self):
+        observed_weekend_counts = set()
+        for age in ("18-39", "40-59", "60+"):
+            for agent_id in range(1, 400):
+                records = generate_weekly_activity_plan(
+                    placed_agent(agent_id, age, medical_need_level="standard" if age == "60+" else None),
+                    WEEK_START,
+                    45,
+                )
+                daily = Counter(item["day_of_week"] for item in records)
+                self.assertTrue(all(daily[day] <= 3 for day in ("Monday", "Tuesday", "Wednesday", "Thursday", "Friday")))
+                self.assertTrue(all(daily[day] <= 4 for day in ("Saturday", "Sunday")))
+                observed_weekend_counts.update(daily[day] for day in ("Saturday", "Sunday"))
+        self.assertIn(4, observed_weekend_counts)
+
+    def test_all_age_groups_can_emit_reasonable_optional_purposes(self):
+        required = {
+            "shopping", "social_leisure", "visit", "out_of_home_family_activity",
+            "out_of_home_family_care", "medical",
+        }
+        for age in ("18-39", "40-59", "60+"):
+            purposes = set()
+            for agent_id in range(1, 500):
+                records = generate_weekly_activity_plan(
+                    placed_agent(agent_id, age, medical_need_level="standard" if age == "60+" else None),
+                    WEEK_START,
+                    49,
+                )
+                purposes.update(item["activity_purpose"] for item in records)
+            self.assertTrue(required.issubset(purposes), (age, required - purposes))
+
+    def test_legacy_social_and_leisure_are_never_emitted(self):
+        activities = []
+        for age in ("18-39", "40-59", "60+"):
+            for agent_id in range(1, 200):
+                activities.extend(generate_weekly_activity_plan(
+                    placed_agent(agent_id, age, medical_need_level="standard" if age == "60+" else None),
+                    WEEK_START,
+                    51,
+                ))
+        purposes = {item["activity_purpose"] for item in activities}
+        self.assertIn("social_leisure", purposes)
+        self.assertTrue({"social", "leisure"}.isdisjoint(purposes))
 
     def test_standard_elder_has_at_most_two_nonconsecutive_medical_days(self):
         for agent_id in range(1, 100):
@@ -182,6 +227,19 @@ class BaselineActivityPlanningTests(unittest.TestCase):
             found.extend(item for item in generate_weekly_activity_plan(placed_agent(agent_id, "60+", medical_need_level="standard"), WEEK_START, 71) if item["activity_purpose"] == "medical")
         self.assertTrue(found)
         self.assertTrue(all(item["is_mandatory"] and item["baseline_cancel_probability"] == 0.01 for item in found))
+
+    def test_medical_activities_end_by_twenty_hundred(self):
+        for age in ("18-39", "40-59", "60+"):
+            for agent_id in range(1, 200):
+                records = generate_weekly_activity_plan(
+                    placed_agent(agent_id, age, medical_need_level="standard" if age == "60+" else None),
+                    WEEK_START,
+                    72,
+                )
+                for item in records:
+                    if item["activity_purpose"] == "medical":
+                        end = item["planned_end_datetime"].time()
+                        self.assertLessEqual(end.hour * 60 + end.minute, 20 * 60)
 
     def test_removed_local_and_home_family_purposes_never_emit(self):
         removed = {"daily_errand", "grocery", "community", "park", "no_in_scope_trip", "family_care", "family_activity"}

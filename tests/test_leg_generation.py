@@ -1,11 +1,12 @@
 import unittest
 from collections import defaultdict
+from copy import deepcopy
 from datetime import datetime, timedelta
 
 from custom.agents.agent_population import generate_population_agents
 from custom.agents.leg_generation import HOME_ARRIVAL_DEADLINES, build_time_feasible_legs
 from custom.agents.trip_planning import NON_WORK_DURATION_OPTIONS, generate_seven_day_activity_plans
-from custom.spatial.destination_assignment import assign_destination_zones, load_destination_configuration
+from custom.spatial.destination_assignment import assign_destination_zones, effective_choice_distance, load_destination_configuration
 from custom.spatial.home_zone_assignment import assign_home_zones
 from custom.spatial.zone_configuration import allocate_zone_age_quotas, derive_spatial_configuration, load_zone_configuration
 
@@ -87,7 +88,6 @@ class LegGenerationTests(unittest.TestCase):
                 duration = int((activity["planned_end_datetime"] - activity["planned_start_datetime"]).total_seconds() / 60)
                 self.assertIn(duration, allowed[activity["activity_purpose"]])
                 self.assertGreaterEqual(duration, 30)
-                self.assertLessEqual(duration, 480)
             if activity["activity_purpose"] == "out_of_home_family_care":
                 self.assertFalse(activity["is_mandatory"])
 
@@ -113,6 +113,59 @@ class LegGenerationTests(unittest.TestCase):
                 self.assertFalse(arrival.date() > datetime.fromisoformat(leg["date"]).date() and arrival.time() > deadline)
             else:
                 self.assertLessEqual(arrival.time(), deadline)
+
+    def test_optional_activity_with_next_day_start_is_cancelled_not_wrapped(self):
+        agent = next(agent for agent in self.agents if agent.age_group == "18-39")
+        activity = deepcopy(next(item for item in self.activities if item["agent_id"] == agent.agent_id))
+        day = activity["planned_start_datetime"].date()
+        activity.update({
+            "activity_id": "bad-midnight-wrap",
+            "activity_purpose": "social_leisure",
+            "is_mandatory": False,
+            "destination_zone": agent.home_zone,
+            "planned_start_datetime": datetime.combine(day + timedelta(days=1), datetime.min.time()),
+            "planned_end_datetime": datetime.combine(day, datetime.min.time().replace(hour=23, minute=30)),
+        })
+        result = build_time_feasible_legs([agent], [activity], self.spatial_by_id)
+        self.assertEqual(result, {"activities": [], "legs": []})
+
+    def test_optional_activity_over_eight_hours_is_retained_when_feasible(self):
+        agent = next(agent for agent in self.agents if agent.age_group == "18-39")
+        activity = deepcopy(next(item for item in self.activities if item["agent_id"] == agent.agent_id))
+        day = activity["planned_start_datetime"].date()
+        activity.update({
+            "activity_id": "overlong-optional",
+            "activity_purpose": "social_leisure",
+            "is_mandatory": False,
+            "destination_zone": agent.home_zone,
+            "planned_start_datetime": datetime.combine(day, datetime.min.time().replace(hour=9)),
+            "planned_end_datetime": datetime.combine(day, datetime.min.time().replace(hour=22)),
+        })
+        retained = build_time_feasible_legs([agent], [activity], self.spatial_by_id)["activities"]
+        self.assertEqual(len(retained), 1)
+        duration = retained[0]["planned_end_datetime"] - retained[0]["planned_start_datetime"]
+        self.assertEqual(duration, timedelta(hours=13))
+
+    def test_final_optional_activity_is_moved_or_shortened_before_elder_return_deadline(self):
+        agent = next(agent for agent in self.agents if agent.age_group == "60+")
+        activity = deepcopy(next(item for item in self.activities if item["agent_id"] == agent.agent_id))
+        day = activity["planned_start_datetime"].date()
+        farthest = max(
+            self.spatial_by_id,
+            key=lambda zone: effective_choice_distance(agent.home_zone, zone, self.spatial_by_id),
+        )
+        activity.update({
+            "activity_id": "elder-late-optional",
+            "activity_purpose": "social_leisure",
+            "is_mandatory": False,
+            "destination_zone": farthest,
+            "planned_start_datetime": datetime.combine(day, datetime.min.time().replace(hour=18)),
+            "planned_end_datetime": datetime.combine(day, datetime.min.time().replace(hour=19, minute=30)),
+        })
+        result = build_time_feasible_legs([agent], [activity], self.spatial_by_id)
+        self.assertEqual(len(result["activities"]), 1)
+        return_leg = next(leg for leg in result["legs"] if leg["leg_role"] == "return_home")
+        self.assertLessEqual(return_leg["arrival_time"], datetime.combine(day, HOME_ARRIVAL_DEADLINES["60+"]))
 
 
 if __name__ == "__main__":

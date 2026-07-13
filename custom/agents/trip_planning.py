@@ -32,36 +32,49 @@ BASELINE_CANCEL_PROBABILITY = {
     "out_of_home_family_activity": 0.12,
     "shopping": 0.15,
     "visit": 0.16,
-    "leisure": 0.24,
-    "social": 0.24,
+    "social_leisure": 0.24,
 }
-YOUNG_WEEKDAY_EVENING_PROBABILITY = 0.30
-MIDDLE_AGE_WEEKDAY_EVENING_PROBABILITY = 0.20
-YOUNG_WEEKEND_NO_IN_SCOPE_PROBABILITY = 0.15
-MIDDLE_WEEKEND_NO_IN_SCOPE_PROBABILITY = 0.20
 MEDICAL_WEEKLY_COUNT_OPTIONS = {
     "low": (0, 1),
     "standard": (0, 1, 2),
     "high": (1, 2, 3),
 }
-MIDDLE_AGE_EVENING_PURPOSE_PROBABILITIES = (
-    ("out_of_home_family_care", 0.48), ("no_in_scope_trip", 0.30), ("shopping", 0.22),
-)
-YOUNG_WEEKEND_PURPOSE_PROBABILITIES = (
-    ("shopping", 0.24), ("leisure", 0.25), ("social", 0.20), ("visit", 0.16),
-    ("no_in_scope_trip", YOUNG_WEEKEND_NO_IN_SCOPE_PROBABILITY),
-)
-MIDDLE_WEEKEND_PURPOSE_PROBABILITIES = (
-    ("out_of_home_family_activity", 0.35), ("shopping", 0.25), ("visit", 0.20),
-    ("no_in_scope_trip", MIDDLE_WEEKEND_NO_IN_SCOPE_PROBABILITY),
-)
-ELDER_WEEKEND_PURPOSE_PROBABILITIES = (
-    ("visit", 0.36), ("no_in_scope_trip", 0.34), ("out_of_home_family_activity", 0.30),
-)
-FLEXIBLE_WEEKDAY_PURPOSE_PROBABILITIES = (
-    ("shopping", 0.12), ("social", 0.10), ("leisure", 0.10), ("visit", 0.08),
-    ("no_in_scope_trip", 0.60),
-)
+
+# Total modeled out-of-home activities per day. Work and scheduled elder
+# medical visits count toward these totals. Weekends are more active; age
+# changes probabilities rather than forbidding otherwise reasonable purposes.
+DAILY_ACTIVITY_COUNT_OPTIONS = {
+    "weekday": {
+        "18-39": ((0, 0.15), (1, 0.55), (2, 0.25), (3, 0.05)),
+        "40-59": ((0, 0.25), (1, 0.55), (2, 0.17), (3, 0.03)),
+        "60+": ((0, 0.45), (1, 0.43), (2, 0.10), (3, 0.02)),
+    },
+    "weekend": {
+        "18-39": ((0, 0.10), (1, 0.28), (2, 0.34), (3, 0.23), (4, 0.05)),
+        "40-59": ((0, 0.18), (1, 0.36), (2, 0.29), (3, 0.14), (4, 0.03)),
+        "60+": ((0, 0.32), (1, 0.42), (2, 0.20), (3, 0.05), (4, 0.01)),
+    },
+}
+
+OPTIONAL_PURPOSE_PROBABILITIES = {
+    "18-39": (
+        ("shopping", 0.25), ("social_leisure", 0.40), ("visit", 0.16),
+        ("out_of_home_family_activity", 0.09),
+        ("out_of_home_family_care", 0.04), ("medical", 0.06),
+    ),
+    "40-59": (
+        ("shopping", 0.23), ("social_leisure", 0.22), ("visit", 0.17),
+        ("out_of_home_family_activity", 0.17),
+        ("out_of_home_family_care", 0.11), ("medical", 0.10),
+    ),
+    # Elder medical frequency continues to come from medical_need_level;
+    # all optional daily-life purposes remain possible.
+    "60+": (
+        ("shopping", 0.28), ("social_leisure", 0.20), ("visit", 0.24),
+        ("out_of_home_family_activity", 0.20),
+        ("out_of_home_family_care", 0.08),
+    ),
+}
 OUTPUT_FIELDS = (
     "agent_id", "age_group", "work_status", "medical_need_level", "day_of_week",
     "is_weekend", "activity_id", "activity_sequence", "sequence_order", "activity_purpose", "home_zone",
@@ -70,15 +83,15 @@ OUTPUT_FIELDS = (
 )
 
 # Purpose-specific discrete duration distributions (minutes, probability).
-# All durations are on the model's 30-minute grid and remain within 0.5-8 hours.
+# All durations are on the model's 30-minute grid and last at least 30 minutes.
+# Long social, visiting, and family activities may exceed eight hours.
 NON_WORK_DURATION_OPTIONS = {
     "shopping": ((30, 0.30), (60, 0.40), (90, 0.20), (120, 0.10)),
     "medical": ((60, 0.15), (90, 0.25), (120, 0.25), (180, 0.20), (240, 0.15)),
-    "social": ((60, 0.15), (120, 0.30), (180, 0.25), (240, 0.20), (360, 0.10)),
-    "visit": ((60, 0.10), (120, 0.25), (180, 0.25), (240, 0.20), (360, 0.15), (480, 0.05)),
-    "leisure": ((60, 0.10), (120, 0.25), (180, 0.25), (240, 0.20), (360, 0.15), (480, 0.05)),
-    "out_of_home_family_care": ((60, 0.10), (120, 0.25), (180, 0.25), (240, 0.20), (360, 0.15), (480, 0.05)),
-    "out_of_home_family_activity": ((60, 0.15), (120, 0.30), (180, 0.25), (240, 0.20), (360, 0.10)),
+    "social_leisure": ((60, 0.10), (120, 0.24), (180, 0.22), (240, 0.18), (360, 0.10), (480, 0.08), (600, 0.05), (720, 0.03)),
+    "visit": ((60, 0.10), (120, 0.24), (180, 0.22), (240, 0.18), (360, 0.10), (480, 0.08), (600, 0.05), (720, 0.03)),
+    "out_of_home_family_care": ((60, 0.08), (120, 0.20), (180, 0.22), (240, 0.18), (360, 0.14), (480, 0.08), (600, 0.06), (720, 0.04)),
+    "out_of_home_family_activity": ((60, 0.12), (120, 0.25), (180, 0.22), (240, 0.17), (360, 0.12), (480, 0.08), (600, 0.04)),
 }
 
 
@@ -194,6 +207,86 @@ def _sample_duration(rng: random.Random, purpose: str) -> int:
     return rng.choices([item[0] for item in options], weights=[item[1] for item in options], k=1)[0]
 
 
+def _sample_activity_count(rng: random.Random, age_group: str, weekend: bool) -> int:
+    options = DAILY_ACTIVITY_COUNT_OPTIONS["weekend" if weekend else "weekday"][age_group]
+    return rng.choices([item[0] for item in options], weights=[item[1] for item in options], k=1)[0]
+
+
+def _clock_minutes(value: time) -> int:
+    return value.hour * 60 + value.minute
+
+
+def _schedule_optional_templates(
+    rng: random.Random,
+    age_group: str,
+    count: int,
+    occupied: Sequence[Tuple[str, time, time]],
+    *,
+    weekend: bool,
+    after_work_only: bool = False,
+) -> List[Tuple[str, time, time]]:
+    """Place optional activities on the 30-minute grid without overlap.
+
+    A conservative 90-minute planning buffer is left around activities so the
+    later destination draw can realize even the model's extreme cross-zone
+    travel time without breaking a fixed arrival or the home deadline.
+    """
+    if count <= 0:
+        return []
+    day_end = {"18-39": 22 * 60 + 30, "40-59": 20 * 60 + 30, "60+": 18 * 60 + 30}[age_group]
+    earliest = 9 * 60
+    work_rows = [row for row in occupied if row[0] == "work"]
+    if after_work_only and work_rows:
+        earliest = max(earliest, _clock_minutes(work_rows[0][2]) + 90)
+
+    placed = list(occupied)
+    optional = []
+    for _ in range(count):
+        purpose = _weighted_choice(rng, OPTIONAL_PURPOSE_PROBABILITIES[age_group])
+        candidates_by_duration = []
+        for duration, probability in NON_WORK_DURATION_OPTIONS[purpose]:
+            starts = []
+            for start in range(earliest, day_end - duration + 1, 30):
+                end = start + duration
+                if purpose == "shopping" and (start < 10 * 60 or end > 22 * 60):
+                    continue
+                if purpose == "medical" and end > 20 * 60:
+                    continue
+                conflicts = any(
+                    start < _clock_minutes(existing_end) + 90
+                    and end + 90 > _clock_minutes(existing_start)
+                    for _, existing_start, existing_end in placed
+                )
+                if not conflicts:
+                    starts.append(start)
+            if starts:
+                candidates_by_duration.append((duration, probability, starts))
+        if not candidates_by_duration:
+            continue
+        duration_row = rng.choices(
+            candidates_by_duration,
+            weights=[row[1] for row in candidates_by_duration],
+            k=1,
+        )[0]
+        duration, _, starts = duration_row
+        start_weights = []
+        for start in starts:
+            weight = 1.0
+            if purpose == "social_leisure" and not weekend:
+                if age_group == "18-39" and start >= 18 * 60:
+                    weight = 3.0
+                elif age_group == "40-59" and start >= 18 * 60:
+                    weight = 1.8
+            if age_group == "60+" and start <= 16 * 60:
+                weight *= 1.5
+            start_weights.append(weight)
+        start = rng.choices(starts, weights=start_weights, k=1)[0]
+        row = (purpose, time(start // 60, start % 60), time((start + duration) // 60, (start + duration) % 60))
+        placed.append(row)
+        optional.append(row)
+    return optional
+
+
 def _sample_company_schedule(rng: random.Random, work_status: str) -> Tuple[time, time] | None:
     if work_status not in {"regular_worker", "part_time_worker"}:
         return None
@@ -212,54 +305,37 @@ def _sample_company_schedule(rng: random.Random, work_status: str) -> Tuple[time
 
 
 def _weekday_templates(age_group: str, work_status: str, elder_schedule: Dict[int, str], day_index: int, rng: random.Random, company_schedule: Tuple[time, time] | None) -> List[Tuple[str, time, time]]:
-    if age_group in {"18-39", "40-59"}:
-        activities: List[Tuple[str, time, time]] = []
-        if work_status == "regular_worker":
-            start, end = company_schedule
-            activities.append(("work", start, end))
-            trigger = YOUNG_WEEKDAY_EVENING_PROBABILITY if age_group == "18-39" else MIDDLE_AGE_WEEKDAY_EVENING_PROBABILITY
-            if rng.random() < trigger:
-                purpose = ("shopping" if rng.random() < 0.45 else "social") if age_group == "18-39" else _weighted_choice(rng, MIDDLE_AGE_EVENING_PURPOSE_PROBABILITIES)
-                if purpose != "no_in_scope_trip":
-                    earliest = max(18 * 60 + 30, end.hour * 60 + end.minute + 30)
-                    duration = _sample_duration(rng, purpose)
-                    closing = 22 * 60 if purpose == "shopping" else 23 * 60 + 30
-                    latest_start = closing - duration
-                    if earliest <= latest_start:
-                        chosen = rng.choice(list(range(earliest, latest_start + 1, 30)))
-                        evening_start = time(chosen // 60, chosen % 60)
-                        activities.append((purpose, evening_start, _add_minutes(evening_start, duration)))
-        else:
-            purpose = _weighted_choice(rng, FLEXIBLE_WEEKDAY_PURPOSE_PROBABILITIES)
-            if purpose != "no_in_scope_trip":
-                opening = time(10, 0) if purpose == "shopping" else time(9, 0)
-                start = _sample_half_hour_time(rng, opening, time(15, 30))
-                activities.append((purpose, start, _add_minutes(start, _sample_duration(rng, purpose))))
-        return activities
-    purpose = elder_schedule.get(day_index)
-    if purpose is None:
-        return []
-    if purpose == "work":
+    activities: List[Tuple[str, time, time]] = []
+    if age_group in {"18-39", "40-59"} and work_status == "regular_worker":
         start, end = company_schedule
-        return [(purpose, start, end)]
-    start = _sample_half_hour_time(rng, time(9, 0), time(14, 0))
-    return [(purpose, start, _add_minutes(start, _sample_duration(rng, purpose)))]
+        activities.append(("work", start, end))
+    elif age_group == "60+":
+        fixed_purpose = elder_schedule.get(day_index)
+        if fixed_purpose == "work":
+            start, end = company_schedule
+            activities.append((fixed_purpose, start, end))
+        elif fixed_purpose == "medical":
+            start = _sample_half_hour_time(rng, time(9, 0), time(14, 0))
+            activities.append((fixed_purpose, start, _add_minutes(start, _sample_duration(rng, fixed_purpose))))
+
+    desired_total = max(len(activities), _sample_activity_count(rng, age_group, weekend=False))
+    activities.extend(_schedule_optional_templates(
+        rng,
+        age_group,
+        desired_total - len(activities),
+        activities,
+        weekend=False,
+        after_work_only=any(row[0] == "work" for row in activities),
+    ))
+    return sorted(activities, key=lambda item: (item[1], item[2], item[0]))
 
 
 def _weekend_templates(age_group: str, rng: random.Random) -> List[Tuple[str, time, time]]:
-    choices = YOUNG_WEEKEND_PURPOSE_PROBABILITIES if age_group == "18-39" else MIDDLE_WEEKEND_PURPOSE_PROBABILITIES if age_group == "40-59" else ELDER_WEEKEND_PURPOSE_PROBABILITIES
-    purpose = _weighted_choice(rng, choices)
-    if purpose == "no_in_scope_trip":
-        return []
-    if rng.random() < 0.5:
-        opening = time(10, 0) if purpose == "shopping" else time(9, 0)
-        start = _sample_half_hour_time(rng, opening, time(11, 30))
-    else:
-        start = _sample_half_hour_time(rng, time(13, 0), time(16, 0))
-    duration = _sample_duration(rng, purpose)
-    latest = 23 * 60 + 30 - (start.hour * 60 + start.minute)
-    duration = min(duration, latest)
-    return [(purpose, start, _add_minutes(start, duration))]
+    count = _sample_activity_count(rng, age_group, weekend=True)
+    return sorted(
+        _schedule_optional_templates(rng, age_group, count, (), weekend=True),
+        key=lambda item: (item[1], item[2], item[0]),
+    )
 
 
 def _make_activity(*, agent_id: Any, age_group: str, work_status: str, medical_need_level: str | None, home_zone: str, day_index: int, day_date, sequence: int, sequence_order: int, purpose: str, start_time: time, end_time: time) -> Dict[str, Any]:
@@ -303,13 +379,7 @@ def generate_weekly_activity_plan_with_audit(agent: Any, simulation_week_start: 
     elder_schedule = _elder_weekday_schedule(rng, work_status, medical_need_level) if age_group == "60+" else {}
     activities = []
     sequence = 1
-    slot_categories = (
-        "weekday_base_activity",
-        "weekday_evening_activity",
-        "weekend_activity",
-        "elder_weekday_activity",
-        "elder_weekend_activity",
-    )
+    slot_categories = ("weekday_activity", "weekend_activity")
     slot_audit = {
         category: {"total_candidate_slots": 0, "modeled_activity_slot_count": 0, "no_in_scope_slot_count": 0}
         for category in slot_categories
@@ -319,23 +389,16 @@ def generate_weekly_activity_plan_with_audit(agent: Any, simulation_week_start: 
         day_date = (simulation_week_start + timedelta(days=day_index)).date()
         if day_index < 5:
             templates = _weekday_templates(age_group, work_status, elder_schedule, day_index, rng, company_schedule)
-            if age_group in {"18-39", "40-59"} and work_status == "regular_worker":
-                fixed_activity_slot_count += 1
-                category = "weekday_evening_activity"
-                candidate_is_modeled = len(templates) > 1
-            elif age_group in {"18-39", "40-59"}:
-                category = "weekday_base_activity"
-                candidate_is_modeled = bool(templates)
-            else:
-                category = "elder_weekday_activity"
-                candidate_is_modeled = bool(templates)
+            category = "weekday_activity"
+            capacity = 3
         else:
             templates = _weekend_templates(age_group, rng)
-            category = "elder_weekend_activity" if age_group == "60+" else "weekend_activity"
-            candidate_is_modeled = bool(templates)
-        slot_audit[category]["total_candidate_slots"] += 1
-        outcome = "modeled_activity_slot_count" if candidate_is_modeled else "no_in_scope_slot_count"
-        slot_audit[category][outcome] += 1
+            category = "weekend_activity"
+            capacity = 4
+        fixed_activity_slot_count += sum(purpose in MANDATORY_PURPOSES for purpose, _, _ in templates)
+        slot_audit[category]["total_candidate_slots"] += capacity
+        slot_audit[category]["modeled_activity_slot_count"] += len(templates)
+        slot_audit[category]["no_in_scope_slot_count"] += capacity - len(templates)
         templates = sorted(templates, key=lambda item: (item[1], item[2], item[0]))
         for sequence_order, (purpose, start_time, end_time) in enumerate(templates, start=1):
             activities.append(_make_activity(agent_id=agent_id, age_group=age_group, work_status=work_status, medical_need_level=medical_need_level, home_zone=home_zone, day_index=day_index, day_date=day_date, sequence=sequence, sequence_order=sequence_order, purpose=purpose, start_time=start_time, end_time=end_time))
@@ -429,6 +492,10 @@ def validate_activity_plan(activities: Iterable[Dict[str, Any]]) -> None:
             raise ValueError(f"Activity time is not on the 30-minute grid: {activity_id}")
         if end <= start:
             raise ValueError(f"Activity end must be later than start: {activity_id}")
+        if end.date() != start.date():
+            raise ValueError(f"Activity may not cross midnight: {activity_id}")
+        if activity["activity_purpose"] != "work" and end - start < timedelta(minutes=30):
+            raise ValueError(f"Non-work activity is shorter than 30 minutes: {activity_id}")
         intervals_by_agent[activity["agent_id"]].append((start, end, activity_id))
         sequences_by_agent[activity["agent_id"]].append(activity["activity_sequence"])
         daily_sequences[(activity["agent_id"], start.date())].append(activity["sequence_order"])

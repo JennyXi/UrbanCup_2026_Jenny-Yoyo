@@ -32,10 +32,11 @@
 老年数字接入采用2025材料中的分层口径：智能手机拥有率为87.3%，但可独立完成应用注册的比例为48.3%。`smartphone_access`表示设备条件，`digital_access`表示独立注册和进入数字服务的能力；后者为真时前者必须为真。56.65%是“数字接入作为障碍的重要性”指标，不作为人口接入率。
 
 - 18–39 与 40–59 先固定为 `regular_worker` 或少量 `flexible_non_worker`。后者不生成固定工作，但可在工作日白天生成研究范围内活动，并保持数字接入和独立叫车能力。
-- 18–39 regular worker 的工作日晚间活动触发概率为 0.30；40–59 为 0.20。晚间开始时间在 18:30/19:00 稳定抽样。
-- 年轻和中年周末均显式保留少量 `no_in_scope_trip`，不会把这部分概率重新分配给其他活动。
+- 工作日总活动数通常为0–2个、少量3个；周末通常为0–3个、少量4个。工作及已安排的医疗活动计入当日总数。
+- 18–39岁整体最活跃，40–59岁居中，60+较少；三组都可出现 shopping、`social_leisure`、visit、出门家庭活动和合理的医疗活动，差异通过概率而不是禁止规则表达。
 - 60+ 先固定为 `retired` 或 `part_time_worker`；兼职者每周固定安排 1–2 个工作日。医疗次数由稳定的 `medical_need_level` 决定，普通 `standard` 老人最多两次且不连续；`high` 才允许最多三次或连续治疗。
 - 家庭类 modeled activity 只使用 `out_of_home_family_care` 和 `out_of_home_family_activity`。居家、家附近或通常不使用网约车的家庭活动归入不输出的 `no_in_scope_trip`。
+- `social_leisure` 统一表示聚会、聚餐、电影、健身、公园和文化娱乐等非必要社交休闲活动；`visit` 保持独立。
 - `medical` 保持 `is_mandatory=True`、`baseline_cancel_probability=0.01`。
 - `daily_errand`、`grocery`、`community`、`park` 和 `no_in_scope_trip` 不输出 activity，其概率不转移给其他活动。
 
@@ -55,8 +56,8 @@
 
 目的地区域确定后，`custom/agents/leg_generation.py` 将活动展开为连续的 outbound、between-activities 和 return-home legs。`activity_start_time` 表示到达目的地并开始活动，`activity_end_time` 表示活动结束且可以离开。每条 leg 都满足 `departure_time + travel_time = arrival_time`；连续活动从上一活动地点出发，不强制中途回家。
 
-工作活动先确定同一 Agent 一周固定的到岗、下班时间和工作地点，再根据通勤时间反推出发时间。非工作活动使用按目的区分的时长分布。shopping 只能在商场营业时间 10:00–22:00 内进行，`out_of_home_family_care` 保持 `is_mandatory=False`。
+工作活动先确定同一 Agent 一周固定的到岗、下班时间和工作地点，再根据通勤时间反推出发时间。非工作活动使用按目的区分的时长分布，最短30分钟，不设置统一的8小时硬上限；聚会休闲、探访和家庭活动可低概率持续更久。shopping 只能在商场营业时间 10:00–22:00 内进行，`out_of_home_family_care` 保持 `is_mandatory=False`。
 
-返家到达时间按年龄设上限：18–39岁最晚在活动日结束后的24:00到家，40–59岁最晚22:00到家，60+最晚20:00到家。最终非工作活动会在保持时长的前提下提前；若无法同时满足前序活动、活动间旅行、设施营业时间和返家上限，则不生成该次非必要活动。固定工作时间不为满足非必要活动而推迟。
+返家到达时间按年龄设上限：18–39岁最晚在活动日结束后的24:00到家，40–59岁最晚22:00到家，60+最晚20:00到家。程序使用实际 return-home leg 的到达时间检查上限；时间窗口不足时会提前活动、缩短到该目的允许的时长，仍不可行则取消非必要活动，不会把时间绕到次日00:00。固定工作时间不为满足非必要活动而推迟。
 
 当前 generalized travel time 使用有效路网距离按18 km/h换算，向上取整至5分钟，最低10分钟、极端上限90分钟。该规则用于时间链可行性检查，尚未按交通方式、高峰拥堵或等待时间进行实证校准。

@@ -14,18 +14,16 @@
     "out_of_home_family_care": "population_weight",
     "out_of_home_family_activity": "population_weight",
     "shopping": "service_weight",
-    "social": "service_weight",
-    "leisure": "service_weight"
+    "social_leisure": "service_weight"
   },
   "purpose_distance_mapping": {
     "work": "long_distance",
-    "medical": "medium_distance",
+    "medical": "local_distance",
     "visit": "long_distance",
     "out_of_home_family_care": "long_distance",
     "out_of_home_family_activity": "long_distance",
     "shopping": "local_distance",
-    "social": "medium_distance",
-    "leisure": "medium_distance"
+    "social_leisure": "medium_distance"
   },
   "fixed_destination_groups": {
     "work": "work_zone",
@@ -36,23 +34,22 @@
   },
   "purpose_distance_constraints": {
     "work": {"soft_limit_km": 15, "extra_decay": 0.10, "hard_limit_km": 30},
-    "medical": {"soft_limit_km": 10, "extra_decay": 0.12, "hard_limit_km": 25},
+    "medical": {"soft_limit_km": 12, "extra_decay": 0.10, "hard_limit_km": 30},
     "visit": {"soft_limit_km": 15, "extra_decay": 0.10, "hard_limit_km": 30},
     "out_of_home_family_care": {"soft_limit_km": 12, "extra_decay": 0.12, "hard_limit_km": 25},
     "out_of_home_family_activity": {"soft_limit_km": 12, "extra_decay": 0.12, "hard_limit_km": 25},
     "shopping": {"soft_limit_km": 8, "extra_decay": 0.18, "hard_limit_km": 20},
-    "social": {"soft_limit_km": 10, "extra_decay": 0.14, "hard_limit_km": 25},
-    "leisure": {"soft_limit_km": 12, "extra_decay": 0.12, "hard_limit_km": 25}
+    "social_leisure": {"soft_limit_km": 12, "extra_decay": 0.12, "hard_limit_km": 25}
   },
   "zone_attraction_weights": {
-    "Z1": {"employment_weight": 0.25, "medical_weight": 0.18, "service_weight": 0.18},
+    "Z1": {"employment_weight": 0.25, "medical_weight": 0.14, "service_weight": 0.18},
     "Z2": {"employment_weight": 0.12, "medical_weight": 0.13, "service_weight": 0.14},
-    "Z3": {"employment_weight": 0.08, "medical_weight": 0.10, "service_weight": 0.11},
-    "Z4": {"employment_weight": 0.06, "medical_weight": 0.07, "service_weight": 0.08},
-    "Z5": {"employment_weight": 0.05, "medical_weight": 0.06, "service_weight": 0.08},
-    "Z6": {"employment_weight": 0.16, "medical_weight": 0.10, "service_weight": 0.11},
-    "Z7": {"employment_weight": 0.20, "medical_weight": 0.22, "service_weight": 0.20},
+    "Z3": {"employment_weight": 0.08, "medical_weight": 0.12, "service_weight": 0.11},
+    "Z4": {"employment_weight": 0.06, "medical_weight": 0.10, "service_weight": 0.08},
+    "Z5": {"employment_weight": 0.05, "medical_weight": 0.09, "service_weight": 0.08},
+    "Z6": {"employment_weight": 0.16, "medical_weight": 0.11, "service_weight": 0.11},
+    "Z7": {"employment_weight": 0.20, "medical_weight": 0.16, "service_weight": 0.20},
     "Z8": {"employment_weight": 0.05, "medical_weight": 0.09, "service_weight": 0.07},
-    "Z9": {"employment_weight": 0.03, "medical_weight": 0.05, "service_weight": 0.03}
+    "Z9": {"employment_weight": 0.03, "medical_weight": 0.06, "service_weight": 0.03}
   }
 }

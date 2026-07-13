@@ -1,4 +1,5 @@
 import csv
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -19,6 +20,12 @@ class SampleExportConsistencyTests(unittest.TestCase):
                 agent = agents[activity["agent_id"]]
                 for field in ("home_zone", "home_zone_name", "age_group", "work_status", "medical_need_level"):
                     self.assertEqual(activity[field], agent[field])
+
+            with (Path(folder) / "validation.json").open(encoding="utf-8") as stream:
+                validation = json.load(stream)
+            self.assertTrue(validation["all_passed"])
+            self.assertTrue(validation["checks"])
+            self.assertTrue(all(check["passed"] and check["violation_count"] == 0 for check in validation["checks"].values()))
 
 
 if __name__ == "__main__":

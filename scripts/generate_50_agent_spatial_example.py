@@ -7,7 +7,7 @@ import argparse
 import json
 import sys
 from collections import Counter, defaultdict
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -108,6 +108,68 @@ def validate_sample(agent_rows, activity_rows, legs, trajectory_rows, spatial_by
                  (z9["centroid_y"] - z6["centroid_y"]) ** 2) ** 0.5
     assert effective_choice_distance("Z9", "Z6", spatial_by_id) > euclidean
 
+    identity_mismatch_count = 0
+    invalid_interval_count = 0
+    non_work_under_30m_count = 0
+    legacy_purpose_count = 0
+    shopping_hours_violation_count = 0
+    intervals = defaultdict(list)
+    for activity in activity_rows:
+        inherited = agent_by_id[activity["agent_id"]]
+        identity_mismatch_count += any(
+            activity[field] != inherited[field]
+            for field in ("home_zone", "home_zone_name", "age_group", "work_status", "medical_need_level")
+        )
+        start = activity["activity_start_time"]
+        end = activity["activity_end_time"]
+        duration = end - start
+        invalid_interval_count += end <= start or start.date() != end.date()
+        non_work_under_30m_count += activity["activity_purpose"] != "work" and duration < timedelta(minutes=30)
+        legacy_purpose_count += activity["activity_purpose"] in {"social", "leisure"}
+        shopping_hours_violation_count += (
+            activity["activity_purpose"] == "shopping"
+            and (start.time() < datetime.min.time().replace(hour=10) or end.time() > datetime.min.time().replace(hour=22))
+        )
+        intervals[(activity["agent_id"], start.date())].append((start, end))
+
+    overlap_count = 0
+    for rows in intervals.values():
+        rows.sort()
+        overlap_count += sum(current[0] < previous[1] for previous, current in zip(rows, rows[1:]))
+
+    leg_time_identity_violation_count = sum(
+        leg["departure_time"] + timedelta(minutes=leg["travel_time_minutes"]) != leg["arrival_time"]
+        for leg in legs
+    )
+    age_deadline_minutes = {"18-39": 24 * 60, "40-59": 22 * 60, "60+": 20 * 60}
+    home_arrival_deadline_violation_count = 0
+    for leg in legs:
+        if leg["leg_role"] != "return_home":
+            continue
+        day_start = datetime.combine(datetime.fromisoformat(leg["date"]).date(), datetime.min.time())
+        arrival_minutes = int((leg["arrival_time"] - day_start).total_seconds() / 60)
+        home_arrival_deadline_violation_count += arrival_minutes > age_deadline_minutes[agent_by_id[leg["agent_id"]]["age_group"]]
+
+    checks = {
+        "agent_activity_identity": identity_mismatch_count,
+        "activity_end_after_start_same_day": invalid_interval_count,
+        "non_work_duration_at_least_30m": non_work_under_30m_count,
+        "no_legacy_social_or_leisure": legacy_purpose_count,
+        "activity_non_overlap": overlap_count,
+        "shopping_within_10_22": shopping_hours_violation_count,
+        "leg_time_identity": leg_time_identity_violation_count,
+        "age_specific_home_arrival_deadline": home_arrival_deadline_violation_count,
+    }
+    validation = {
+        "all_passed": all(count == 0 for count in checks.values()),
+        "checks": {
+            name: {"passed": count == 0, "violation_count": int(count)}
+            for name, count in checks.items()
+        },
+    }
+    assert validation["all_passed"], validation
+    return validation
+
 
 def main(output_dir=DEFAULT_OUTPUT_DIR):
     spatial = derive_spatial_configuration(load_zone_configuration())
@@ -195,7 +257,9 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
             "trajectory": " -> ".join(stops) if rows else f"HOME@{home} (全天无建模出行)",
         })
     write_csv(output_dir / "monday_trajectories.csv", trajectory_rows)
-    validate_sample(agent_rows, activity_rows, legs, trajectory_rows, spatial_by_id, quotas)
+    validation = validate_sample(agent_rows, activity_rows, legs, trajectory_rows, spatial_by_id, quotas)
+    with (output_dir / "validation.json").open("w", encoding="utf-8") as stream:
+        json.dump(validation, stream, ensure_ascii=False, indent=2)
 
     home_counts = Counter(row["home_zone"] for row in agent_rows)
     age_home = defaultdict(Counter)
@@ -261,6 +325,7 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
             "activity_overlap_count": overlap_count,
         },
         "leg_status": "time-feasible leg chain derived from activity arrival/end times and deterministic travel times",
+        "validation": validation,
     }
     with (output_dir / "summary.json").open("w", encoding="utf-8") as stream:
         json.dump(summary, stream, ensure_ascii=False, indent=2)
