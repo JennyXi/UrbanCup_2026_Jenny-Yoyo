@@ -79,20 +79,20 @@
   },
   "modes": {
     "walk": {
-      "speed_kmh": 4.8,
+      "base_speed_kmh": 4.8,
       "maximum_distance_km": 6.0,
       "fare": 0.0,
       "provenance": "model_assumption"
     },
     "bus": {
-      "speed_kmh": 18.0,
+      "base_speed_kmh": 18.0,
       "route_distance_factor": 1.10,
       "flat_fare": 2.0,
       "transfer_penalty_min": 8.0,
       "provenance": "model_assumption"
     },
     "metro": {
-      "speed_kmh": 35.0,
+      "base_speed_kmh": 35.0,
       "route_distance_factor": 1.0,
       "base_fare": 3.0,
       "included_distance_km": 6.0,
@@ -103,7 +103,7 @@
       "provenance": "model_assumption"
     },
     "ride_hailing": {
-      "speed_kmh": 30.0,
+      "base_speed_kmh": 33.0,
       "base_fare": 14.0,
       "included_distance_km": 3.0,
       "per_km_after_included": 2.7,

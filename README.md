@@ -2,7 +2,7 @@
 
 本仓库正在构建一个以上海总体人口结构和空间趋势为参考的九区合成城市，用于研究极端夏季天气、数字接入和出行补贴政策对不同年龄人群潜在出行机会的影响。
 
-当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、天气响应规则和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
+当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、正常天气分时段基础交通供给、天气响应规则和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
 
 ## 已完成模块
 
@@ -68,6 +68,19 @@
 
 详细说明见 [`docs/T7_transport_network/README.md`](docs/T7_transport_network/README.md)。
 
+### T8：分时段基础交通供给
+
+- 配置化定义早晚肩部、核心高峰、回落、日间平峰和跨午夜夜间共八段；
+- 为每条具体leg—mode保留静态基础时间，并另算分时等待、速度、换乘、运营状态和调整后总时间；
+- T7静态基础值定义为日间平峰；跨时段候车与车内行程均按实际边界和郊区方向偏移边界切段；
+- 正常基础速度与拥堵因子分离：公交/网约车按非高峰1.00、普通高峰0.85、最强方向0.75三选一，步行和地铁恒为1.00；
+- 早高峰外围→Z1/Z7/Z6、晚高峰反方向的负荷倍率按区域组生效，并对普通外围/Z9分别采用15/30分钟的小幅相位偏移；
+- 地铁按OD反推末班车最晚可行出发时间；Z9公交接驳也按实际时段计算；
+- 正常日内网约车车队总量保持不变，`baseline_availability`仅为描述字段且不参与计算；实际车辆占用、空间再分布和派单成功率留给后续供需模块；
+- 本层不含天气、Agent偏好、内生拥堵、动态加价或派单。
+
+详细说明见 [`docs/T8_time_supply/README.md`](docs/T8_time_supply/README.md)。
+
 ## 当前核心流程
 
 ```text
@@ -79,6 +92,7 @@ total_agents
 → activity.destination_zone
 → 连续outbound / between-activities / return-home legs
 → 九区多方式OD备选方案
+→ 正常天气分时段leg—mode供给
 → T2天气继续/取消判断
 → T3政策优惠与派单资格
 ```
@@ -95,11 +109,11 @@ python -B -X utf8 -m unittest tests.test_zone_configuration -v
 python -B -X utf8 tests\test_weather_t2.py
 python -B -X utf8 -m unittest tests.test_policy_t3 -v
 python -B -X utf8 -m unittest tests.test_transport_network -v
+python -B -X utf8 -m unittest tests.test_time_dependent_transport_supply -v
 ```
 
 ## 尚未实现
 
-- 正常天气下的分时段交通供给、早晚高峰与末班车约束；
 - mode choice；
 - 网约车订单、价格计算和优惠实际使用；
 - 车辆竞争、派单成功、等待时间与拥堵；

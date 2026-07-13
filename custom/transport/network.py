@@ -119,6 +119,10 @@ def _validate_configuration(config: Mapping[str, Any], zones: Sequence[Mapping[s
     zone_ids = {zone["zone_id"] for zone in zones}
     if tuple(config.get("supported_modes", ())) != MODES:
         raise ValueError(f"supported_modes must be exactly {MODES}")
+    for mode in MODES:
+        params = config["modes"][mode]
+        if float(params.get("base_speed_kmh", 0)) <= 0 or "speed_kmh" in params:
+            raise ValueError(f"{mode} must define only a positive base_speed_kmh")
     if config["graphs"]["road"].get("intrazonal_distance_source") != "derived_spatial.mean_intrazonal_distance":
         raise ValueError("intrazonal distance must reuse derived_spatial.mean_intrazonal_distance")
     if set(config.get("zone_service_parameters", {})) != zone_ids:
@@ -403,7 +407,7 @@ def calculate_od_option(
         if mode == "walk":
             if distance > params["maximum_distance_km"]:
                 return unavailable()
-            movement = distance / params["speed_kmh"] * 60.0
+            movement = distance / params["base_speed_kmh"] * 60.0
             return _available(
                 origin, destination, mode, "none", euclidean_distance,
                 road_network_distance, distance, 0.0, movement, 0.0, 0.0,
@@ -419,7 +423,7 @@ def calculate_od_option(
             road_network_distance,
             distance,
             0.0,
-            distance / params["speed_kmh"] * 60.0,
+            distance / params["base_speed_kmh"] * 60.0,
             params["access_time_min"],
             zone_params[origin]["ride_hailing_wait_min"],
             0.0,
@@ -478,7 +482,7 @@ def calculate_od_option(
                     raise ValueError("trip_key is required when enforcing intrazonal metro coverage")
                 if not intrazonal_metro_is_covered(network, origin, distance, trip_key, seed):
                     return unavailable()
-        path = (distance, 0, distance / params["speed_kmh"] * 60.0)
+        path = (distance, 0, distance / params["base_speed_kmh"] * 60.0)
     else:
         origin_access = 0.0 if uses_metro_feeder and origin == "Z9" else zone_params[effective_origin][access_key]
         destination_access = 0.0 if uses_metro_feeder and destination == "Z9" else zone_params[effective_destination][access_key]
@@ -486,7 +490,7 @@ def calculate_od_option(
             network[mode],
             effective_origin,
             effective_destination,
-            float(params["speed_kmh"]),
+            float(params["base_speed_kmh"]),
             float(params["transfer_penalty_min"]),
             float(origin_access),
             float(destination_access),
@@ -503,7 +507,7 @@ def calculate_od_option(
         return unavailable()
     access = sum(access_values) + feeder_access_time
     access_distance = (
-        sum(access_values) * float(config["modes"]["walk"]["speed_kmh"]) / 60.0
+        sum(access_values) * float(config["modes"]["walk"]["base_speed_kmh"]) / 60.0
         + feeder_access_distance
     )
     transfer_time = transfers * params["transfer_penalty_min"] + mode_transfer_time
@@ -521,7 +525,7 @@ def calculate_od_option(
         road_network_distance,
         distance,
         access_distance,
-        distance / params["speed_kmh"] * 60.0,
+        distance / params["base_speed_kmh"] * 60.0,
         access,
         wait,
         transfer_time,

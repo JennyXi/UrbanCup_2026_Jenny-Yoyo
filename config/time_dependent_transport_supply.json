@@ -1,0 +1,120 @@
+{
+  "schema_version": "1.0",
+  "supply_id": "normal_weather_exogenous_time_supply_v1",
+  "time_periods": [
+    {"period_id": "morning_shoulder", "display_name": "早间肩部", "start": "07:00", "end": "08:00", "intensity": "light_peak"},
+    {"period_id": "morning_core_peak", "display_name": "早核心高峰", "start": "08:00", "end": "09:30", "intensity": "core_peak"},
+    {"period_id": "morning_recovery", "display_name": "早间回落", "start": "09:30", "end": "10:30", "intensity": "light_peak"},
+    {"period_id": "day_off_peak", "display_name": "日间平峰", "start": "10:30", "end": "17:00", "intensity": "off_peak"},
+    {"period_id": "evening_shoulder", "display_name": "晚间肩部", "start": "17:00", "end": "17:30", "intensity": "light_peak"},
+    {"period_id": "evening_core_peak", "display_name": "晚核心高峰", "start": "17:30", "end": "19:00", "intensity": "core_peak"},
+    {"period_id": "evening_recovery", "display_name": "晚间回落", "start": "19:00", "end": "20:00", "intensity": "light_peak"},
+    {"period_id": "night", "display_name": "夜间", "start": "20:00", "end": "07:00", "intensity": "night"}
+  ],
+  "zone_groups": {
+    "strong_supply": ["Z1", "Z2", "Z3", "Z7"],
+    "ordinary_outer": ["Z4", "Z5", "Z6", "Z8"],
+    "remote_weak": ["Z9"],
+    "employment_hubs": ["Z1", "Z7", "Z6"],
+    "commuting_periphery": ["Z4", "Z5", "Z8", "Z9"]
+  },
+  "speed_policy": {
+    "normal_off_peak_multiplier": 1.00,
+    "ordinary_peak_multiplier": 0.85,
+    "strongest_directional_peak_multiplier": 0.75,
+    "road_congestion_modes": ["bus", "ride_hailing"],
+    "unaffected_modes": ["walk", "metro"],
+    "combination_rule": "select_one_final_multiplier_never_multiply_peak_factors"
+  },
+  "modes": {
+    "walk": {
+      "operating_all_day": true,
+      "provenance": "model_assumption"
+    },
+    "bus": {
+      "profiles": {
+        "morning_shoulder": {"operating": true, "headway_min": 8.0, "expected_wait_min": 4.5, "service_frequency_multiplier": 1.12},
+        "morning_core_peak": {"operating": true, "headway_min": 6.0, "expected_wait_min": 4.0, "service_frequency_multiplier": 1.35},
+        "morning_recovery": {"operating": true, "headway_min": 8.5, "expected_wait_min": 4.8, "service_frequency_multiplier": 1.08},
+        "day_off_peak": {"operating": true, "headway_min": 10.0, "expected_wait_min": 7.0, "service_frequency_multiplier": 1.00},
+        "evening_shoulder": {"operating": true, "headway_min": 8.0, "expected_wait_min": 4.5, "service_frequency_multiplier": 1.12},
+        "evening_core_peak": {"operating": true, "headway_min": 6.0, "expected_wait_min": 4.0, "service_frequency_multiplier": 1.35},
+        "evening_recovery": {"operating": true, "headway_min": 8.5, "expected_wait_min": 4.8, "service_frequency_multiplier": 1.08},
+        "night": {"operating": true, "headway_min": 20.0, "expected_wait_min": 11.0, "service_frequency_multiplier": 0.50}
+      },
+      "zone_multipliers": {
+        "strong_supply": {"headway": 1.00, "wait": 1.00, "frequency": 1.00},
+        "ordinary_outer": {"headway": 1.25, "wait": 1.4285714286, "frequency": 0.82},
+        "remote_weak": {"headway": 1.80, "wait": 2.5714285714, "frequency": 0.55}
+      },
+      "provenance": "model_assumption"
+    },
+    "metro": {
+      "operating_hours": {"start": "05:30", "end": "23:30", "service_day_cutoff": "04:00"},
+      "profiles": {
+        "morning_shoulder": {"headway_min": 4.5, "expected_wait_min": 3.0, "crowding_index": 1.15, "transfer_penalty_min": 8.0},
+        "morning_core_peak": {"headway_min": 3.5, "expected_wait_min": 4.5, "crowding_index": 1.55, "transfer_penalty_min": 10.0},
+        "morning_recovery": {"headway_min": 4.5, "expected_wait_min": 3.2, "crowding_index": 1.12, "transfer_penalty_min": 8.0},
+        "day_off_peak": {"headway_min": 6.0, "expected_wait_min": 5.0, "crowding_index": 0.85, "transfer_penalty_min": 7.0},
+        "evening_shoulder": {"headway_min": 4.5, "expected_wait_min": 3.0, "crowding_index": 1.18, "transfer_penalty_min": 8.0},
+        "evening_core_peak": {"headway_min": 3.5, "expected_wait_min": 4.5, "crowding_index": 1.60, "transfer_penalty_min": 10.0},
+        "evening_recovery": {"headway_min": 4.5, "expected_wait_min": 3.2, "crowding_index": 1.12, "transfer_penalty_min": 8.0},
+        "night": {"headway_min": 10.0, "expected_wait_min": 6.0, "crowding_index": 0.65, "transfer_penalty_min": 9.0}
+      },
+      "zone_multipliers": {
+        "strong_supply": {"headway": 1.00, "wait": 1.00},
+        "ordinary_outer": {"headway": 1.20, "wait": 1.20},
+        "remote_weak": {"headway": 1.20, "wait": 1.20}
+      },
+      "provenance": "model_assumption"
+    },
+    "ride_hailing": {
+      "fleet_policy": {
+        "normal_day_fleet_size_multiplier": 1.0,
+        "time_varying_fleet_size": false,
+        "dispatch_success_generated_here": false,
+        "baseline_availability_role": "descriptive_only_not_used_in_calculation"
+      },
+      "profiles": {
+        "morning_shoulder": {"baseline_wait_min": 7.0, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "morning_core_peak": {"baseline_wait_min": 10.0, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "morning_recovery": {"baseline_wait_min": 7.5, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "day_off_peak": {"baseline_wait_min": 6.0, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "evening_shoulder": {"baseline_wait_min": 7.5, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "evening_core_peak": {"baseline_wait_min": 11.0, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "evening_recovery": {"baseline_wait_min": 8.0, "baseline_availability": 1.0, "pickup_access_time": 2.0},
+        "night": {"baseline_wait_min": 8.0, "baseline_availability": 1.0, "pickup_access_time": 2.0}
+      },
+      "zone_multipliers": {
+        "strong_supply": {"wait": 1.00},
+        "ordinary_outer": {"wait": 1.3333333333},
+        "remote_weak": {"wait": 2.00}
+      },
+      "provenance": "model_assumption"
+    }
+  },
+  "directional_peak": {
+    "morning_flow": {"origin_group": "commuting_periphery", "destination_group": "employment_hubs"},
+    "evening_flow": {"origin_group": "employment_hubs", "destination_group": "commuting_periphery"},
+    "phase_shift_min": {
+      "morning_flow": {"ordinary_outer": 15, "remote_weak": 30},
+      "evening_flow": {"ordinary_outer": -15, "remote_weak": -30}
+    },
+    "period_impacts": {
+      "morning_shoulder": {"flow": "morning_flow", "bus_wait": 1.04, "metro_wait": 1.04, "metro_transfer": 1.05, "ride_wait": 1.05},
+      "morning_core_peak": {"flow": "morning_flow", "bus_wait": 1.12, "metro_wait": 1.12, "metro_transfer": 1.15, "ride_wait": 1.15},
+      "morning_recovery": {"flow": "morning_flow", "bus_wait": 1.04, "metro_wait": 1.04, "metro_transfer": 1.05, "ride_wait": 1.05},
+      "evening_shoulder": {"flow": "evening_flow", "bus_wait": 1.04, "metro_wait": 1.04, "metro_transfer": 1.05, "ride_wait": 1.05},
+      "evening_core_peak": {"flow": "evening_flow", "bus_wait": 1.12, "metro_wait": 1.12, "metro_transfer": 1.15, "ride_wait": 1.15},
+      "evening_recovery": {"flow": "evening_flow", "bus_wait": 1.04, "metro_wait": 1.04, "metro_transfer": 1.05, "ride_wait": 1.05}
+    }
+  },
+  "boundaries": {
+    "normal_weather_only": true,
+    "agent_preferences_applied": false,
+    "endogenous_congestion_applied": false,
+    "dynamic_pricing_applied": false,
+    "dispatch_applied": false,
+    "ride_hailing_dynamic_supply_applied": false
+  }
+}

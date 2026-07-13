@@ -28,6 +28,7 @@ from custom.spatial.zone_configuration import (
     load_zone_configuration,
 )
 from custom.transport.network import MODES, build_transport_network, calculate_leg_mode_option
+from custom.transport.time_supply import calculate_time_adjusted_leg_mode_option
 
 
 DEFAULT_OUTPUT_DIR = ROOT / "outputs" / "examples" / "agents_50_new_city"
@@ -231,17 +232,27 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
     write_csv(output_dir / "legs.csv", legs)
     network = build_transport_network()
     leg_mode_rows = []
+    time_supply_rows = []
     for leg in legs:
         for mode in MODES:
-            leg_mode_rows.append({
+            identifiers = {
                 "leg_id": leg["leg_id"],
                 "agent_id": leg["agent_id"],
                 "activity_id": leg["activity_id"],
                 "purpose": leg["purpose"],
                 "leg_role": leg["leg_role"],
+            }
+            leg_mode_rows.append({
+                **identifiers,
                 **calculate_leg_mode_option(network, leg, mode, seed=SEED),
             })
+            time_supply_rows.append({
+                **identifiers,
+                "departure_time": leg["departure_time"],
+                **calculate_time_adjusted_leg_mode_option(network, leg, mode, seed=SEED),
+            })
     write_csv(output_dir / "leg_mode_options.csv", leg_mode_rows)
+    write_csv(output_dir / "leg_mode_time_supply.csv", time_supply_rows)
 
     review_day = WEEK_START.date()
     monday_activities = defaultdict(list)
@@ -314,6 +325,8 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
         "activity_count": len(activity_rows),
         "leg_count": len(legs),
         "leg_mode_option_count": len(leg_mode_rows),
+        "time_supply_option_count": len(time_supply_rows),
+        "time_supply_operating_count": sum(row["operating"] for row in time_supply_rows),
         "available_intrazonal_metro_option_count": sum(
             row["available"] and row["mode"] == "metro" and row["origin_zone"] == row["destination_zone"]
             for row in leg_mode_rows
@@ -381,6 +394,7 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
         "- `euclidean_distance_km`：跨区质心直线距离；同区为0。",
         "- `road_network_distance_km`：跨区为沿connected_to道路图累计的最短路径距离（每条边应用绕行系数）；同区为按活动地点对抽样的合成道路距离。",
         "- `leg_mode_options.csv`中的`network_distance_km = main_network_distance_km + access_distance_km`。", "",
+        "- `leg_mode_time_supply.csv`保留静态方案，并按具体departure_time增加正常天气分时供给、末班车和调整后总时间；不包含Agent方式选择。", "",
         "> 如目录中仍存在 `legs_review_draft.csv`，它是旧版人工检查草稿，不属于当前生成流程；其中旧距离字段已弃用。", "",
         f"- 平均合成道路距离：{summary['road_network_distance_km']['mean']} km",
         f"- 最大合成道路距离：{summary['road_network_distance_km']['maximum']} km",

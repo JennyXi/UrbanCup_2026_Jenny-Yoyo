@@ -106,7 +106,7 @@ class TransportNetworkTests(unittest.TestCase):
             places=3,
         )
         self.assertEqual(ride["main_network_distance_km"], ride["road_network_distance_km"])
-        expected_time = ride["road_network_distance_km"] / self.network["config"]["modes"]["ride_hailing"]["speed_kmh"] * 60
+        expected_time = ride["road_network_distance_km"] / self.network["config"]["modes"]["ride_hailing"]["base_speed_kmh"] * 60
         self.assertAlmostEqual(ride["in_vehicle_time_min"], expected_time, places=3)
         expected_fare = 14 + max(0, ride["road_network_distance_km"] - 3) * 2.7
         self.assertAlmostEqual(ride["fare"], expected_fare, places=2)

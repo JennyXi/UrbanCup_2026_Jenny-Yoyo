@@ -27,6 +27,23 @@ class SampleExportConsistencyTests(unittest.TestCase):
             self.assertTrue(validation["checks"])
             self.assertTrue(all(check["passed"] and check["violation_count"] == 0 for check in validation["checks"].values()))
 
+            with (Path(folder) / "leg_mode_time_supply.csv").open(
+                encoding="utf-8-sig", newline=""
+            ) as stream:
+                time_supply = list(csv.DictReader(stream))
+            self.assertEqual(len(time_supply), 3004)
+            self.assertEqual(
+                len({(row["leg_id"], row["mode"]) for row in time_supply}),
+                len(time_supply),
+            )
+            required = {
+                "departure_time", "time_period", "operating", "base_total_time_min",
+                "period_speed_multiplier", "period_wait_time_min",
+                "period_transfer_penalty_min", "time_adjusted_total_time_min",
+                "latest_feasible_departure", "supply_level",
+            }
+            self.assertTrue(required.issubset(time_supply[0]))
+
 
 if __name__ == "__main__":
     unittest.main()
