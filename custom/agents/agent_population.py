@@ -9,6 +9,8 @@ from typing import List, Optional, Tuple
 FLEXIBLE_NON_WORKER_SHARES = {"18-39": 0.10, "40-59": 0.08}
 PART_TIME_WORKER_SHARE = 0.17
 MEDICAL_NEED_LEVEL_SHARES = {"low": 0.35, "standard": 0.55, "high": 0.10}
+ELDER_SMARTPHONE_ACCESS_RATE_2025 = 0.873
+ELDER_DIGITAL_ACCESS_RATE_2025 = 0.483
 
 
 @dataclass
@@ -20,6 +22,7 @@ class AgentProfile:
     digital_access: bool
     family_assistance: Optional[bool]
     segment: str
+    smartphone_access: Optional[bool] = None
     coupon_awareness_probability: Optional[float] = None
     coupon_claim_probability: Optional[float] = None
     independent_ride_hailing: Optional[bool] = None
@@ -50,6 +53,10 @@ def validate_agent_profile(agent: AgentProfile) -> None:
         and not isinstance(agent.independent_ride_hailing, bool)
     ):
         raise ValueError("independent_ride_hailing must be None or bool")
+    if agent.smartphone_access is not None and not isinstance(agent.smartphone_access, bool):
+        raise ValueError("smartphone_access must be None or bool")
+    if agent.digital_access and agent.smartphone_access is False:
+        raise ValueError("digital_access requires smartphone_access")
 
     if not agent.is_elder and agent.family_assistance is not None:
         raise ValueError("family_assistance must be None for non-elder agents")
@@ -68,8 +75,8 @@ def validate_agent_profile(agent: AgentProfile) -> None:
         raise ValueError("medical_need_level must be None for non-elder agents")
 
 
-def _stable_profile_rng(seed: Optional[int], agent_id: int) -> random.Random:
-    key = f"{seed!r}|{agent_id}|T1-agent-profile".encode("utf-8")
+def _stable_profile_rng(seed: Optional[int], agent_id: int, stage: str = "profile") -> random.Random:
+    key = f"{seed!r}|{agent_id}|T1-agent-{stage}".encode("utf-8")
     value = int.from_bytes(hashlib.sha256(key).digest()[:8], "big")
     return random.Random(value)
 
@@ -89,7 +96,8 @@ def _split_counts(total: int, ratios: List[float]) -> List[int]:
 def generate_population_agents(
     total_agents: int,
     seed: Optional[int] = None,
-    elder_digital_access_rate: float = 0.70,
+    elder_digital_access_rate: float = ELDER_DIGITAL_ACCESS_RATE_2025,
+    elder_smartphone_access_rate: float = ELDER_SMARTPHONE_ACCESS_RATE_2025,
     elder_assistance_rate: float = 0.68,
 ) -> List[AgentProfile]:
     """
@@ -101,9 +109,17 @@ def generate_population_agents(
 
     :param total_agents: 代理总数。
     :param seed: 随机种子，用于可重复生成。
-    :param elder_digital_access_rate: 老年人中数字接入比例。
+    :param elder_digital_access_rate: 老年人中可独立完成应用注册的数字接入比例；2025口径为48.3%。
+    :param elder_smartphone_access_rate: 老年人智能手机拥有比例；2025口径为87.3%。
     :param elder_assistance_rate: 老年人中有家庭协助比例。
     """
+    for field_name, rate in (
+        ("elder_digital_access_rate", elder_digital_access_rate),
+        ("elder_smartphone_access_rate", elder_smartphone_access_rate),
+        ("elder_assistance_rate", elder_assistance_rate),
+    ):
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 <= rate <= 1:
+            raise ValueError(f"{field_name} must be a number in [0, 1]")
     if seed is not None:
         random.seed(seed)
 
@@ -123,11 +139,29 @@ def generate_population_agents(
             key=lambda current_id: _stable_profile_rng(seed, current_id).random(),
         )
         minority_status_ids = set(ranked_for_status[:minority_status_count])
+        smartphone_ids = set()
+        digital_access_ids = set()
+        if age_group == "60+":
+            smartphone_count = int(count * elder_smartphone_access_rate + 0.5)
+            digital_count = int(count * elder_digital_access_rate + 0.5)
+            if digital_count > smartphone_count:
+                raise ValueError("elder digital access rate cannot exceed smartphone access rate")
+            ranked_for_smartphone = sorted(
+                group_agent_ids,
+                key=lambda current_id: _stable_profile_rng(seed, current_id, "smartphone").random(),
+            )
+            smartphone_ids = set(ranked_for_smartphone[:smartphone_count])
+            ranked_for_digital = sorted(
+                smartphone_ids,
+                key=lambda current_id: _stable_profile_rng(seed, current_id, "digital-access").random(),
+            )
+            digital_access_ids = set(ranked_for_digital[:digital_count])
         for _ in range(count):
             is_elder = age_group == "60+"
             profile_rng = _stable_profile_rng(seed, agent_id)
             if is_elder:
-                digital_access = random.random() < elder_digital_access_rate
+                smartphone_access = agent_id in smartphone_ids
+                digital_access = agent_id in digital_access_ids
                 family_assistance = random.random() < elder_assistance_rate
                 work_status = "part_time_worker" if agent_id in minority_status_ids else "retired"
                 medical_need_level = profile_rng.choices(
@@ -137,6 +171,7 @@ def generate_population_agents(
                 )[0]
                 independent_ride_hailing = None
             else:
+                smartphone_access = True
                 digital_access = True
                 family_assistance = None
                 work_status = "flexible_non_worker" if agent_id in minority_status_ids else "regular_worker"
@@ -155,6 +190,7 @@ def generate_population_agents(
                     digital_access=digital_access,
                     family_assistance=family_assistance,
                     segment=segment,
+                    smartphone_access=smartphone_access,
                     independent_ride_hailing=independent_ride_hailing,
                     work_status=work_status,
                     medical_need_level=medical_need_level,
@@ -170,6 +206,7 @@ def summarize_population(agents: List[AgentProfile]) -> dict:
         "total_agents": len(agents),
         "age_group_counts": {},
         "elderly_digital_access": {"digital": 0, "non_digital": 0},
+        "elderly_smartphone_access": {"smartphone": 0, "no_smartphone": 0},
         "elderly_assistance": {"assisted": 0, "unassisted": 0},
         "coupon_attributes": {
             "awareness_configured": 0,
@@ -188,6 +225,10 @@ def summarize_population(agents: List[AgentProfile]) -> dict:
         if agent.independent_ride_hailing is not None:
             summary["coupon_attributes"]["independent_ride_hailing_configured"] += 1
         if agent.is_elder:
+            if agent.smartphone_access:
+                summary["elderly_smartphone_access"]["smartphone"] += 1
+            else:
+                summary["elderly_smartphone_access"]["no_smartphone"] += 1
             if agent.digital_access:
                 summary["elderly_digital_access"]["digital"] += 1
             else:

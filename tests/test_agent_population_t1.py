@@ -3,6 +3,8 @@ from collections import Counter
 
 from custom.agents.agent_population import (
     AgentProfile,
+    ELDER_DIGITAL_ACCESS_RATE_2025,
+    ELDER_SMARTPHONE_ACCESS_RATE_2025,
     FLEXIBLE_NON_WORKER_SHARES,
     MEDICAL_NEED_LEVEL_SHARES,
     PART_TIME_WORKER_SHARE,
@@ -13,6 +15,22 @@ from custom.agents.agent_population import (
 
 
 class AgentPopulationT1Tests(unittest.TestCase):
+    def test_2025_elder_smartphone_and_digital_access_rates_are_separate(self):
+        self.assertEqual(ELDER_SMARTPHONE_ACCESS_RATE_2025, 0.873)
+        self.assertEqual(ELDER_DIGITAL_ACCESS_RATE_2025, 0.483)
+        for total in (50, 100, 200, 1000):
+            agents = generate_population_agents(total, seed=47)
+            elders = [agent for agent in agents if agent.is_elder]
+            self.assertEqual(
+                sum(agent.smartphone_access for agent in elders),
+                int(len(elders) * 0.873 + 0.5),
+            )
+            self.assertEqual(
+                sum(agent.digital_access for agent in elders),
+                int(len(elders) * 0.483 + 0.5),
+            )
+            self.assertTrue(all(not agent.digital_access or agent.smartphone_access for agent in elders))
+
     def test_new_coupon_attributes_default_to_unconfigured(self):
         agents = generate_population_agents(total_agents=100, seed=42)
 
@@ -67,6 +85,7 @@ class AgentPopulationT1Tests(unittest.TestCase):
         self.assertIn("coupon_awareness_probability", result)
         self.assertIn("coupon_claim_probability", result)
         self.assertIn("independent_ride_hailing", result)
+        self.assertIn("smartphone_access", result)
 
     def test_invalid_coupon_attributes_are_rejected(self):
         invalid_values = [
@@ -90,6 +109,7 @@ class AgentPopulationT1Tests(unittest.TestCase):
             age_range=(18, 39),
             is_elder=False,
             digital_access=True,
+            smartphone_access=True,
             family_assistance=False,
             segment="18-39",
         )
@@ -103,6 +123,15 @@ class AgentPopulationT1Tests(unittest.TestCase):
 
         self.assertEqual(first, second)
 
+    def test_invalid_access_rates_are_rejected(self):
+        for kwargs in (
+            {"elder_digital_access_rate": -0.1},
+            {"elder_smartphone_access_rate": 1.1},
+            {"elder_digital_access_rate": 0.9, "elder_smartphone_access_rate": 0.8},
+        ):
+            with self.subTest(kwargs=kwargs), self.assertRaises(ValueError):
+                generate_population_agents(100, seed=7, **kwargs)
+
     @staticmethod
     def _make_elder_agent():
         return AgentProfile(
@@ -111,6 +140,7 @@ class AgentPopulationT1Tests(unittest.TestCase):
             age_range=(60, 99),
             is_elder=True,
             digital_access=True,
+            smartphone_access=True,
             family_assistance=False,
             segment="60+",
         )

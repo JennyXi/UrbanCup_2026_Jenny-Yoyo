@@ -25,17 +25,16 @@ class ZoneConfigurationTests(unittest.TestCase):
         self.assertAlmostEqual(audit["population_weight_sum"], 1.0, places=12)
         self.assertEqual(
             audit["ring_area_order_descending"],
-            ["middle", "peripheral", "suburban", "inner", "core"],
-        )
-        self.assertEqual(
-            audit["ring_population_weight_order_descending"],
-            ["middle", "inner", "suburban", "peripheral", "core"],
+            ["outer", "inner", "remote", "core"],
         )
         self.assertEqual(audit["zone_area_order_descending"][0], "Z7")
         self.assertEqual(audit["zone_population_weight_order_descending"][0], "Z7")
         self.assertEqual(audit["area_ratio_interpretation"], "soft_model_complexity_check_only")
         self.assertAlmostEqual(audit["maximum_to_minimum_zone_area_ratio"], 4.963636363636364)
-        self.assertEqual(self.derived["spatial_scale"], 0.82)
+        self.assertEqual(self.derived["spatial_scale"], 1.0)
+        self.assertAlmostEqual(
+            self.derived["total_synthetic_area"], self.config["target_total_area"]
+        )
 
     def test_coordinates_come_from_full_precision_radius_and_angle(self):
         for zone in self.derived["zones"]:
@@ -57,16 +56,15 @@ class ZoneConfigurationTests(unittest.TestCase):
             self.assertEqual(matrix[first][first], 0.0)
             for second in audit["zone_ids"]:
                 self.assertAlmostEqual(matrix[first][second], matrix[second][first])
-        self.assertAlmostEqual(audit["minimum_nonzero_interzonal_distance"], 4.1)
+        self.assertAlmostEqual(audit["minimum_nonzero_interzonal_distance"], 7.521249515005685)
 
-    def test_spatial_scale_changes_lengths_and_areas_but_not_population_or_quotas(self):
-        unscaled_config = deepcopy(self.config)
-        unscaled_config["spatial_scale"] = 1.0
-        unscaled = derive_spatial_configuration(unscaled_config)
-        scaled = self.derived
-        scale = self.config["spatial_scale"]
-        self.assertEqual(scale, 0.82)
-        self.assertAlmostEqual(scaled["total_synthetic_area"], unscaled["total_synthetic_area"] * scale ** 2)
+    def test_spatial_scale_changes_coordinates_but_explicit_areas_remain_fixed(self):
+        scaled_config = deepcopy(self.config)
+        scaled_config["spatial_scale"] = 0.5
+        scaled = derive_spatial_configuration(scaled_config)
+        unscaled = self.derived
+        scale = 0.5
+        self.assertAlmostEqual(scaled["total_synthetic_area"], unscaled["total_synthetic_area"])
         for scaled_ring, unscaled_ring in zip(scaled["rings"], unscaled["rings"]):
             for field in ("inner_radius", "outer_radius"):
                 self.assertAlmostEqual(scaled_ring[field], unscaled_ring[field] * scale)
@@ -75,10 +73,11 @@ class ZoneConfigurationTests(unittest.TestCase):
         for scaled_zone, unscaled_zone in zip(scaled["zones"], unscaled["zones"]):
             for field in (
                 "radial_distance_from_center", "centroid_x", "centroid_y",
-                "equivalent_radius", "mean_intrazonal_distance",
             ):
                 self.assertAlmostEqual(scaled_zone[field], unscaled_zone[field] * scale)
-            self.assertAlmostEqual(scaled_zone["synthetic_area"], unscaled_zone["synthetic_area"] * scale ** 2)
+            self.assertAlmostEqual(scaled_zone["synthetic_area"], unscaled_zone["synthetic_area"])
+            self.assertAlmostEqual(scaled_zone["equivalent_radius"], unscaled_zone["equivalent_radius"])
+            self.assertAlmostEqual(scaled_zone["mean_intrazonal_distance"], unscaled_zone["mean_intrazonal_distance"])
             self.assertAlmostEqual(scaled_zone["population_weight"], unscaled_zone["population_weight"])
             for group in AGE_GROUPS:
                 self.assertAlmostEqual(
@@ -89,6 +88,28 @@ class ZoneConfigurationTests(unittest.TestCase):
         self.assertEqual(
             allocate_zone_age_quotas(scaled, 1000)["quota_matrix"],
             allocate_zone_age_quotas(unscaled, 1000)["quota_matrix"],
+        )
+
+    def test_functional_zone_positions_and_remote_connection(self):
+        zones = {zone["zone_id"]: zone for zone in self.derived["zones"]}
+        self.assertLess(zones["Z1"]["centroid_x"], 0)
+        self.assertGreater(zones["Z2"]["centroid_y"], 0)
+        self.assertLess(zones["Z3"]["centroid_y"], 0)
+        self.assertGreater(zones["Z4"]["centroid_x"], 0)
+        self.assertGreater(zones["Z4"]["centroid_y"], 0)
+        self.assertGreater(zones["Z5"]["centroid_x"], 0)
+        self.assertLess(zones["Z5"]["centroid_y"], 0)
+        self.assertLess(zones["Z6"]["centroid_x"], 0)
+        self.assertLess(zones["Z6"]["centroid_y"], 0)
+        self.assertGreater(zones["Z7"]["centroid_x"], 0)
+        self.assertLess(zones["Z8"]["centroid_x"], 0)
+        self.assertGreater(zones["Z8"]["centroid_y"], 0)
+        self.assertTrue(zones["Z9"]["is_detached"])
+        self.assertEqual(zones["Z9"]["connected_to"], ["Z6"])
+        self.assertIn("Z1", zones["Z6"]["connected_to"])
+        self.assertGreater(
+            zones["Z9"]["radial_distance_from_center"],
+            max(zones[zone_id]["radial_distance_from_center"] for zone_id in zones if zone_id != "Z9"),
         )
 
     def test_scaled_key_city_dimensions_are_derived(self):
@@ -164,6 +185,25 @@ class ZoneConfigurationTests(unittest.TestCase):
                 [zone["zone_id"] for zone in base_order],
                 [zone["zone_id"] for zone in calibrated_order],
             )
+
+    def test_age_structure_matches_functional_city_logic(self):
+        zones = {zone["zone_id"]: zone for zone in self.derived["zones"]}
+
+        def share(zone_id, age_group):
+            return zones[zone_id]["calibrated_age_composition"][age_group]
+
+        # Employment centers and the industrial new town attract young residents.
+        self.assertGreater(share("Z1", "18-39"), share("Z3", "18-39"))
+        self.assertGreater(share("Z7", "18-39"), share("Z8", "18-39"))
+        self.assertGreater(share("Z6", "18-39"), share("Z8", "18-39"))
+        self.assertGreater(share("Z6", "18-39"), 0.45)
+
+        # Old-city, ageing near-suburban and remote zones retain more elders.
+        city_elder_share = self.derived["citywide_age_target"]["60+"]
+        for zone_id in ("Z3", "Z8", "Z9"):
+            self.assertGreater(share(zone_id, "60+"), city_elder_share)
+        self.assertGreater(share("Z8", "60+"), share("Z6", "60+"))
+        self.assertGreater(share("Z9", "60+"), share("Z7", "60+"))
 
     def test_infeasible_uniform_age_calibration_raises(self):
         zones = [
@@ -255,12 +295,12 @@ class ZoneConfigurationTests(unittest.TestCase):
         invalid_coverage["rings"][0]["modeled_coverage_share"] = 0
         cases.append(invalid_coverage)
 
-        invalid_ring_share = deepcopy(self.config)
-        invalid_ring_share["zones"][1]["within_ring_area_share"] = 0.4
-        cases.append(invalid_ring_share)
+        invalid_target_area = deepcopy(self.config)
+        invalid_target_area["zones"][1]["target_area"] = 0
+        cases.append(invalid_target_area)
 
         centroid_outside = deepcopy(self.config)
-        centroid_outside["zones"][1]["radial_distance_from_center"] = 9
+        centroid_outside["zones"][1]["radial_distance_from_center"] = 14
         cases.append(centroid_outside)
 
         invalid_angle = deepcopy(self.config)
@@ -268,6 +308,7 @@ class ZoneConfigurationTests(unittest.TestCase):
         cases.append(invalid_angle)
 
         center_angle = deepcopy(self.config)
+        center_angle["zones"][0]["radial_distance_from_center"] = 0
         center_angle["zones"][0]["angular_position_degrees"] = 0
         cases.append(center_angle)
 
@@ -286,6 +327,10 @@ class ZoneConfigurationTests(unittest.TestCase):
         invalid_zone_age = deepcopy(self.config)
         invalid_zone_age["zones"][0]["base_age_composition"]["60+"] = -0.1
         cases.append(invalid_zone_age)
+
+        asymmetric_connection = deepcopy(self.config)
+        asymmetric_connection["zones"][0]["connected_to"].remove("Z6")
+        cases.append(asymmetric_connection)
 
         for index, invalid in enumerate(cases):
             with self.subTest(case=index), self.assertRaises(ValueError):

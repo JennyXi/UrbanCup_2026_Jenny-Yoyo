@@ -136,6 +136,14 @@ assert out2['weather_event_active'] == True
 assert ret2['weather_event_active'] == False
 print('Test16 outbound/return independent weather OK')
 
+# Exposure uses the actual leg interval: a trip departing before the event but
+# arriving after it starts is exposed.
+interval_leg = make_leg('Tuesday','10:50','daily','40-59')
+interval_leg['arrival_time'] = '11:10'
+mod.annotate_leg_with_weather(interval_leg)
+assert interval_leg['weather_event_active'] == True
+print('Test16b interval-overlap weather exposure OK')
+
 # 17-19 time multipliers behavior
 mod.set_week('W1')
 leg_w1 = make_leg('Tuesday','12:00','daily','40-59')

@@ -140,7 +140,7 @@ def _spatial_maps(derived_spatial_config: Mapping[str, Any]) -> Dict[str, Any]:
             value = zone.get(field)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value):
                 raise ValueError(f"{zone_id}.{field} must be finite numeric")
-        for field in ("mean_intrazonal_distance", "population_weight"):
+        for field in ("mean_intrazonal_distance", "population_weight", "network_distance_multiplier"):
             _finite_positive(zone.get(field), f"{zone_id}.{field}")
         by_id[zone_id] = zone
     if set(by_id) != set(ZONE_IDS):
@@ -155,9 +155,13 @@ def effective_choice_distance(origin_zone: str, destination_zone: str, spatial_b
     if origin_zone == destination_zone:
         return float(origin["mean_intrazonal_distance"])
     destination = spatial_by_id[destination_zone]
-    return math.hypot(
+    euclidean = math.hypot(
         float(origin["centroid_x"]) - float(destination["centroid_x"]),
         float(origin["centroid_y"]) - float(destination["centroid_y"]),
+    )
+    return euclidean * max(
+        float(origin.get("network_distance_multiplier", 1.0)),
+        float(destination.get("network_distance_multiplier", 1.0)),
     )
 
 

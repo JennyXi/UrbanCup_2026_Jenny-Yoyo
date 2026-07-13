@@ -47,6 +47,24 @@ class WeatherEvent:
         e = _parse_time_hhmm(self.end_time)
         return (t >= s) and (t < e)
 
+    def overlaps(self, day: str, departure_time: Any, arrival_time: Any = None) -> bool:
+        """Return whether the actual leg interval intersects this event window."""
+        if day != self.day:
+            return False
+        def clock(value: Any) -> datetime.time:
+            if isinstance(value, datetime.datetime):
+                return value.time()
+            if isinstance(value, datetime.time):
+                return value
+            return _parse_time_hhmm(str(value)[-5:])
+        departure = clock(departure_time)
+        arrival = clock(arrival_time) if arrival_time is not None else departure
+        start = _parse_time_hhmm(self.start_time)
+        end = _parse_time_hhmm(self.end_time)
+        if arrival_time is None or arrival == departure:
+            return start <= departure < end
+        return departure < end and arrival > start
+
 
 @dataclass
 class WeatherConfig:
@@ -142,6 +160,7 @@ def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
         raise ValueError('Leg missing required field: departure_time')
     day = leg['day']
     dep = leg['departure_time']
+    arrival = leg.get('arrival_time')
 
     # set week and type
     leg['weather_week'] = CONFIG.current_week
@@ -157,7 +176,7 @@ def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
     if CONFIG.current_week == 'W1':
         leg['weather_type'] = 'extreme_heat'
         # check W1 windows
-        active = any(ev.contains(day, dep) for ev in CONFIG.w1_windows)
+        active = any(ev.overlaps(day, dep, arrival) for ev in CONFIG.w1_windows)
         leg['weather_event_active'] = bool(active)
         # shifts: only active in event window
         if leg['weather_event_active']:
@@ -174,7 +193,7 @@ def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
         # check configured W2 windows
         if not CONFIG.w2_windows:
             raise ValueError('W2 windows not configured (use set_w2_windows)')
-        active = any(ev.contains(day, dep) for ev in CONFIG.w2_windows)
+        active = any(ev.overlaps(day, dep, arrival) for ev in CONFIG.w2_windows)
         leg['weather_event_active'] = bool(active)
         if leg['weather_event_active']:
             leg['ride_hailing_preference_shift'] = CONFIG.ride_hailing_preference_shift_heavy_rain

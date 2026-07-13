@@ -69,6 +69,18 @@ OUTPUT_FIELDS = (
     "baseline_cancel_probability",
 )
 
+# Purpose-specific discrete duration distributions (minutes, probability).
+# All durations are on the model's 30-minute grid and remain within 0.5-8 hours.
+NON_WORK_DURATION_OPTIONS = {
+    "shopping": ((30, 0.30), (60, 0.40), (90, 0.20), (120, 0.10)),
+    "medical": ((60, 0.15), (90, 0.25), (120, 0.25), (180, 0.20), (240, 0.15)),
+    "social": ((60, 0.15), (120, 0.30), (180, 0.25), (240, 0.20), (360, 0.10)),
+    "visit": ((60, 0.10), (120, 0.25), (180, 0.25), (240, 0.20), (360, 0.15), (480, 0.05)),
+    "leisure": ((60, 0.10), (120, 0.25), (180, 0.25), (240, 0.20), (360, 0.15), (480, 0.05)),
+    "out_of_home_family_care": ((60, 0.10), (120, 0.25), (180, 0.25), (240, 0.20), (360, 0.15), (480, 0.05)),
+    "out_of_home_family_activity": ((60, 0.15), (120, 0.30), (180, 0.25), (240, 0.20), (360, 0.10)),
+}
+
 
 def _read_agent(agent: Any, field_name: str) -> Any:
     if isinstance(agent, dict):
@@ -131,12 +143,10 @@ def _add_minutes(value: time, minutes: int) -> time:
 def _derive_statuses(agent: Any, age_group: str, random_seed: Any, agent_id: Any) -> Tuple[str, str | None]:
     work_status = _read_optional_agent(agent, "work_status")
     medical_need_level = _read_optional_agent(agent, "medical_need_level")
-    rng = random.Random(_stable_seed(random_seed, agent_id, "status-fallback"))
     if age_group in {"18-39", "40-59"}:
         allowed = {"regular_worker", "flexible_non_worker"}
         if work_status is None:
-            rate = FLEXIBLE_NON_WORKER_SHARES[age_group]
-            work_status = "flexible_non_worker" if rng.random() < rate else "regular_worker"
+            raise ValueError("work_status must be inherited from Agent; activity generation cannot sample it")
         if work_status not in allowed:
             raise ValueError(f"Invalid work_status for {age_group}: {work_status}")
         if medical_need_level is not None:
@@ -148,15 +158,11 @@ def _derive_statuses(agent: Any, age_group: str, random_seed: Any, agent_id: Any
                 raise ValueError("flexible_non_worker cannot have lower independent ride-hailing ability")
         return work_status, None
     if work_status is None:
-        work_status = "part_time_worker" if rng.random() < PART_TIME_WORKER_SHARE else "retired"
+        raise ValueError("work_status must be inherited from Agent; activity generation cannot sample it")
     if work_status not in {"retired", "part_time_worker"}:
         raise ValueError(f"Invalid elder work_status: {work_status}")
     if medical_need_level is None:
-        medical_need_level = rng.choices(
-            tuple(MEDICAL_NEED_LEVEL_SHARES),
-            weights=tuple(MEDICAL_NEED_LEVEL_SHARES.values()),
-            k=1,
-        )[0]
+        raise ValueError("medical_need_level must be inherited from elder Agent")
     if medical_need_level not in {"low", "standard", "high"}:
         raise ValueError(f"Invalid medical_need_level: {medical_need_level}")
     return work_status, medical_need_level
@@ -183,29 +189,61 @@ def _elder_weekday_schedule(rng: random.Random, work_status: str, medical_need_l
     return schedule
 
 
-def _weekday_templates(age_group: str, work_status: str, elder_schedule: Dict[int, str], day_index: int, rng: random.Random) -> List[Tuple[str, time, time]]:
+def _sample_duration(rng: random.Random, purpose: str) -> int:
+    options = NON_WORK_DURATION_OPTIONS[purpose]
+    return rng.choices([item[0] for item in options], weights=[item[1] for item in options], k=1)[0]
+
+
+def _sample_company_schedule(rng: random.Random, work_status: str) -> Tuple[time, time] | None:
+    if work_status not in {"regular_worker", "part_time_worker"}:
+        return None
+    if work_status == "regular_worker":
+        start = _sample_half_hour_time(rng, time(8, 0), time(10, 30))
+        duration = rng.choice((480, 510, 540, 570, 600))
+    else:
+        start = _sample_half_hour_time(rng, time(10, 0), time(10, 30))
+        duration = rng.choice((390, 420, 450))
+    end = _add_minutes(start, duration)
+    if end < time(17, 0):
+        end = time(17, 0)
+    if end > time(21, 30):
+        end = time(21, 30)
+    return start, end
+
+
+def _weekday_templates(age_group: str, work_status: str, elder_schedule: Dict[int, str], day_index: int, rng: random.Random, company_schedule: Tuple[time, time] | None) -> List[Tuple[str, time, time]]:
     if age_group in {"18-39", "40-59"}:
         activities: List[Tuple[str, time, time]] = []
         if work_status == "regular_worker":
-            start = time(8, 0) if age_group == "18-39" else time(8, 30)
-            activities.append(("work", start, time(17, 30)))
+            start, end = company_schedule
+            activities.append(("work", start, end))
             trigger = YOUNG_WEEKDAY_EVENING_PROBABILITY if age_group == "18-39" else MIDDLE_AGE_WEEKDAY_EVENING_PROBABILITY
             if rng.random() < trigger:
                 purpose = ("shopping" if rng.random() < 0.45 else "social") if age_group == "18-39" else _weighted_choice(rng, MIDDLE_AGE_EVENING_PURPOSE_PROBABILITIES)
                 if purpose != "no_in_scope_trip":
-                    evening_start = rng.choice((time(18, 30), time(19, 0)))
-                    activities.append((purpose, evening_start, _add_minutes(evening_start, 120)))
+                    earliest = max(18 * 60 + 30, end.hour * 60 + end.minute + 30)
+                    duration = _sample_duration(rng, purpose)
+                    closing = 22 * 60 if purpose == "shopping" else 23 * 60 + 30
+                    latest_start = closing - duration
+                    if earliest <= latest_start:
+                        chosen = rng.choice(list(range(earliest, latest_start + 1, 30)))
+                        evening_start = time(chosen // 60, chosen % 60)
+                        activities.append((purpose, evening_start, _add_minutes(evening_start, duration)))
         else:
             purpose = _weighted_choice(rng, FLEXIBLE_WEEKDAY_PURPOSE_PROBABILITIES)
             if purpose != "no_in_scope_trip":
-                start = _sample_half_hour_time(rng, time(9, 0), time(15, 30))
-                activities.append((purpose, start, _add_minutes(start, 120)))
+                opening = time(10, 0) if purpose == "shopping" else time(9, 0)
+                start = _sample_half_hour_time(rng, opening, time(15, 30))
+                activities.append((purpose, start, _add_minutes(start, _sample_duration(rng, purpose))))
         return activities
     purpose = elder_schedule.get(day_index)
     if purpose is None:
         return []
+    if purpose == "work":
+        start, end = company_schedule
+        return [(purpose, start, end)]
     start = _sample_half_hour_time(rng, time(9, 0), time(14, 0))
-    return [(purpose, start, _add_minutes(start, 120))]
+    return [(purpose, start, _add_minutes(start, _sample_duration(rng, purpose)))]
 
 
 def _weekend_templates(age_group: str, rng: random.Random) -> List[Tuple[str, time, time]]:
@@ -214,10 +252,14 @@ def _weekend_templates(age_group: str, rng: random.Random) -> List[Tuple[str, ti
     if purpose == "no_in_scope_trip":
         return []
     if rng.random() < 0.5:
-        start = _sample_half_hour_time(rng, time(9, 0), time(11, 30))
+        opening = time(10, 0) if purpose == "shopping" else time(9, 0)
+        start = _sample_half_hour_time(rng, opening, time(11, 30))
     else:
         start = _sample_half_hour_time(rng, time(13, 0), time(16, 0))
-    return [(purpose, start, _add_minutes(start, 120))]
+    duration = _sample_duration(rng, purpose)
+    latest = 23 * 60 + 30 - (start.hour * 60 + start.minute)
+    duration = min(duration, latest)
+    return [(purpose, start, _add_minutes(start, duration))]
 
 
 def _make_activity(*, agent_id: Any, age_group: str, work_status: str, medical_need_level: str | None, home_zone: str, day_index: int, day_date, sequence: int, sequence_order: int, purpose: str, start_time: time, end_time: time) -> Dict[str, Any]:
@@ -257,6 +299,7 @@ def generate_weekly_activity_plan_with_audit(agent: Any, simulation_week_start: 
         raise ValueError(f"Agent {agent_id} has invalid home_zone: {home_zone}")
     work_status, medical_need_level = _derive_statuses(agent, age_group, random_seed, agent_id)
     rng = random.Random(_stable_seed(random_seed, agent_id))
+    company_schedule = _sample_company_schedule(rng, work_status)
     elder_schedule = _elder_weekday_schedule(rng, work_status, medical_need_level) if age_group == "60+" else {}
     activities = []
     sequence = 1
@@ -275,7 +318,7 @@ def generate_weekly_activity_plan_with_audit(agent: Any, simulation_week_start: 
     for day_index in range(7):
         day_date = (simulation_week_start + timedelta(days=day_index)).date()
         if day_index < 5:
-            templates = _weekday_templates(age_group, work_status, elder_schedule, day_index, rng)
+            templates = _weekday_templates(age_group, work_status, elder_schedule, day_index, rng, company_schedule)
             if age_group in {"18-39", "40-59"} and work_status == "regular_worker":
                 fixed_activity_slot_count += 1
                 category = "weekday_evening_activity"

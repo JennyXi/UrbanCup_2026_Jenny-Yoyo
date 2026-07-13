@@ -57,6 +57,9 @@ def validate_zone_configuration(config: Dict[str, Any]) -> None:
     spatial_scale = _require_number(config.get("spatial_scale"), "spatial_scale")
     if spatial_scale <= 0:
         raise ValueError("spatial_scale must be positive")
+    target_total_area = config.get("target_total_area")
+    if target_total_area is not None and _require_number(target_total_area, "target_total_area") <= 0:
+        raise ValueError("target_total_area must be positive")
 
     rings = config.get("rings")
     zones = config.get("zones")
@@ -126,15 +129,43 @@ def validate_zone_configuration(config: Dict[str, Any]) -> None:
         )
         if density <= 0:
             raise ValueError(f"{zone_id}.residential_density_factor must be positive")
+        if "target_area" in zone and _require_number(zone["target_area"], f"{zone_id}.target_area") <= 0:
+            raise ValueError(f"{zone_id}.target_area must be positive")
+        multiplier = _require_number(
+            zone.get("network_distance_multiplier", 1.0),
+            f"{zone_id}.network_distance_multiplier",
+        )
+        if multiplier < 1:
+            raise ValueError(f"{zone_id}.network_distance_multiplier must be >= 1")
+        if not isinstance(zone.get("is_detached", False), bool):
+            raise ValueError(f"{zone_id}.is_detached must be boolean")
+        connected_to = zone.get("connected_to", [])
+        if not isinstance(connected_to, list) or any(item not in zone_ids for item in connected_to):
+            raise ValueError(f"{zone_id}.connected_to must contain known zone IDs")
         _validate_composition(
             zone.get("base_age_composition"),
             f"{zone_id}.base_age_composition",
             tolerance,
         )
 
-    for ring_id, share_sum in shares_by_ring.items():
-        if not math.isclose(share_sum, 1.0, rel_tol=0.0, abs_tol=tolerance):
-            raise ValueError(f"within_ring_area_share for {ring_id} must sum to 1")
+    uses_explicit_areas = all("target_area" in zone for zone in zones)
+    connections = {zone["zone_id"]: set(zone.get("connected_to", [])) for zone in zones}
+    for zone_id, neighbours in connections.items():
+        if zone_id in neighbours:
+            raise ValueError(f"{zone_id}.connected_to cannot contain itself")
+        for neighbour in neighbours:
+            if zone_id not in connections[neighbour]:
+                raise ValueError(f"connection {zone_id}-{neighbour} must be reciprocal")
+    if uses_explicit_areas:
+        if target_total_area is None:
+            raise ValueError("target_total_area is required with explicit zone target_area values")
+        area_sum = sum(float(zone["target_area"]) for zone in zones)
+        if not math.isclose(area_sum, float(target_total_area), rel_tol=0.0, abs_tol=1e-6):
+            raise ValueError("zone target_area values must sum to target_total_area")
+    else:
+        for ring_id, share_sum in shares_by_ring.items():
+            if not math.isclose(share_sum, 1.0, rel_tol=0.0, abs_tol=tolerance):
+                raise ValueError(f"within_ring_area_share for {ring_id} must sum to 1")
 
 
 def calibrate_age_composition(
@@ -233,7 +264,11 @@ def derive_spatial_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
             x = radius * math.cos(radians)
             y = radius * math.sin(radians)
         ring = ring_map[zone["spatial_ring"]]
-        area = ring["represented_ring_area"] * float(zone["within_ring_area_share"])
+        area = (
+            float(zone["target_area"])
+            if "target_area" in zone
+            else ring["represented_ring_area"] * float(zone["within_ring_area_share"])
+        )
         capacity = area * float(zone["residential_density_factor"])
         zone.update(
             {
@@ -243,6 +278,7 @@ def derive_spatial_configuration(config: Dict[str, Any]) -> Dict[str, Any]:
                 "centroid_y": y,
                 "synthetic_area": area,
                 "residential_population_capacity": capacity,
+                "network_distance_multiplier": float(zone.get("network_distance_multiplier", 1.0)),
                 "equivalent_radius": math.sqrt(area / math.pi),
             }
         )

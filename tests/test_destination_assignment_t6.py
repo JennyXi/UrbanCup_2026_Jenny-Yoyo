@@ -47,6 +47,15 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
             seed,
         )
 
+    def test_remote_z9_uses_road_network_distance_penalty(self):
+        by_id = {zone["zone_id"]: zone for zone in self.derived["zones"]}
+        euclidean = ((by_id["Z6"]["centroid_x"] - by_id["Z9"]["centroid_x"]) ** 2 +
+                     (by_id["Z6"]["centroid_y"] - by_id["Z9"]["centroid_y"]) ** 2) ** 0.5
+        self.assertAlmostEqual(
+            effective_choice_distance("Z6", "Z9", by_id),
+            euclidean * by_id["Z9"]["network_distance_multiplier"],
+        )
+
     def test_work_zone_is_fixed_for_each_worker(self):
         assigned = self.assign()
         by_agent = defaultdict(set)

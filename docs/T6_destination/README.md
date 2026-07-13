@@ -36,7 +36,7 @@ exp[-extra_decay * (distance - soft_limit)]
 effective_distance(i,i) = mean_intrazonal_distance[i]
 ```
 
-跨区使用质心欧氏距离。这里的 effective distance 只用于目的地选择和审计，不写入 activity，也不代表最终实际行程距离。
+跨区先计算质心欧氏距离，再乘起终点中较大的 `network_distance_multiplier`。主体城市大部分区域接近 1；Z9 为 1.35，用于表达远郊唯一道路连接造成的绕行和交通弱势。这里的 effective distance 只用于目的地选择和审计，不写入 activity，也不代表最终路网最短路径。
 
 映射关系：
 
@@ -61,18 +61,18 @@ Purpose-specific约束：
 | social | 10 km | 0.14 | 25 km |
 | leisure | 12 km | 0.12 | 25 km |
 
-`medical_weight`是综合医疗服务吸引力，不区分医院等级、医疗类型或真实设施数量。`service_weight`是商业、社交和休闲设施的MVP综合近似。所有参数均为合成机制，不解释为上海实证值。
+`employment_weight` 将 Z1 设为第一就业中心、Z7 设为第二就业中心，并提高 Z6 作为产业就业节点的权重。`medical_weight` 和 `service_weight` 强化 Z7 的综合副中心作用。所有参数均为合成机制，不解释为上海实证值。
 
 ## 固定目的地
 
-- 每名 regular/part-time worker整周复用一个 `work_zone`；
+- 每名 regular/part-time worker整周复用一个 `work_zone`；Z1、Z7 和 Z6 分别承担主中心、副中心和产业节点就业吸引力；
 - 每名有医疗活动的Agent整周复用一个 `medical_zone`；
 - `visit`、`out_of_home_family_care`、`out_of_home_family_activity`整周复用同一个 `family_zone`；
 - shopping、social、leisure按activity独立分配。
 
 work、medical和family在任何天气或政策场景分支前按Agent各抽样一次，之后所有反事实场景复用。Family使用baseline week中实际出现的family purposes的最严格soft/hard约束，避免逐activity抽样绕过约束。
 
-同区目的地允许存在。Z7是人口较多且具有一定本地就业的新城，`work_zone=Z7`合法。T6不再设置Z7工作候选区硬限制；Z7同区就业与前往Z1–Z3的比例完全由就业吸引力、缩放后距离、beta和稳定抽样共同形成，并只在审计中报告。
+同区目的地允许存在。Z7 是东部综合副中心，`work_zone=Z7` 合法；Z6 是西南产业新城，也可吸引本区和其他区域的工作活动。Z9 不禁止跨区出行，但其道路绕行系数和较远位置会降低远距离目的地得分。
 
 晚间activity只获得destination，不写死origin，因为Agent可能从工作地直接前往晚间活动。
 
