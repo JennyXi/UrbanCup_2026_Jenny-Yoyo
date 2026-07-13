@@ -60,4 +60,4 @@
 
 返家到达时间按年龄设上限：18–39岁最晚在活动日结束后的24:00到家，40–59岁最晚22:00到家，60+最晚20:00到家。程序使用实际 return-home leg 的到达时间检查上限；时间窗口不足时会提前活动、缩短到该目的允许的时长，仍不可行则取消非必要活动，不会把时间绕到次日00:00。固定工作时间不为满足非必要活动而推迟。
 
-当前 generalized travel time 使用有效路网距离按18 km/h换算，向上取整至5分钟，最低10分钟、极端上限90分钟。该规则用于时间链可行性检查，尚未按交通方式、高峰拥堵或等待时间进行实证校准。
+当前 generalized travel time 使用 `road_network_distance_km` 按18 km/h换算，向上取整至5分钟，最低10分钟、极端上限90分钟。跨区leg同时保存质心直线距离，并按 `road_network_distance_km = euclidean_distance_km × detour_factor` 构造道路距离；同区leg的直线距离字段为0，道路距离以 `mean_intrazonal_distance` 为尺度，按purpose和稳定seed抽取正值。抽样键绑定无方向的实际地点对：home、固定公司、固定医疗地点、亲属目的区或activity-specific地点，因此同一地点之间往返道路距离一致，不因outbound/return分别重抽。该规则用于时间链可行性检查，尚未按最终交通方式、高峰拥堵或等待时间进行实证校准。

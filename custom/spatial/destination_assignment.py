@@ -67,6 +67,14 @@ def validate_destination_configuration(config: Mapping[str, Any]) -> None:
         raise ValueError("purpose attraction mapping references an unknown field")
     if any(value not in required_decay for value in distance_mapping.values()):
         raise ValueError("purpose distance mapping references an unknown decay class")
+    same_zone_multipliers = config.get("same_zone_preference_multiplier")
+    if not isinstance(same_zone_multipliers, Mapping) or set(same_zone_multipliers) != set(SUPPORTED_PURPOSES):
+        raise ValueError("same_zone_preference_multiplier must cover exactly the supported purposes")
+    for purpose, value in same_zone_multipliers.items():
+        _finite_positive(value, f"same_zone_preference_multiplier.{purpose}")
+    family_reuse_rate = config.get("family_primary_destination_reuse_rate")
+    if isinstance(family_reuse_rate, bool) or not isinstance(family_reuse_rate, (int, float)) or not 0 <= family_reuse_rate <= 1:
+        raise ValueError("family_primary_destination_reuse_rate must be between 0 and 1")
     family_attractions = {attraction_mapping[purpose] for purpose in FAMILY_PURPOSES}
     family_decays = {distance_mapping[purpose] for purpose in FAMILY_PURPOSES}
     if len(family_attractions) != 1 or len(family_decays) != 1:
@@ -176,15 +184,20 @@ def _strictest_family_constraint(purposes: Iterable[str], config: Mapping[str, A
     }
 
 
-def _choose_zone(*, agent_id: Any, random_key: str, home_zone: str, purpose: str, spatial_by_id: Mapping[str, Any], config: Mapping[str, Any], seed: Any, constraint_override: Mapping[str, float] | None = None) -> Tuple[str, Dict[str, Any]]:
+def _choose_zone(*, agent_id: Any, random_key: str, home_zone: str, purpose: str, spatial_by_id: Mapping[str, Any], config: Mapping[str, Any], seed: Any, constraint_override: Mapping[str, float] | None = None, excluded_zones: Iterable[str] = ()) -> Tuple[str, Dict[str, Any]]:
     attraction_field = config["purpose_attraction_mapping"][purpose]
     beta = float(config["distance_decay"][config["purpose_distance_mapping"][purpose]])
     constraint = constraint_override or config["purpose_distance_constraints"][purpose]
     soft_limit = float(constraint["soft_limit_km"])
     extra_decay = float(constraint["extra_decay"])
     hard_limit = float(constraint["hard_limit_km"])
+    excluded_zones = set(excluded_zones)
+    if not excluded_zones <= set(ZONE_IDS):
+        raise ValueError("excluded_zones contains an unknown zone")
     candidates = []
     for zone_id in ZONE_IDS:
+        if zone_id in excluded_zones:
+            continue
         attraction = (
             _finite_positive(spatial_by_id[zone_id]["population_weight"], f"{zone_id}.population_weight")
             if attraction_field == "population_weight"
@@ -193,6 +206,8 @@ def _choose_zone(*, agent_id: Any, random_key: str, home_zone: str, purpose: str
         distance = effective_choice_distance(home_zone, zone_id, spatial_by_id)
         original_score = attraction * math.exp(-beta * distance)
         adjusted_score = original_score
+        if zone_id == home_zone:
+            adjusted_score *= float(config["same_zone_preference_multiplier"][purpose])
         if distance > soft_limit:
             adjusted_score *= math.exp(-extra_decay * (distance - soft_limit))
         candidates.append({
@@ -277,6 +292,7 @@ def assign_destination_zones_with_audit(agents: Iterable[Any], weekly_activities
     fixed_distribution = {
         "work_zone": Counter(), "medical_zone": Counter(), "family_zone": Counter(),
     }
+    family_reuse_audit = {"activity_count": 0, "primary_reuse_count": 0, "alternative_count": 0}
 
     def record_event(group: str, diagnostic: Mapping[str, Any]) -> None:
         event_audit[group]["selection_event_count"] += 1
@@ -325,7 +341,21 @@ def assign_destination_zones_with_audit(agents: Iterable[Any], weekly_activities
         elif purpose == "medical":
             destination = fixed_destinations[(agent_id, "medical_zone")]
         elif purpose in FAMILY_PURPOSES:
-            destination = fixed_destinations[(agent_id, "family_zone")]
+            primary = fixed_destinations[(agent_id, "family_zone")]
+            family_reuse_audit["activity_count"] += 1
+            reuse_rng = random.Random(_stable_seed(seed, agent_id, "family-primary-reuse", original["activity_id"]))
+            if reuse_rng.random() < float(destination_config["family_primary_destination_reuse_rate"]):
+                destination = primary
+                family_reuse_audit["primary_reuse_count"] += 1
+            else:
+                destination, diagnostic = _choose_zone(
+                    agent_id=agent_id, random_key=f"family-alternative:{original['activity_id']}",
+                    home_zone=original["home_zone"], purpose=purpose,
+                    spatial_by_id=spatial_by_id, config=destination_config, seed=seed,
+                    excluded_zones={primary},
+                )
+                family_reuse_audit["alternative_count"] += 1
+                record_event("family_alternative", diagnostic)
         else:
             destination, diagnostic = _choose_zone(
                 agent_id=agent_id, random_key=f"activity:{original['activity_id']}",
@@ -339,7 +369,7 @@ def assign_destination_zones_with_audit(agents: Iterable[Any], weekly_activities
 
     by_group = {}
     total_events = total_exclusions = total_fallbacks = 0
-    for group in ("work", "medical", "family", "shopping", "social_leisure"):
+    for group in ("work", "medical", "family", "family_alternative", "shopping", "social_leisure"):
         values = event_audit[group]
         events = values["selection_event_count"]
         fallbacks = values["fallback_count"]
@@ -359,6 +389,14 @@ def assign_destination_zones_with_audit(agents: Iterable[Any], weekly_activities
         "by_selection_group": by_group,
         "agent_level_fixed_destination_distribution": {
             group: dict(sorted(counter.items())) for group, counter in fixed_distribution.items()
+        },
+        "family_destination_reuse": {
+            **family_reuse_audit,
+            "configured_primary_reuse_rate": float(destination_config["family_primary_destination_reuse_rate"]),
+            "realized_primary_reuse_rate": (
+                family_reuse_audit["primary_reuse_count"] / family_reuse_audit["activity_count"]
+                if family_reuse_audit["activity_count"] else 0.0
+            ),
         },
     }
     return {"activities": assigned, "selection_audit": selection_audit}

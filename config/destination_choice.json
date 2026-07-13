@@ -1,5 +1,5 @@
 {
-  "calibration_id": "t6_destination_choice_mvp_v1",
+  "calibration_id": "t6_destination_choice_mvp_v3",
   "distance_unit": "km",
   "destination_mechanism": "gravity_soft_penalty_extreme_hard_exclusion",
   "distance_decay": {
@@ -25,6 +25,16 @@
     "shopping": "local_distance",
     "social_leisure": "medium_distance"
   },
+  "same_zone_preference_multiplier": {
+    "work": 1.0,
+    "medical": 1.35,
+    "visit": 1.6,
+    "out_of_home_family_care": 1.6,
+    "out_of_home_family_activity": 1.6,
+    "shopping": 1.8,
+    "social_leisure": 1.6
+  },
+  "family_primary_destination_reuse_rate": 0.8,
   "fixed_destination_groups": {
     "work": "work_zone",
     "medical": "medical_zone",

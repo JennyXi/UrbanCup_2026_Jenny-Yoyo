@@ -17,7 +17,7 @@ from custom.agents.agent_population import generate_population_agents
 from custom.agents.trip_planning import generate_seven_day_activity_plans
 from custom.agents.leg_generation import build_time_feasible_legs
 from custom.spatial.destination_assignment import (
-    assign_destination_zones,
+    assign_destination_zones_with_audit,
     effective_choice_distance,
     load_destination_configuration,
 )
@@ -27,6 +27,7 @@ from custom.spatial.zone_configuration import (
     derive_spatial_configuration,
     load_zone_configuration,
 )
+from custom.transport.network import MODES, build_transport_network, calculate_leg_mode_option
 
 
 DEFAULT_OUTPUT_DIR = ROOT / "outputs" / "examples" / "agents_50_new_city"
@@ -77,7 +78,10 @@ def validate_sample(agent_rows, activity_rows, legs, trajectory_rows, spatial_by
         assert leg["agent_id"] in known_agents
         assert leg["origin_zone"] in spatial_by_id
         assert leg["destination_zone"] in spatial_by_id
-        assert leg["effective_distance_km"] > 0
+        assert leg["euclidean_distance_km"] >= 0
+        assert leg["road_network_distance_km"] > 0
+        if leg["origin_zone"] != leg["destination_zone"]:
+            assert leg["road_network_distance_km"] >= leg["euclidean_distance_km"]
         assert leg["departure_time"] + __import__("datetime").timedelta(minutes=leg["travel_time_minutes"]) == leg["arrival_time"]
         by_day[(leg["agent_id"], leg["day"])].append(leg)
     homes = {row["agent_id"]: row["home_zone"] for row in agent_rows}
@@ -98,8 +102,8 @@ def validate_sample(agent_rows, activity_rows, legs, trajectory_rows, spatial_by
         elif purpose == "medical":
             fixed[activity["agent_id"]]["medical"].add(activity["destination_zone"])
         elif purpose in {"visit", "out_of_home_family_care", "out_of_home_family_activity"}:
-            fixed[activity["agent_id"]]["family"].add(activity["destination_zone"])
-    assert all(len(destinations) <= 1 for groups in fixed.values() for destinations in groups.values())
+            fixed[activity["agent_id"]]["family_observed"].add(activity["destination_zone"])
+    assert all(len(groups.get(group, ())) <= 1 for groups in fixed.values() for group in ("work", "medical"))
     assert len(trajectory_rows) == 50 and {row["agent_id"] for row in trajectory_rows} == known_agents
 
     z9 = spatial_by_id["Z9"]
@@ -178,13 +182,14 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
     population = generate_population_agents(total_agents=50, seed=SEED)
     agents = assign_home_zones(population, quotas["quota_matrix"], seed=SEED)
     baseline = generate_seven_day_activity_plans(agents, WEEK_START, SEED)
-    activities = assign_destination_zones(
+    destination_result = assign_destination_zones_with_audit(
         agents,
         baseline,
         spatial,
         load_destination_configuration(),
         SEED,
     )
+    activities = destination_result["activities"]
 
     agent_rows = []
     for agent in agents:
@@ -224,6 +229,19 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
     write_csv(output_dir / "agents.csv", agent_rows)
     write_csv(output_dir / "activities.csv", activity_rows)
     write_csv(output_dir / "legs.csv", legs)
+    network = build_transport_network()
+    leg_mode_rows = []
+    for leg in legs:
+        for mode in MODES:
+            leg_mode_rows.append({
+                "leg_id": leg["leg_id"],
+                "agent_id": leg["agent_id"],
+                "activity_id": leg["activity_id"],
+                "purpose": leg["purpose"],
+                "leg_role": leg["leg_role"],
+                **calculate_leg_mode_option(network, leg, mode, seed=SEED),
+            })
+    write_csv(output_dir / "leg_mode_options.csv", leg_mode_rows)
 
     review_day = WEEK_START.date()
     monday_activities = defaultdict(list)
@@ -266,10 +284,13 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
     for row in agent_rows:
         age_home[row["age_group"]][row["home_zone"]] += 1
     purpose_dest = defaultdict(Counter)
+    purpose_same_zone = defaultdict(Counter)
     for row in activity_rows:
         purpose_dest[row["activity_purpose"]][row["destination_zone"]] += 1
+        purpose_same_zone[row["activity_purpose"]]["total"] += 1
+        purpose_same_zone[row["activity_purpose"]]["same_zone"] += row["home_zone"] == row["destination_zone"]
     od = Counter((row["origin_zone"], row["destination_zone"]) for row in legs)
-    distances = [row["effective_distance_km"] for row in legs]
+    distances = [row["road_network_distance_km"] for row in legs]
     elders = [row for row in agent_rows if row["is_elder"]]
     work_activities = [row for row in activity_rows if row["activity_purpose"] == "work"]
     departures = [row["departure_time"] for row in legs]
@@ -292,6 +313,12 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
         "agent_count": len(agent_rows),
         "activity_count": len(activity_rows),
         "leg_count": len(legs),
+        "leg_mode_option_count": len(leg_mode_rows),
+        "available_intrazonal_metro_option_count": sum(
+            row["available"] and row["mode"] == "metro" and row["origin_zone"] == row["destination_zone"]
+            for row in leg_mode_rows
+        ),
+        "family_destination_reuse": destination_result["selection_audit"]["family_destination_reuse"],
         "monday_modeled_traveler_count": sum(row["modeled_activity_count"] > 0 for row in trajectory_rows),
         "elder_access": {
             "elder_count": len(elders),
@@ -301,11 +328,19 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
         "home_zone_counts": dict(sorted(home_counts.items())),
         "age_by_home_zone": {age: dict(sorted(counts.items())) for age, counts in sorted(age_home.items())},
         "purpose_destination_counts": {purpose: dict(sorted(counts.items())) for purpose, counts in sorted(purpose_dest.items())},
+        "same_zone_activity_share": {
+            purpose: {
+                "same_zone_count": counts["same_zone"],
+                "total_count": counts["total"],
+                "share": round(counts["same_zone"] / counts["total"], 3),
+            }
+            for purpose, counts in sorted(purpose_same_zone.items())
+        },
         "top_20_od": [
             {"origin": origin, "destination": destination, "count": count}
             for (origin, destination), count in od.most_common(20)
         ],
-        "effective_distance_km": {
+        "road_network_distance_km": {
             "mean": round(sum(distances) / len(distances), 3),
             "maximum": round(max(distances), 3),
             "over_20_count": sum(value > 20 for value in distances),
@@ -343,10 +378,14 @@ def main(output_dir=DEFAULT_OUTPUT_DIR):
         "| Zone | 人数 |", "|---|---:|",
         *[f"| {zone} | {home_counts.get(zone, 0)} |" for zone in spatial_by_id], "",
         "## 距离", "",
-        f"- 平均有效距离：{summary['effective_distance_km']['mean']} km",
-        f"- 最大有效距离：{summary['effective_distance_km']['maximum']} km",
-        f"- 超过20 km：{summary['effective_distance_km']['over_20_count']} legs",
-        f"- 超过30 km：{summary['effective_distance_km']['over_30_count']} legs", "",
+        "- `euclidean_distance_km`：跨区质心直线距离；同区为0。",
+        "- `road_network_distance_km`：跨区为沿connected_to道路图累计的最短路径距离（每条边应用绕行系数）；同区为按活动地点对抽样的合成道路距离。",
+        "- `leg_mode_options.csv`中的`network_distance_km = main_network_distance_km + access_distance_km`。", "",
+        "> 如目录中仍存在 `legs_review_draft.csv`，它是旧版人工检查草稿，不属于当前生成流程；其中旧距离字段已弃用。", "",
+        f"- 平均合成道路距离：{summary['road_network_distance_km']['mean']} km",
+        f"- 最大合成道路距离：{summary['road_network_distance_km']['maximum']} km",
+        f"- 超过20 km：{summary['road_network_distance_km']['over_20_count']} legs",
+        f"- 超过30 km：{summary['road_network_distance_km']['over_30_count']} legs", "",
         "> legs.csv 使用活动到达/结束时间与确定性旅行时间生成，并通过逐段时间恒等式检查。", "",
         "## 周一一日轨迹", "",
         "| Agent | 年龄 | Home | 轨迹 |", "|---|---|---|---|",

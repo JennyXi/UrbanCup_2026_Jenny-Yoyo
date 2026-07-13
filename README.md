@@ -2,7 +2,7 @@
 
 本仓库正在构建一个以上海总体人口结构和空间趋势为参考的九区合成城市，用于研究极端夏季天气、数字接入和出行补贴政策对不同年龄人群潜在出行机会的影响。
 
-当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、天气响应规则和补贴资格规则。尚未生成正式 OD、交通方式选择、订单或派单结果。
+当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、天气响应规则和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
 
 ## 已完成模块
 
@@ -39,6 +39,7 @@
 
 - 参考上海“西部传统中心—东部综合副中心—外围新城—产业园区—远郊弱势区”的功能结构，不复刻真实行政区；
 - 使用显式目标面积、质心方向、交通邻接和道路绕行系数构建连续主体城市及远郊 Z9；
+- 跨区道路、公交和地铁均沿各自配置图寻路；公交距离与时间保留实际所选线路的分段累计结果；
 - 动态校准区域年龄构成并生成二维 `zone × age_group` 整数配额；
 - 按精确配额为每个 Agent 分配唯一 `home_zone`；
 - 使用稳定哈希，输入 Agent 或配额字典顺序不影响个人安置结果。
@@ -49,11 +50,23 @@
 
 - 使用purpose attraction与距离衰减为已有activity分配`destination_zone`；
 - 同区选择使用区内平均距离，不把同区视为0 km；
+- 普通活动使用可调同区偏好系数，提高本区购物、医疗、探访、家庭和社交休闲概率；work不加该系数，以保留年轻郊区居民跨区通勤；
 - 跨区距离考虑道路网络绕行；Z1、Z7、Z6分别承担主中心、副中心和产业就业节点作用；
-- work、medical和family destination按Agent固定，其他目的按activity判断；
+- work和medical destination按Agent固定；家庭活动约80%沿用主要亲属地点、约20%稳定抽取其他亲属地点；
 - 只更新destination字段，不生成origin、leg、正式OD或distance字段。
 
 详细说明见 [`docs/T6_destination/README.md`](docs/T6_destination/README.md)。
+
+### T7：九区多方式交通网络
+
+- 以Z1–Z9为节点，配置化生成道路、公交和地铁图；
+- 为81组OD生成walk、bus、metro、ride_hailing四种基准方案；
+- 输出距离、行驶、接驳、等待、换乘、总时间、费用和换乘次数；
+- 距离字段区分质心直线距离、合成道路距离、主方式走行距离和接驳距离，不再输出含义模糊的`effective_distance_km`；
+- 九区均有区内道路、公交和网约车；区内地铁按分区覆盖率、实际leg距离和稳定端点覆盖判断，不将有地铁解释为全区任意OD可达；
+- Z9无本区地铁站，但可经公交接驳Z6进入地铁；其公交等待和接驳负担更高；本阶段不进行Agent方式选择。
+
+详细说明见 [`docs/T7_transport_network/README.md`](docs/T7_transport_network/README.md)。
 
 ## 当前核心流程
 
@@ -64,6 +77,8 @@ total_agents
 → Agent.home_zone
 → Monday–Sunday baseline activities
 → activity.destination_zone
+→ 连续outbound / between-activities / return-home legs
+→ 九区多方式OD备选方案
 → T2天气继续/取消判断
 → T3政策优惠与派单资格
 ```
@@ -79,18 +94,18 @@ python -B -X utf8 -m unittest tests.test_home_zone_assignment -v
 python -B -X utf8 -m unittest tests.test_zone_configuration -v
 python -B -X utf8 tests\test_weather_t2.py
 python -B -X utf8 -m unittest tests.test_policy_t3 -v
+python -B -X utf8 -m unittest tests.test_transport_network -v
 ```
 
 ## 尚未实现
 
-- 正式 outbound/return legs 与 OD；
-- 区内或区际出行距离；
+- 正常天气下的分时段交通供给、早晚高峰与末班车约束；
 - mode choice；
 - 网约车订单、价格计算和优惠实际使用；
 - 车辆竞争、派单成功、等待时间与拥堵；
 - AgentSociety 端到端仿真。
 
-下一阶段仍需把activity sequence展开为正式legs与OD；当前destination分配不生成origin、distance或mode。
+下一阶段需要把每条Agent leg与多方式OD备选方案连接起来并实现mode choice；当前交通网络不读取Agent属性，也不生成订单或派单结果。
 
 ## 合成城市声明
 

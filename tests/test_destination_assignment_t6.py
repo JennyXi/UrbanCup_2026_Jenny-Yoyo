@@ -74,15 +74,28 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
         self.assertTrue(by_agent)
         self.assertTrue(all(len(destinations) == 1 for destinations in by_agent.values()))
 
-    def test_family_zone_is_fixed_across_all_family_purposes(self):
-        assigned = self.assign()
+    def test_family_destination_is_primary_eighty_percent_with_stable_alternatives(self):
         family = {"visit", "out_of_home_family_care", "out_of_home_family_activity"}
-        by_agent = defaultdict(set)
-        for item in assigned:
-            if item["activity_purpose"] in family:
-                by_agent[item["agent_id"]].add(item["destination_zone"])
-        self.assertTrue(by_agent)
-        self.assertTrue(all(len(destinations) == 1 for destinations in by_agent.values()))
+        agent = {"agent_id": "family-reuse", "home_zone": "Z3", "work_status": "regular_worker"}
+        base = deepcopy(self.activities[0])
+        rows = []
+        purposes = sorted(family)
+        for index in range(1200):
+            row = deepcopy(base)
+            row.update({
+                "agent_id": agent["agent_id"], "home_zone": agent["home_zone"],
+                "activity_id": f"family-{index:04d}", "activity_purpose": purposes[index % len(purposes)],
+                "destination_zone": None,
+            })
+            rows.append(row)
+        first = assign_destination_zones_with_audit([agent], rows, self.derived, self.config, 47)
+        second = assign_destination_zones_with_audit([agent], rows, self.derived, self.config, 47)
+        self.assertEqual(first, second)
+        reuse = first["selection_audit"]["family_destination_reuse"]
+        self.assertGreater(reuse["realized_primary_reuse_rate"], 0.77)
+        self.assertLess(reuse["realized_primary_reuse_rate"], 0.83)
+        self.assertEqual(reuse["primary_reuse_count"] + reuse["alternative_count"], len(rows))
+        self.assertGreater(len({row["destination_zone"] for row in first["activities"]}), 1)
 
     def test_activity_level_purposes_allow_same_zone(self):
         seen_same = set()
@@ -91,6 +104,33 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
                 if item["activity_purpose"] in {"shopping", "social_leisure"} and item["home_zone"] == item["destination_zone"]:
                     seen_same.add(item["activity_purpose"])
         self.assertEqual(seen_same, {"shopping", "social_leisure"})
+
+    def test_local_ordinary_activity_preference_is_explicit_and_stronger_than_work(self):
+        multipliers = self.config["same_zone_preference_multiplier"]
+        self.assertEqual(multipliers["work"], 1.0)
+        for purpose in (
+            "medical", "visit", "out_of_home_family_care",
+            "out_of_home_family_activity", "shopping", "social_leisure",
+        ):
+            self.assertGreater(multipliers[purpose], multipliers["work"])
+
+        spatial = {zone["zone_id"]: zone for zone in self.derived["zones"]}
+        neutral = deepcopy(self.config)
+        neutral["same_zone_preference_multiplier"] = {
+            purpose: 1.0 for purpose in self.config["same_zone_preference_multiplier"]
+        }
+        for purpose in ("shopping", "social_leisure", "medical"):
+            preferred_same = 0
+            neutral_same = 0
+            for home_zone in ZONE_IDS:
+                for agent_id in range(150):
+                    common = dict(
+                        agent_id=f"{home_zone}-{agent_id}", random_key=f"{purpose}-local-test",
+                        home_zone=home_zone, purpose=purpose, spatial_by_id=spatial, seed=47,
+                    )
+                    preferred_same += _choose_zone(config=self.config, **common)[0] == home_zone
+                    neutral_same += _choose_zone(config=neutral, **common)[0] == home_zone
+            self.assertGreater(preferred_same, neutral_same, purpose)
 
     def test_work_and_medical_are_not_all_z1(self):
         assigned = self.assign()
@@ -241,8 +281,10 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
         visit.update({"activity_id": "family-visit", "activity_purpose": "visit"})
         care = deepcopy(base)
         care.update({"activity_id": "family-care", "activity_purpose": "out_of_home_family_care"})
+        config = deepcopy(self.config)
+        config["family_primary_destination_reuse_rate"] = 1.0
         result = assign_destination_zones_with_audit(
-            [family_agent], [visit, care], self.derived, self.config, 47
+            [family_agent], [visit, care], self.derived, config, 47
         )
         self.assertEqual(
             result["activities"][0]["destination_zone"],
@@ -407,10 +449,15 @@ class DestinationAssignmentT6Tests(unittest.TestCase):
             "changed_across_policy_scenarios": changed_across_policy_scenarios,
             "work_zone_violations": sum(len(values["work"]) > 1 for values in grouped.values()),
             "medical_zone_violations": sum(len(values["medical"]) > 1 for values in grouped.values()),
-            "family_zone_violations": sum(len(values["family"]) > 1 for values in grouped.values()),
+            "family_multi_destination_agents": sum(len(values["family"]) > 1 for values in grouped.values()),
         }
         print("T6 scenario invariance:", metrics)
-        self.assertEqual(metrics, {field: 0 for field in metrics})
+        for field in (
+            "changed_after_shuffle", "changed_after_removal", "changed_after_weather",
+            "changed_across_policy_scenarios", "work_zone_violations", "medical_zone_violations",
+        ):
+            self.assertEqual(metrics[field], 0)
+        self.assertGreater(metrics["family_multi_destination_agents"], 0)
 
 
 if __name__ == "__main__":

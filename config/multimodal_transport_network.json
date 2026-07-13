@@ -1,0 +1,148 @@
+{
+  "schema_version": "1.0",
+  "network_id": "synthetic_shanghai_nine_zone_multimodal_v4",
+  "zone_config_path": "config/shanghai_synthetic_city.json",
+  "supported_modes": ["walk", "bus", "metro", "ride_hailing"],
+  "graphs": {
+    "road": {
+      "edge_source": "zone_config.connected_to",
+      "edge_distance_method": "shortest_path_sum_of_connected_centroid_edges_each_with_max_endpoint_multiplier",
+      "intrazonal_distance_source": "derived_spatial.mean_intrazonal_distance",
+      "intrazonal_coverage": "all_zones"
+    },
+    "bus": {
+      "intrazonal_coverage": "all_zones",
+      "routes": [
+        {"route_id": "B1", "zones": ["Z8", "Z2", "Z1", "Z7", "Z4"]},
+        {"route_id": "B2", "zones": ["Z9", "Z6", "Z3", "Z1"]},
+        {"route_id": "B3", "zones": ["Z6", "Z1", "Z7", "Z5"]},
+        {"route_id": "B4", "zones": ["Z4", "Z2", "Z1", "Z3", "Z5"]}
+      ]
+    },
+    "metro": {
+      "intrazonal_service_zones": ["Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7", "Z8"],
+      "feeder_access": {
+        "Z9": {
+          "gateway_zone": "Z6",
+          "access_mode": "bus",
+          "access_fare": 2.0,
+          "mode_transfer_count": 1
+        }
+      },
+      "lines": [
+        {"line_id": "M1", "zones": ["Z8", "Z2", "Z1", "Z7", "Z4"]},
+        {"line_id": "M2", "zones": ["Z6", "Z3", "Z1"]},
+        {"line_id": "M3", "zones": ["Z3", "Z5", "Z7"]}
+      ]
+    }
+  },
+  "intrazonal_services": {
+    "Z1": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z2": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z3": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z4": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z5": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z6": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z7": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z8": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z9": {"road": true, "bus": true, "metro": false, "ride_hailing": true}
+  },
+  "intrazonal_distance_sampling": {
+    "distribution": "triangular_multiplier",
+    "minimum_distance_km": 0.5,
+    "maximum_distance_km": 20.0,
+    "purpose_multiplier_ranges": {
+      "shopping": {"low": 0.15, "mode": 0.45, "high": 0.90},
+      "social_leisure": {"low": 0.30, "mode": 0.80, "high": 1.40},
+      "medical": {"low": 0.45, "mode": 1.05, "high": 1.65},
+      "visit": {"low": 0.20, "mode": 0.90, "high": 1.80},
+      "out_of_home_family_care": {"low": 0.20, "mode": 0.90, "high": 1.80},
+      "out_of_home_family_activity": {"low": 0.20, "mode": 0.90, "high": 1.80},
+      "work": {"low": 0.50, "mode": 1.10, "high": 1.70}
+    }
+  },
+  "intrazonal_metro": {
+    "minimum_trip_mean_multiplier": 0.75,
+    "minimum_trip_distance_km": 3.0,
+    "metro_coverage_rate": {
+      "Z1": 0.75,
+      "Z2": 0.60,
+      "Z3": 0.60,
+      "Z4": 0.35,
+      "Z5": 0.30,
+      "Z6": 0.35,
+      "Z7": 0.50,
+      "Z8": 0.25,
+      "Z9": 0.00
+    },
+    "provenance": "model_assumption_inspired_by_shanghai_planning_scale_not_observed_coverage"
+  },
+  "modes": {
+    "walk": {
+      "speed_kmh": 4.8,
+      "maximum_distance_km": 6.0,
+      "fare": 0.0,
+      "provenance": "model_assumption"
+    },
+    "bus": {
+      "speed_kmh": 18.0,
+      "route_distance_factor": 1.10,
+      "flat_fare": 2.0,
+      "transfer_penalty_min": 8.0,
+      "provenance": "model_assumption"
+    },
+    "metro": {
+      "speed_kmh": 35.0,
+      "route_distance_factor": 1.0,
+      "base_fare": 3.0,
+      "included_distance_km": 6.0,
+      "increment_distance_km": 10.0,
+      "increment_fare": 1.0,
+      "transfer_penalty_min": 7.0,
+      "mode_transfer_penalty_min": 6.0,
+      "provenance": "model_assumption"
+    },
+    "ride_hailing": {
+      "speed_kmh": 30.0,
+      "base_fare": 14.0,
+      "included_distance_km": 3.0,
+      "per_km_after_included": 2.7,
+      "access_time_min": 2.0,
+      "provenance": "model_assumption"
+    }
+  },
+  "zone_service_parameters": {
+    "Z1": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z2": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z3": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z4": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z5": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z6": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z7": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z8": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z9": {"bus_access_min": 14.0, "bus_wait_min": 18.0, "metro_access_min": null, "metro_wait_min": null, "ride_hailing_wait_min": 12.0}
+  },
+  "evidence_references": {
+    "yoyo_database_review": {
+      "baseline_speed_fare_waiting_data_found": false,
+      "limitations_file": "data_collection/docs/SOURCE_LIMITATIONS.md",
+      "weather_calibration_file": "data_collection/config/calibration/shanghai_evidence_based.yaml",
+      "weather_export_file": "data_collection/data/exports/weather_transport_calibration.csv",
+      "future_only_parameters": [
+        "road_capacity_multiplier",
+        "transit_speed_multiplier",
+        "ride_hailing_vehicle_turnover_multiplier",
+        "recovery_duration_minutes"
+      ],
+      "applied_in_this_baseline_network": false
+    },
+    "topology": {
+      "source": "config/shanghai_synthetic_city.json connected_to and centroid fields",
+      "provenance": "existing_synthetic_city_configuration"
+    },
+    "baseline_mode_parameters": {
+      "provenance": "model_assumption",
+      "reason": "yoyo_database explicitly reports insufficient unified observations for baseline speeds, fares, waits, transfers and citywide suburban differences"
+    }
+  }
+}

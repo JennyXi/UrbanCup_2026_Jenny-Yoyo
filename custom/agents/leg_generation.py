@@ -3,13 +3,19 @@
 from __future__ import annotations
 
 import math
+import hashlib
+import random
 from collections import defaultdict
 from copy import deepcopy
 from datetime import datetime, time, timedelta
 from typing import Any, Dict, Iterable, List, Mapping
 
 from custom.agents.trip_planning import NON_WORK_DURATION_OPTIONS
-from custom.spatial.destination_assignment import effective_choice_distance
+from custom.transport.network import (
+    _road_network_distance,
+    build_transport_network,
+    load_transport_configuration,
+)
 
 
 HOME_ARRIVAL_DEADLINES = {
@@ -57,13 +63,103 @@ def _read(agent: Any, field: str) -> Any:
     return agent[field] if isinstance(agent, dict) else getattr(agent, field)
 
 
-def estimate_travel_time_minutes(origin: str, destination: str, spatial_by_id: Mapping[str, Mapping[str, Any]]) -> int:
+def _stable_seed(seed: Any, *parts: Any) -> int:
+    material = "|".join([repr(seed), *(f"{type(part).__name__}:{part!r}" for part in parts)])
+    return int.from_bytes(hashlib.sha256(material.encode("utf-8")).digest()[:8], "big")
+
+
+def sample_intrazonal_distance(
+    zone_id: str,
+    purpose: str,
+    spatial_by_id: Mapping[str, Mapping[str, Any]],
+    *,
+    seed: Any,
+    agent_id: Any,
+    origin_location_key: str,
+    destination_location_key: str,
+    transport_config: Mapping[str, Any] | None = None,
+) -> float:
+    """Sample a positive same-zone road distance bound to an unordered location pair."""
+    config = transport_config or load_transport_configuration()
+    sampling = config["intrazonal_distance_sampling"]
+    ranges = sampling["purpose_multiplier_ranges"]
+    if purpose not in ranges:
+        raise ValueError(f"No intrazonal distance sampling rule for purpose: {purpose}")
+    mean = float(spatial_by_id[zone_id]["mean_intrazonal_distance"])
+    row = ranges[purpose]
+    location_pair = tuple(sorted((origin_location_key, destination_location_key)))
+    rng = random.Random(_stable_seed(seed, agent_id, location_pair, zone_id, purpose))
+    multiplier = rng.triangular(float(row["low"]), float(row["high"]), float(row["mode"]))
+    return min(
+        float(sampling["maximum_distance_km"]),
+        max(float(sampling["minimum_distance_km"]), mean * multiplier),
+    )
+
+
+def _home_location_key(agent_id: Any, zone_id: str) -> str:
+    return f"{agent_id}:home:{zone_id}"
+
+
+def _activity_location_key(agent_id: Any, activity: Mapping[str, Any]) -> str:
+    purpose = activity["activity_purpose"]
+    destination = activity["destination_zone"]
+    if purpose in {"work", "medical"}:
+        return f"{agent_id}:{purpose}:{destination}"
+    if purpose in {"visit", "out_of_home_family_care", "out_of_home_family_activity"}:
+        return f"{agent_id}:family:{destination}"
+    return f"{agent_id}:activity:{activity['activity_id']}:{destination}"
+
+
+def _euclidean_distance(origin: str, destination: str, spatial_by_id: Mapping[str, Mapping[str, Any]]) -> float:
+    if origin == destination:
+        return 0.0
+    left = spatial_by_id[origin]
+    right = spatial_by_id[destination]
+    return math.hypot(
+        float(left["centroid_x"]) - float(right["centroid_x"]),
+        float(left["centroid_y"]) - float(right["centroid_y"]),
+    )
+
+
+def _leg_distances(
+    origin: str,
+    destination: str,
+    purpose: str,
+    spatial_by_id: Mapping[str, Mapping[str, Any]],
+    *,
+    seed: Any,
+    agent_id: Any,
+    origin_location_key: str,
+    destination_location_key: str,
+    transport_config: Mapping[str, Any],
+    transport_network: Mapping[str, Any],
+) -> tuple[float, float]:
+    if origin != destination:
+        euclidean = _euclidean_distance(origin, destination, spatial_by_id)
+        return euclidean, _road_network_distance(transport_network, origin, destination)
+    road_distance = sample_intrazonal_distance(
+        origin, purpose, spatial_by_id, seed=seed, agent_id=agent_id,
+        origin_location_key=origin_location_key,
+        destination_location_key=destination_location_key,
+        transport_config=transport_config,
+    )
+    return 0.0, road_distance
+
+
+def estimate_travel_time_minutes(origin: str, destination: str, spatial_by_id: Mapping[str, Mapping[str, Any]], distance_km: float | None = None) -> int:
     """Generalized urban travel time, including congestion/waiting/transfer burden.
 
-    Effective network distance is converted at 18 km/h, rounded up to five
+    Synthetic road-network distance is converted at 18 km/h, rounded up to five
     minutes, with a 10-minute minimum and a 90-minute extreme upper bound.
     """
-    distance = effective_choice_distance(origin, destination, spatial_by_id)
+    if distance_km is None:
+        euclidean = _euclidean_distance(origin, destination, spatial_by_id)
+        distance = euclidean * max(
+            float(spatial_by_id[origin].get("network_distance_multiplier", 1.0)),
+            float(spatial_by_id[destination].get("network_distance_multiplier", 1.0)),
+        ) if origin != destination else float(spatial_by_id[origin]["mean_intrazonal_distance"])
+    else:
+        distance = distance_km
     return min(90, max(10, int(math.ceil((distance / 18.0 * 60.0) / 5.0) * 5)))
 
 
@@ -71,6 +167,8 @@ def build_time_feasible_legs(
     agents: Iterable[Any],
     activities: Iterable[Mapping[str, Any]],
     spatial_by_id: Mapping[str, Mapping[str, Any]],
+    seed: Any = 47,
+    transport_config: Mapping[str, Any] | None = None,
 ) -> Dict[str, List[Dict[str, Any]]]:
     """Return adjusted activities and legs with exact departure/arrival identities.
 
@@ -78,6 +176,11 @@ def build_time_feasible_legs(
     only when required by the preceding activity plus inter-activity travel.
     """
     agent_by_id = {_read(agent, "agent_id"): agent for agent in agents}
+    transport_config = transport_config or load_transport_configuration()
+    transport_network = build_transport_network(
+        config=transport_config,
+        spatial={"zones": list(spatial_by_id.values())},
+    )
     records = [deepcopy(dict(item)) for item in activities]
     removed_activity_ids = set()
     grouped = defaultdict(list)
@@ -97,6 +200,7 @@ def build_time_feasible_legs(
             day_records.sort(key=lambda item: (item["planned_start_datetime"], item["sequence_order"]))
             restart = False
             origin = home
+            origin_location_key = _home_location_key(agent_id, home)
             previous_end = None
             for index, activity in enumerate(day_records):
                 start = activity["planned_start_datetime"]
@@ -117,7 +221,16 @@ def build_time_feasible_legs(
                     restart = True
                     break
 
-                travel_minutes = estimate_travel_time_minutes(origin, activity["destination_zone"], spatial_by_id)
+                destination_location_key = _activity_location_key(agent_id, activity)
+                _, road_distance = _leg_distances(
+                    origin, activity["destination_zone"], activity["activity_purpose"], spatial_by_id,
+                    seed=seed, agent_id=agent_id,
+                    origin_location_key=origin_location_key,
+                    destination_location_key=destination_location_key,
+                    transport_config=transport_config,
+                    transport_network=transport_network,
+                )
+                travel_minutes = estimate_travel_time_minutes(origin, activity["destination_zone"], spatial_by_id, road_distance)
                 earliest_start = previous_end + timedelta(minutes=travel_minutes) if previous_end is not None else start
                 if start < earliest_start:
                     if activity["activity_purpose"] == "work":
@@ -142,12 +255,21 @@ def build_time_feasible_legs(
                     restart = True
                     break
                 origin = activity["destination_zone"]
+                origin_location_key = destination_location_key
                 previous_end = activity["planned_end_datetime"]
             if restart:
                 continue
 
             final = day_records[-1]
-            return_minutes = estimate_travel_time_minutes(final["destination_zone"], home, spatial_by_id)
+            _, return_road_distance = _leg_distances(
+                final["destination_zone"], home, final["activity_purpose"], spatial_by_id,
+                seed=seed, agent_id=agent_id,
+                origin_location_key=_activity_location_key(agent_id, final),
+                destination_location_key=_home_location_key(agent_id, home),
+                transport_config=transport_config,
+                transport_network=transport_network,
+            )
+            return_minutes = estimate_travel_time_minutes(final["destination_zone"], home, spatial_by_id, return_road_distance)
             deadline = _deadline_datetime(day, age_group)
             latest_end = deadline - timedelta(minutes=return_minutes)
             if final["planned_end_datetime"] > latest_end:
@@ -156,8 +278,16 @@ def build_time_feasible_legs(
                 earliest_start = datetime.combine(day, time(9, 0))
                 if len(day_records) > 1:
                     previous = day_records[-2]
+                    _, inbound_road_distance = _leg_distances(
+                        previous["destination_zone"], final["destination_zone"], final["activity_purpose"], spatial_by_id,
+                        seed=seed, agent_id=agent_id,
+                        origin_location_key=_activity_location_key(agent_id, previous),
+                        destination_location_key=_activity_location_key(agent_id, final),
+                        transport_config=transport_config,
+                        transport_network=transport_network,
+                    )
                     inbound_minutes = estimate_travel_time_minutes(
-                        previous["destination_zone"], final["destination_zone"], spatial_by_id
+                        previous["destination_zone"], final["destination_zone"], spatial_by_id, inbound_road_distance
                     )
                     earliest_start = previous["planned_end_datetime"] + timedelta(minutes=inbound_minutes)
                 if final["activity_purpose"] == "shopping":
@@ -192,9 +322,19 @@ def build_time_feasible_legs(
             activity["sequence_order"] = sequence_order
 
         origin = home
+        origin_location_key = _home_location_key(agent_id, home)
         previous_end = None
         for index, activity in enumerate(day_records, start=1):
-            travel_minutes = estimate_travel_time_minutes(origin, activity["destination_zone"], spatial_by_id)
+            destination_location_key = _activity_location_key(agent_id, activity)
+            euclidean_distance, road_distance = _leg_distances(
+                origin, activity["destination_zone"], activity["activity_purpose"], spatial_by_id,
+                seed=seed, agent_id=agent_id,
+                origin_location_key=origin_location_key,
+                destination_location_key=destination_location_key,
+                transport_config=transport_config,
+                transport_network=transport_network,
+            )
+            travel_minutes = estimate_travel_time_minutes(origin, activity["destination_zone"], spatial_by_id, road_distance)
             travel = timedelta(minutes=travel_minutes)
             earliest_start = previous_end + travel if previous_end is not None else None
             if earliest_start is not None and activity["planned_start_datetime"] < earliest_start:
@@ -221,13 +361,23 @@ def build_time_feasible_legs(
                 "departure_time": departure,
                 "travel_time_minutes": travel_minutes,
                 "arrival_time": arrival,
-                "effective_distance_km": round(effective_choice_distance(origin, activity["destination_zone"], spatial_by_id), 3),
+                "euclidean_distance_km": round(euclidean_distance, 3),
+                "road_network_distance_km": round(road_distance, 3),
             })
             origin = activity["destination_zone"]
+            origin_location_key = destination_location_key
             previous_end = activity["planned_end_datetime"]
 
         final = day_records[-1]
-        travel_minutes = estimate_travel_time_minutes(origin, home, spatial_by_id)
+        euclidean_distance, road_distance = _leg_distances(
+            origin, home, final["activity_purpose"], spatial_by_id,
+            seed=seed, agent_id=agent_id,
+            origin_location_key=origin_location_key,
+            destination_location_key=_home_location_key(agent_id, home),
+            transport_config=transport_config,
+            transport_network=transport_network,
+        )
+        travel_minutes = estimate_travel_time_minutes(origin, home, spatial_by_id, road_distance)
         departure = final["planned_end_datetime"]
         arrival = departure + timedelta(minutes=travel_minutes)
         legs.append({
@@ -244,7 +394,8 @@ def build_time_feasible_legs(
             "departure_time": departure,
             "travel_time_minutes": travel_minutes,
             "arrival_time": arrival,
-            "effective_distance_km": round(effective_choice_distance(origin, home, spatial_by_id), 3),
+            "euclidean_distance_km": round(euclidean_distance, 3),
+            "road_network_distance_km": round(road_distance, 3),
         })
 
     records = [item for item in records if item["activity_id"] not in removed_activity_ids]

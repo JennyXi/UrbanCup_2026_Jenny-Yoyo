@@ -4,11 +4,12 @@ from copy import deepcopy
 from datetime import datetime, timedelta
 
 from custom.agents.agent_population import generate_population_agents
-from custom.agents.leg_generation import HOME_ARRIVAL_DEADLINES, build_time_feasible_legs
+from custom.agents.leg_generation import HOME_ARRIVAL_DEADLINES, build_time_feasible_legs, sample_intrazonal_distance
 from custom.agents.trip_planning import NON_WORK_DURATION_OPTIONS, generate_seven_day_activity_plans
 from custom.spatial.destination_assignment import assign_destination_zones, effective_choice_distance, load_destination_configuration
 from custom.spatial.home_zone_assignment import assign_home_zones
 from custom.spatial.zone_configuration import allocate_zone_age_quotas, derive_spatial_configuration, load_zone_configuration
+from custom.transport.network import build_transport_network, calculate_leg_mode_option
 
 
 class LegGenerationTests(unittest.TestCase):
@@ -24,6 +25,7 @@ class LegGenerationTests(unittest.TestCase):
         result = build_time_feasible_legs(cls.agents, assigned, cls.spatial_by_id)
         cls.activities = result["activities"]
         cls.legs = result["legs"]
+        cls.transport_network = build_transport_network()
 
     def test_activity_identity_fields_match_agent_row_by_row(self):
         agents = {agent.agent_id: agent for agent in self.agents}
@@ -35,6 +37,9 @@ class LegGenerationTests(unittest.TestCase):
     def test_leg_time_identity_and_daily_continuity(self):
         grouped = defaultdict(list)
         for leg in self.legs:
+            self.assertNotIn("effective_distance_km", leg)
+            self.assertIn("euclidean_distance_km", leg)
+            self.assertIn("road_network_distance_km", leg)
             self.assertEqual(
                 leg["departure_time"] + timedelta(minutes=leg["travel_time_minutes"]),
                 leg["arrival_time"],
@@ -53,6 +58,63 @@ class LegGenerationTests(unittest.TestCase):
         ]
         self.assertIn(90, travel_times)
         self.assertTrue(all(10 <= minutes <= 90 and minutes % 5 == 0 for minutes in travel_times))
+
+    def test_leg_and_mode_option_share_the_same_road_path_distance(self):
+        for leg in self.legs:
+            option = calculate_leg_mode_option(self.transport_network, leg, "ride_hailing", seed=47)
+            self.assertEqual(option["road_network_distance_km"], leg["road_network_distance_km"])
+
+    def test_intrazonal_distance_is_seeded_by_leg_and_purpose(self):
+        def samples(zone, purpose, count=1200):
+            return [
+                sample_intrazonal_distance(
+                    zone, purpose, self.spatial_by_id, seed=47, agent_id="sample-agent",
+                    origin_location_key="sample-agent:home",
+                    destination_location_key=f"sample-agent:{purpose}:{index}",
+                )
+                for index in range(count)
+            ]
+
+        shopping = samples("Z3", "shopping")
+        social = samples("Z3", "social_leisure")
+        medical = samples("Z3", "medical")
+        family = samples("Z3", "visit")
+        work = samples("Z3", "work")
+        self.assertLess(sum(shopping) / len(shopping), sum(social) / len(social))
+        self.assertLess(sum(social) / len(social), sum(medical) / len(medical))
+        self.assertLess(sum(social) / len(social), sum(work) / len(work))
+        self.assertGreater(max(family) - min(family), max(shopping) - min(shopping))
+        self.assertTrue(all(0.5 <= value <= 20.0 for values in (shopping, social, medical, family, work) for value in values))
+        self.assertEqual(shopping, samples("Z3", "shopping"))
+        self.assertGreater(len({round(value, 3) for value in shopping}), 100)
+
+    def test_large_zone_intrazonal_sample_mean_exceeds_small_zone(self):
+        def average(zone):
+            values = [
+                sample_intrazonal_distance(
+                    zone, "social_leisure", self.spatial_by_id, seed=47, agent_id="scale-test",
+                    origin_location_key="scale-test:home",
+                    destination_location_key=f"scale-test:activity:{index}",
+                )
+                for index in range(2000)
+            ]
+            return sum(values) / len(values)
+        self.assertGreater(average("Z9"), average("Z1") * 1.2)
+
+    def test_same_zone_legs_do_not_all_share_the_zone_mean(self):
+        same_zone = [leg["road_network_distance_km"] for leg in self.legs if leg["origin_zone"] == leg["destination_zone"]]
+        self.assertGreater(len(set(same_zone)), 10)
+
+    def test_same_activity_location_has_identical_outbound_and_return_road_distance(self):
+        activity = deepcopy(next(item for item in self.activities if item["activity_purpose"] == "work"))
+        agent = next(agent for agent in self.agents if agent.agent_id == activity["agent_id"])
+        activity["destination_zone"] = agent.home_zone
+        result = build_time_feasible_legs([agent], [activity], self.spatial_by_id, seed=47)
+        self.assertEqual(len(result["legs"]), 2)
+        outbound, inbound = result["legs"]
+        self.assertEqual(outbound["euclidean_distance_km"], 0.0)
+        self.assertEqual(inbound["euclidean_distance_km"], 0.0)
+        self.assertEqual(outbound["road_network_distance_km"], inbound["road_network_distance_km"])
 
     def test_activity_intervals_leave_required_travel_gap(self):
         activities = {item["activity_id"]: item for item in self.activities}
