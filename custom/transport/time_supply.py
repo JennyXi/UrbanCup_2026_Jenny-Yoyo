@@ -359,6 +359,16 @@ def _next_supply_boundary(
     return min(actual, shifted_end)
 
 
+def next_supply_boundary(
+    moment: datetime,
+    config: Mapping[str, Any],
+    origin: str,
+    destination: str,
+) -> datetime:
+    """Public boundary helper for later exogenous supply layers."""
+    return _next_supply_boundary(moment, config, origin, destination)
+
+
 def _advance_wait(
     start: datetime,
     config: Mapping[str, Any],

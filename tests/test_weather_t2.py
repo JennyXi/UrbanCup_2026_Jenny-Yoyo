@@ -19,8 +19,6 @@ mod.CONFIG.age_sensitivity_modifier_40_59 = 1.0
 mod.CONFIG.age_sensitivity_modifier_60_plus = 1.05
 mod.CONFIG.ride_hailing_preference_shift_extreme_heat = 0.1
 mod.CONFIG.ride_hailing_preference_shift_heavy_rain = 0.2
-mod.CONFIG.bus_time_multiplier_heavy_rain = 1.3
-mod.CONFIG.ride_hailing_time_multiplier_heavy_rain = 1.2
 
 mod.validate_purpose_ordering()
 mod.validate_heavy_vs_heat_stronger()
@@ -36,7 +34,7 @@ for l in legs:
     mod.annotate_leg_with_weather(l)
     mod.sample_weather_cancel_for_leg(l, {'age_group':l['age_group']})
 
-assert all(l['weather_week']=='W0' and l['weather_type']=='normal' and l['weather_event_active']==False and l['trip_continues']==True and l['ride_hailing_preference_shift']==0 and l['bus_time_multiplier']==1.0 and l['ride_hailing_time_multiplier']==1.0 for l in legs)
+assert all(l['weather_week']=='W0' and l['weather_type']=='normal' and l['weather_event_active']==False and l['trip_continues']==True and l['ride_hailing_preference_shift']==0 for l in legs)
 print('Test1 W0 OK')
 
 # 2-4. W1 windows 11:00 - 18:00 inclusive left-closed right-open
@@ -144,17 +142,16 @@ mod.annotate_leg_with_weather(interval_leg)
 assert interval_leg['weather_event_active'] == True
 print('Test16b interval-overlap weather exposure OK')
 
-# 17-19 time multipliers behavior
+# 17-19 supply multipliers are owned by the independent weather-supply layer
 mod.set_week('W1')
 leg_w1 = make_leg('Tuesday','12:00','daily','40-59')
 mod.annotate_leg_with_weather(leg_w1)
-assert leg_w1['bus_time_multiplier'] == 1.0 and leg_w1['ride_hailing_time_multiplier'] == 1.0
 mod.set_week('W2')
 mod.set_w2_windows([('Tuesday','11:00','13:00'),('Wednesday','09:00','10:00'),('Thursday','08:00','09:00')])
 leg_w2 = make_leg('Tuesday','12:00','daily','40-59')
 mod.annotate_leg_with_weather(leg_w2)
-assert leg_w2['bus_time_multiplier'] > 1.0 and leg_w2['ride_hailing_time_multiplier'] > 1.0
-print('Test17-19 multipliers OK')
+assert 'bus_time_multiplier' not in leg_w2 and 'ride_hailing_time_multiplier' not in leg_w2
+print('Test17-19 supply multipliers not duplicated in T2 OK')
 
 # 20 metro unchanged (not present in outputs)
 assert 'metro_time_multiplier' not in leg_w2
@@ -164,11 +161,11 @@ print('Test20 metro unchanged OK')
 mod.set_week('W0')
 leg_neu = make_leg('Tuesday','12:00','daily','40-59')
 mod.annotate_leg_with_weather(leg_neu)
-assert leg_neu['ride_hailing_preference_shift']==0 and leg_neu['bus_time_multiplier']==1.0
+assert leg_neu['ride_hailing_preference_shift']==0
 print('Test21 reset OK')
 
-# 22 output fields only allowed seven
-allowed = {'weather_week','weather_type','weather_event_active','trip_continues','ride_hailing_preference_shift','bus_time_multiplier','ride_hailing_time_multiplier'}
+# 22 output fields are behavioral/weather labels only
+allowed = {'weather_week','weather_type','weather_event_active','trip_continues','ride_hailing_preference_shift'}
 extras = set(leg_w2.keys()) - allowed
 # remove common input keys
 for k in ['day','departure_time','purpose','age_group','_weather_sampled','awaits_outbound_completion','invalidated_by_outbound']:

@@ -81,6 +81,15 @@
 
 详细说明见 [`docs/T8_time_supply/README.md`](docs/T8_time_supply/README.md)。
 
+### T9：天气对外生交通供给的影响层
+
+- 复用 T7 基础速度、T8 时段方向乘数和 T2 天气窗口，按 `base_speed × period_direction_multiplier × weather_speed_multiplier` 分段计算；
+- 暴雨降低步行、公交和网约车速度，地铁保持正常速度；道路容量使用独立乘数，不参与速度计算；
+- 暴雨结束后先进入恢复阶段；高温默认不改变速度；
+- 不实现车辆周转、派单、动态拥堵、活动取消或方式选择，重复运行也不会重复叠加天气影响。
+
+详细说明见 [`docs/T9_weather_supply/README.md`](docs/T9_weather_supply/README.md)。
+
 ## 当前核心流程
 
 ```text
@@ -93,6 +102,7 @@ total_agents
 → 连续outbound / between-activities / return-home legs
 → 九区多方式OD备选方案
 → 正常天气分时段leg—mode供给
+→ 天气对外生交通供给的分段影响
 → T2天气继续/取消判断
 → T3政策优惠与派单资格
 ```
@@ -110,6 +120,7 @@ python -B -X utf8 tests\test_weather_t2.py
 python -B -X utf8 -m unittest tests.test_policy_t3 -v
 python -B -X utf8 -m unittest tests.test_transport_network -v
 python -B -X utf8 -m unittest tests.test_time_dependent_transport_supply -v
+python -B -X utf8 -m unittest tests.test_weather_transport_supply -v
 ```
 
 ## 尚未实现

@@ -11,8 +11,16 @@ from .time_supply import (
     TIME_SUPPLY_EXTRA_FIELDS,
     calculate_time_adjusted_leg_mode_option,
     load_time_supply_configuration,
+    next_supply_boundary,
     period_for_datetime,
     split_interval_by_period,
+)
+from .weather_supply import (
+    WEATHER_SUPPLY_EXTRA_FIELDS,
+    calculate_weather_adjusted_leg_mode_option,
+    load_weather_supply_configuration,
+    weather_events_from_t2_config,
+    weather_supply_parameters,
 )
 
 __all__ = [
@@ -24,6 +32,12 @@ __all__ = [
     "TIME_SUPPLY_EXTRA_FIELDS",
     "calculate_time_adjusted_leg_mode_option",
     "load_time_supply_configuration",
+    "next_supply_boundary",
     "period_for_datetime",
     "split_interval_by_period",
+    "WEATHER_SUPPLY_EXTRA_FIELDS",
+    "calculate_weather_adjusted_leg_mode_option",
+    "load_weather_supply_configuration",
+    "weather_events_from_t2_config",
+    "weather_supply_parameters",
 ]

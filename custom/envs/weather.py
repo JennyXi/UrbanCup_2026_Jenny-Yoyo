@@ -106,9 +106,6 @@ class WeatherConfig:
     ride_hailing_preference_shift_extreme_heat: Any = field(default="to_be_calibrated")
     ride_hailing_preference_shift_heavy_rain: Any = field(default="to_be_calibrated")
 
-    bus_time_multiplier_heavy_rain: Any = field(default="to_be_calibrated")
-    ride_hailing_time_multiplier_heavy_rain: Any = field(default="to_be_calibrated")
-
     # W1 windows are fixed per spec
     w1_windows: List[WeatherEvent] = field(default_factory=lambda: [
         WeatherEvent(day="Tuesday", start_time="11:00", end_time="18:00"),
@@ -187,10 +184,9 @@ def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
     if CONFIG.current_week == 'W0':
         leg['weather_type'] = 'normal'
         leg['weather_event_active'] = False
-        # set neutral shifts/multipliers
+        # T2 owns behavioral preference only. Transport supply is calculated by
+        # custom.transport.weather_supply from the same event windows.
         leg['ride_hailing_preference_shift'] = 0
-        leg['bus_time_multiplier'] = 1.0
-        leg['ride_hailing_time_multiplier'] = 1.0
         return leg
 
     if CONFIG.current_week == 'W1':
@@ -203,9 +199,6 @@ def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
             leg['ride_hailing_preference_shift'] = CONFIG.ride_hailing_preference_shift_extreme_heat
         else:
             leg['ride_hailing_preference_shift'] = 0
-        # time multipliers unchanged in W1
-        leg['bus_time_multiplier'] = 1.0
-        leg['ride_hailing_time_multiplier'] = 1.0
         return leg
 
     if CONFIG.current_week == 'W2':
@@ -217,12 +210,8 @@ def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
         leg['weather_event_active'] = bool(active)
         if leg['weather_event_active']:
             leg['ride_hailing_preference_shift'] = CONFIG.ride_hailing_preference_shift_heavy_rain
-            leg['bus_time_multiplier'] = CONFIG.bus_time_multiplier_heavy_rain
-            leg['ride_hailing_time_multiplier'] = CONFIG.ride_hailing_time_multiplier_heavy_rain
         else:
             leg['ride_hailing_preference_shift'] = 0
-            leg['bus_time_multiplier'] = 1.0
-            leg['ride_hailing_time_multiplier'] = 1.0
         return leg
 
     return leg
@@ -244,8 +233,6 @@ def get_config_placeholder_summary() -> Dict[str, Any]:
             'age_sensitivity_modifier_60_plus': CONFIG.age_sensitivity_modifier_60_plus,
             'ride_hailing_preference_shift_extreme_heat': CONFIG.ride_hailing_preference_shift_extreme_heat,
             'ride_hailing_preference_shift_heavy_rain': CONFIG.ride_hailing_preference_shift_heavy_rain,
-            'bus_time_multiplier_heavy_rain': CONFIG.bus_time_multiplier_heavy_rain,
-            'ride_hailing_time_multiplier_heavy_rain': CONFIG.ride_hailing_time_multiplier_heavy_rain,
         }
     }
 
@@ -412,8 +399,6 @@ def sample_weather_cancel_for_leg(leg: Dict[str, Any], agent_profile: Any) -> bo
         _set_state_field(leg, '_weather_sampled', True)
         # ensure output fields exist
         leg.setdefault('ride_hailing_preference_shift', 0)
-        leg.setdefault('bus_time_multiplier', 1.0)
-        leg.setdefault('ride_hailing_time_multiplier', 1.0)
         return True
 
     weather_type = leg.get('weather_type')
@@ -443,10 +428,8 @@ def sample_weather_cancel_for_leg(leg: Dict[str, Any], agent_profile: Any) -> bo
     leg['trip_continues'] = bool(cont)
     # mark sampled to avoid duplicate sampling
     _set_state_field(leg, '_weather_sampled', True)
-    # ensure ride_hailing_preference_shift and multipliers exist (safety)
+    # ensure the behavioral preference marker exists (safety)
     leg.setdefault('ride_hailing_preference_shift', 0)
-    leg.setdefault('bus_time_multiplier', 1.0)
-    leg.setdefault('ride_hailing_time_multiplier', 1.0)
     return leg['trip_continues']
 
 
@@ -464,7 +447,7 @@ def process_outbound_return(outbound: Dict[str, Any], ret: Dict[str, Any], agent
     # Enforce calling order to avoid annotate-then-rollback patterns.
     if not outbound_trip_completed:
         # check if ret already contains any weather output fields
-        for fld in ('weather_week','weather_type','weather_event_active','ride_hailing_preference_shift','bus_time_multiplier','ride_hailing_time_multiplier','trip_continues'):
+        for fld in ('weather_week','weather_type','weather_event_active','ride_hailing_preference_shift','trip_continues'):
             if fld in ret:
                 raise ValueError('Return leg must not be annotated before outbound completion; call process_outbound_return after outbound completion or omit pre-annotation of return')
 

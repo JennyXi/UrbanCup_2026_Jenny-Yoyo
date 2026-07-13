@@ -1,0 +1,49 @@
+{
+  "schema_version": "1.0",
+  "supply_id": "weather_exogenous_transport_supply_v1",
+  "combination_rule": "final_speed_equals_base_speed_times_one_period_direction_multiplier_times_weather_speed_multiplier",
+  "weather_types": {
+    "normal": {
+      "active_speed_multipliers": {"walk": 1.0, "bus": 1.0, "metro": 1.0, "ride_hailing": 1.0},
+      "recovery_speed_multipliers": {"walk": 1.0, "bus": 1.0, "metro": 1.0, "ride_hailing": 1.0},
+      "road_capacity_multiplier": 1.0,
+      "recovery_road_capacity_multiplier": 1.0,
+      "recovery_duration_min": 0.0
+    },
+    "extreme_heat": {
+      "active_speed_multipliers": {"walk": 1.0, "bus": 1.0, "metro": 1.0, "ride_hailing": 1.0},
+      "recovery_speed_multipliers": {"walk": 1.0, "bus": 1.0, "metro": 1.0, "ride_hailing": 1.0},
+      "road_capacity_multiplier": 1.0,
+      "recovery_road_capacity_multiplier": 1.0,
+      "recovery_duration_min": 0.0
+    },
+    "heavy_rain": {
+      "active_speed_multipliers": {"walk": 0.8, "bus": 0.8, "metro": 1.0, "ride_hailing": 0.8},
+      "recovery_speed_multipliers": {"walk": 0.9, "bus": 0.9, "metro": 1.0, "ride_hailing": 0.9},
+      "road_capacity_multiplier": 0.85,
+      "recovery_road_capacity_multiplier": 0.925,
+      "recovery_duration_min": 120.0
+    }
+  },
+  "sensitivity_ranges": {
+    "heavy_rain_affected_mode_speed_multiplier": {"low": 0.6, "base": 0.8, "high": 1.0},
+    "heavy_rain_road_capacity_multiplier": {"low": 0.7, "base": 0.85, "high": 1.0},
+    "heavy_rain_recovery_duration_min": {"low": 30.0, "base": 120.0, "high": 360.0}
+  },
+  "provenance": {
+    "heavy_rain_disruption_evidence": "yoyo_database weather_transport_disruptions: observed waterlogging and road-capacity disruption records",
+    "recovery_duration": "yoyo_database weather_transport_calibration cal_94ad4396e0d3ff: assumed scenario bounds informed by emergency measures; no uniform observed recovery time",
+    "speed_multipliers": "model assumptions for sensitivity analysis; not estimated from yoyo_database",
+    "road_capacity_multiplier": "model assumption constrained by disruption evidence; independent from speed"
+  },
+  "boundaries": {
+    "base_speed_overwritten": false,
+    "period_peak_factors_stacked": false,
+    "road_capacity_used_as_speed_multiplier": false,
+    "vehicle_turnover_applied": false,
+    "dispatch_success_applied": false,
+    "agent_activity_cancellation_applied": false,
+    "mode_choice_applied": false,
+    "endogenous_congestion_applied": false
+  }
+}
