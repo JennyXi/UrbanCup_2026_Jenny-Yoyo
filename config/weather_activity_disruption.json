@@ -1,0 +1,42 @@
+{
+  "metadata": {
+    "layer": "T2_weather_activity_disruption",
+    "source_type": "model_assumption",
+    "calibration_status": "sensitivity_analysis",
+    "not_database_estimate": true
+  },
+  "scenario_levels": {
+    "low": {
+      "weather_cancel_rate_base": {"extreme_heat": 0.08, "heavy_rain": 0.18},
+      "purpose_multiplier": {"medical": 0.25, "work": 0.50},
+      "age_multiplier_60_plus": 1.10,
+      "ride_hailing_odds_multiplier": {"extreme_heat": 1.00, "heavy_rain": 1.10}
+    },
+    "base": {
+      "weather_cancel_rate_base": {"extreme_heat": 0.12, "heavy_rain": 0.28},
+      "purpose_multiplier": {"medical": 0.30, "work": 0.60},
+      "age_multiplier_60_plus": 1.25,
+      "ride_hailing_odds_multiplier": {"extreme_heat": 1.10, "heavy_rain": 1.30}
+    },
+    "high": {
+      "weather_cancel_rate_base": {"extreme_heat": 0.18, "heavy_rain": 0.40},
+      "purpose_multiplier": {"medical": 0.40, "work": 0.75},
+      "age_multiplier_60_plus": 1.40,
+      "ride_hailing_odds_multiplier": {"extreme_heat": 1.25, "heavy_rain": 1.60}
+    }
+  },
+  "fixed_purpose_multiplier": {
+    "family_care": 0.65,
+    "family_activity": 0.75,
+    "visit": 0.85,
+    "shopping": 1.00,
+    "social_leisure": 1.10
+  },
+  "activity_purpose_aliases": {
+    "out_of_home_family_care": "family_care",
+    "out_of_home_family_activity": "family_activity"
+  },
+  "fixed_age_multiplier": {"18-39": 0.80, "40-59": 1.00},
+  "mobility_constraint_multiplier": {"none": 1.00, "mild": 1.10, "high": 1.25},
+  "schedule_flexibility_multiplier": {"low": 0.85, "medium": 1.00, "high": 1.15}
+}

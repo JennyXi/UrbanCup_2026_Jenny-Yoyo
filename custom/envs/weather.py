@@ -1,86 +1,77 @@
-"""
-T2 第一部分：天气场景识别与事件窗口判断（模块接口）
+"""T2: weather-driven *additional* activity disruption before mode choice.
 
-职责（仅此部分）:
-- 识别当前实验周（W0/W1/W2）
-- 读取 leg 的计划出发日期/时间，并判断是否落入天气事件窗口
-- 设置 leg 的天气标签字段（weather_week, weather_type, weather_event_active）
-- 暴露天气参数配置接口（占位、校验）
-
-严格约束：本模块不执行取消抽样、不处理去返程依赖、不执行最终方式选择或任何派单/订单逻辑。
-所有参数为占位（placeholder/to_be_calibrated）并集中在 `WeatherConfig` 中。
+T2 decides whether a planned activity survives weather exposure and emits a
+ride-hailing preference signal.  It does not choose a mode, alter transport
+supply, create ride-hailing demand, or calculate road congestion.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Tuple, Any
+import copy
 import datetime
+import hashlib
+import json
+import math
+from dataclasses import dataclass, field
+from pathlib import Path
+from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 
 WEEK_LABELS = ("W0", "W1", "W2")
-
-# Activity purposes are collapsed only for weather-cancellation sensitivity.
-# The baseline activity records retain their detailed purpose labels.
-WEATHER_PURPOSE_BY_ACTIVITY = {
-    "work": "work",
-    "medical": "medical",
-    "shopping": "daily",
-    "social_leisure": "daily",
-    "visit": "daily",
-    "out_of_home_family_care": "daily",
-    "out_of_home_family_activity": "daily",
-}
+SCENARIO_LEVELS = ("low", "base", "high")
+CONFIG_PATH = Path(__file__).resolve().parents[2] / "config" / "weather_activity_disruption.json"
 
 
-def map_activity_to_weather_purpose(activity_purpose: str) -> str:
-    """Map a modeled activity type to work/medical/daily weather behavior."""
+def _load_parameters(path: Path = CONFIG_PATH) -> Dict[str, Any]:
+    with path.open("r", encoding="utf-8") as handle:
+        config = json.load(handle)
+    metadata = config.get("metadata", {})
+    expected = {
+        "source_type": "model_assumption",
+        "calibration_status": "sensitivity_analysis",
+        "not_database_estimate": True,
+    }
+    if any(metadata.get(key) != value for key, value in expected.items()):
+        raise ValueError("T2 parameters must be labelled as MVP model assumptions")
+    if tuple(config.get("scenario_levels", {}).keys()) != SCENARIO_LEVELS:
+        raise ValueError("T2 must define low, base, and high scenario levels")
+    return config
+
+
+PARAMETERS = _load_parameters()
+
+
+def _parse_time_hhmm(value: str) -> datetime.time:
     try:
-        return WEATHER_PURPOSE_BY_ACTIVITY[activity_purpose]
-    except KeyError as exc:
-        raise ValueError(f"Unsupported activity purpose for weather: {activity_purpose}") from exc
+        hour, minute = value.split(":")
+        return datetime.time(int(hour), int(minute))
+    except Exception as exc:
+        raise ValueError(f"Invalid time format '{value}', expected HH:MM") from exc
 
 
-def _parse_time_hhmm(t: str) -> datetime.time:
-    try:
-        hh, mm = t.split(":")
-        return datetime.time(int(hh), int(mm))
-    except Exception as e:
-        raise ValueError(f"Invalid time format '{t}', expected HH:MM") from e
+def _clock(value: Any) -> datetime.time:
+    if isinstance(value, datetime.datetime):
+        return value.time()
+    if isinstance(value, datetime.time):
+        return value
+    return _parse_time_hhmm(str(value)[-5:])
 
 
-@dataclass
+@dataclass(frozen=True)
 class WeatherEvent:
-    day: str  # e.g., 'Tuesday'
-    start_time: str  # 'HH:MM'
-    end_time: str  # 'HH:MM'
-
-    def contains(self, day: str, departure_time: str) -> bool:
-        """Check if given day and departure_time fall into this event window.
-
-        Uses left-closed, right-open interval: [start_time, end_time)
-        """
-        if day != self.day:
-            return False
-        t = _parse_time_hhmm(departure_time)
-        s = _parse_time_hhmm(self.start_time)
-        e = _parse_time_hhmm(self.end_time)
-        return (t >= s) and (t < e)
+    day: str
+    start_time: str
+    end_time: str
 
     def overlaps(self, day: str, departure_time: Any, arrival_time: Any = None) -> bool:
-        """Return whether the actual leg interval intersects this event window."""
         if day != self.day:
             return False
-        def clock(value: Any) -> datetime.time:
-            if isinstance(value, datetime.datetime):
-                return value.time()
-            if isinstance(value, datetime.time):
-                return value
-            return _parse_time_hhmm(str(value)[-5:])
-        departure = clock(departure_time)
-        arrival = clock(arrival_time) if arrival_time is not None else departure
+        departure = _clock(departure_time)
+        arrival = _clock(arrival_time) if arrival_time is not None else departure
         start = _parse_time_hhmm(self.start_time)
         end = _parse_time_hhmm(self.end_time)
+        if not start < end:
+            raise ValueError(f"Weather event start must precede end: {self}")
         if arrival_time is None or arrival == departure:
             return start <= departure < end
         return departure < end and arrival > start
@@ -88,63 +79,27 @@ class WeatherEvent:
 
 @dataclass
 class WeatherConfig:
-    # week label: 'W0' | 'W1' | 'W2'
     current_week: str = "W0"
-
-    # parameter placeholders (to be calibrated)
-    weather_cancel_rate_base_extreme_heat: Any = field(default="to_be_calibrated")
-    weather_cancel_rate_base_heavy_rain: Any = field(default="to_be_calibrated")
-
-    cancel_rate_modifier_medical: Any = field(default="to_be_calibrated")
-    cancel_rate_modifier_work: Any = field(default="to_be_calibrated")
-    cancel_rate_modifier_daily: Any = field(default="to_be_calibrated")
-
-    age_sensitivity_modifier_18_39: Any = field(default="to_be_calibrated")
-    age_sensitivity_modifier_40_59: Any = field(default="to_be_calibrated")
-    age_sensitivity_modifier_60_plus: Any = field(default="to_be_calibrated")
-
-    ride_hailing_preference_shift_extreme_heat: Any = field(default="to_be_calibrated")
-    ride_hailing_preference_shift_heavy_rain: Any = field(default="to_be_calibrated")
-
-    # W1 windows are fixed per spec
+    scenario_level: str = "base"
+    random_seed: int = 0
     w1_windows: List[WeatherEvent] = field(default_factory=lambda: [
-        WeatherEvent(day="Tuesday", start_time="11:00", end_time="18:00"),
-        WeatherEvent(day="Wednesday", start_time="11:00", end_time="18:00"),
-        WeatherEvent(day="Thursday", start_time="11:00", end_time="18:00"),
-        WeatherEvent(day="Friday", start_time="11:00", end_time="18:00"),
-        WeatherEvent(day="Saturday", start_time="11:00", end_time="18:00"),
+        WeatherEvent(day, "11:00", "18:00")
+        for day in ("Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
     ])
-
-    # W2 windows must be provided via configuration (three explicit events)
     w2_windows: List[WeatherEvent] = field(default_factory=list)
 
-    random_seed: Optional[int] = None
-
     def validate(self) -> None:
-        # validate week label
         if self.current_week not in WEEK_LABELS:
             raise ValueError(f"Unknown current_week: {self.current_week}")
-
-        # validate W2 windows: must be 3 events and each have valid times
-        for ev in self.w2_windows:
-            s = _parse_time_hhmm(ev.start_time)
-            e = _parse_time_hhmm(ev.end_time)
-            if not (s < e):
-                raise ValueError(f"W2 event start_time must be < end_time: {ev}")
-
-        # constraint placeholders direction checks if numeric provided
-        try:
-            a = self.weather_cancel_rate_base_heavy_rain
-            b = self.weather_cancel_rate_base_extreme_heat
-            if isinstance(a, (int, float)) and isinstance(b, (int, float)):
-                if not (a > b):
-                    raise ValueError("Constraint violated: heavy_rain cancel base must be > extreme_heat")
-        except Exception:
-            # placeholders may not be numeric yet
-            pass
+        if self.scenario_level not in SCENARIO_LEVELS:
+            raise ValueError(f"Unknown scenario_level: {self.scenario_level}")
+        if self.current_week == "W2" and len(self.w2_windows) != 3:
+            raise ValueError("W2 requires exactly three explicit weather windows")
+        for event in self.w1_windows + self.w2_windows:
+            if not _parse_time_hhmm(event.start_time) < _parse_time_hhmm(event.end_time):
+                raise ValueError(f"Weather event start must precede end: {event}")
 
 
-# module-level config instance
 CONFIG = WeatherConfig()
 
 
@@ -154,357 +109,303 @@ def set_week(week_label: str) -> None:
     CONFIG.current_week = week_label
 
 
-def set_w2_windows(events: List[Tuple[str, str, str]]) -> None:
-    """Set W2 windows from a list of tuples: (day, start_time, end_time).
-
-    Example: [("Tuesday", "07:00", "10:00"), ...]
-    """
-    CONFIG.w2_windows = [WeatherEvent(day=d, start_time=s, end_time=e) for d, s, e in events]
-
-
-def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
-    """Annotate a leg dict with weather fields per T2 first-part rules.
-
-    Expects leg to contain at least: 'day', 'departure_time'.
-    Adds/overwrites: 'weather_week', 'weather_type', 'weather_event_active'.
-
-    Does NOT perform cancellation sampling or set trip_continues.
-    """
-    # basic validation
-    if 'day' not in leg:
-        raise ValueError('Leg missing required field: day')
-    if 'departure_time' not in leg:
-        raise ValueError('Leg missing required field: departure_time')
-    day = leg['day']
-    dep = leg['departure_time']
-    arrival = leg.get('arrival_time')
-
-    # set week and type
-    leg['weather_week'] = CONFIG.current_week
-    if CONFIG.current_week == 'W0':
-        leg['weather_type'] = 'normal'
-        leg['weather_event_active'] = False
-        # T2 owns behavioral preference only. Transport supply is calculated by
-        # custom.transport.weather_supply from the same event windows.
-        leg['ride_hailing_preference_shift'] = 0
-        return leg
-
-    if CONFIG.current_week == 'W1':
-        leg['weather_type'] = 'extreme_heat'
-        # check W1 windows
-        active = any(ev.overlaps(day, dep, arrival) for ev in CONFIG.w1_windows)
-        leg['weather_event_active'] = bool(active)
-        # shifts: only active in event window
-        if leg['weather_event_active']:
-            leg['ride_hailing_preference_shift'] = CONFIG.ride_hailing_preference_shift_extreme_heat
-        else:
-            leg['ride_hailing_preference_shift'] = 0
-        return leg
-
-    if CONFIG.current_week == 'W2':
-        leg['weather_type'] = 'heavy_rain'
-        # check configured W2 windows
-        if not CONFIG.w2_windows:
-            raise ValueError('W2 windows not configured (use set_w2_windows)')
-        active = any(ev.overlaps(day, dep, arrival) for ev in CONFIG.w2_windows)
-        leg['weather_event_active'] = bool(active)
-        if leg['weather_event_active']:
-            leg['ride_hailing_preference_shift'] = CONFIG.ride_hailing_preference_shift_heavy_rain
-        else:
-            leg['ride_hailing_preference_shift'] = 0
-        return leg
-
-    return leg
-
-
-def get_config_placeholder_summary() -> Dict[str, Any]:
-    """Return a summary of current config parameter placeholders for auditing."""
-    return {
-        'current_week': CONFIG.current_week,
-        'w2_windows_count': len(CONFIG.w2_windows),
-        'placeholders': {
-            'weather_cancel_rate_base_extreme_heat': CONFIG.weather_cancel_rate_base_extreme_heat,
-            'weather_cancel_rate_base_heavy_rain': CONFIG.weather_cancel_rate_base_heavy_rain,
-            'cancel_rate_modifier_medical': CONFIG.cancel_rate_modifier_medical,
-            'cancel_rate_modifier_work': CONFIG.cancel_rate_modifier_work,
-            'cancel_rate_modifier_daily': CONFIG.cancel_rate_modifier_daily,
-            'age_sensitivity_modifier_18_39': CONFIG.age_sensitivity_modifier_18_39,
-            'age_sensitivity_modifier_40_59': CONFIG.age_sensitivity_modifier_40_59,
-            'age_sensitivity_modifier_60_plus': CONFIG.age_sensitivity_modifier_60_plus,
-            'ride_hailing_preference_shift_extreme_heat': CONFIG.ride_hailing_preference_shift_extreme_heat,
-            'ride_hailing_preference_shift_heavy_rain': CONFIG.ride_hailing_preference_shift_heavy_rain,
-        }
-    }
-
-
-def assert_no_internal_markers(leg: Dict[str, Any]) -> None:
-    """Assert that leg dict does not contain internal markers (for final export validation)."""
-    for mk in ('_weather_sampled', 'invalidated_by_outbound', 'awaits_outbound_completion'):
-        if mk in leg:
-            raise AssertionError(f"Internal marker present in leg: {mk}")
-
-
-# --- T2 第二部分: 取消抽样、trip_continues 与 去返程依赖 ---
-
-import random
-
-# unified RNG for all sampling in this module
-_RNG: random.Random = random.Random()
-
-# internal per-leg runtime state (not written to leg). Keying strategy:
-# - If leg contains stable 'leg_id', use that (recommended).
-# - Otherwise use id(leg) as a best-effort runtime key. Caller should avoid
-#   serializing/deserializing legs between annotate/sample calls when no leg_id.
-_LEG_STATE: Dict[int, Dict[str, Any]] = {}
-
-
-def _leg_key(leg: Dict[str, Any]) -> int:
-    if isinstance(leg, dict) and 'leg_id' in leg:
-        return hash(('leg', leg['leg_id']))
-    return id(leg)
-
-
-def _get_state(leg: Dict[str, Any], create: bool = True) -> Dict[str, Any]:
-    k = _leg_key(leg)
-    if k not in _LEG_STATE:
-        if not create:
-            return {}
-        _LEG_STATE[k] = {}
-    return _LEG_STATE[k]
-
-
-def _set_state_field(leg: Dict[str, Any], name: str, value: Any) -> None:
-    s = _get_state(leg, create=True)
-    s[name] = value
-
-
-def _get_state_field(leg: Dict[str, Any], name: str, default: Any = None) -> Any:
-    s = _get_state(leg, create=False)
-    return s.get(name, default)
-
-
-def _clear_state(leg: Dict[str, Any]) -> None:
-    k = _leg_key(leg)
-    if k in _LEG_STATE:
-        del _LEG_STATE[k]
-
-
-def _ensure_no_internal_markers_in_leg(leg: Dict[str, Any]) -> None:
-    # defensive: remove any internal markers if present in leg dict
-    for mk in ('_weather_sampled', 'invalidated_by_outbound', 'awaits_outbound_completion'):
-        if mk in leg:
-            del leg[mk]
+def set_scenario_level(level: str) -> None:
+    if level not in SCENARIO_LEVELS:
+        raise ValueError(f"Invalid scenario level: {level}")
+    CONFIG.scenario_level = level
 
 
 def init_rng(seed: Optional[int] = None) -> None:
-    """Initialize the module-level RNG. Call once at simulation start for determinism."""
+    """Set the stable sampling seed; no mutable global RNG is used."""
     if seed is not None:
-        CONFIG.random_seed = seed
-        _RNG.seed(seed)
+        CONFIG.random_seed = int(seed)
 
 
-def get_rng() -> random.Random:
-    return _RNG
+def set_w2_windows(events: Sequence[Tuple[str, str, str]]) -> None:
+    if len(events) != 3:
+        raise ValueError("W2 requires exactly three explicit weather windows")
+    CONFIG.w2_windows = [WeatherEvent(day, start, end) for day, start, end in events]
+    CONFIG.validate()
 
 
-def _get_base_rate(weather_type: str) -> Any:
-    if weather_type == "extreme_heat":
-        return CONFIG.weather_cancel_rate_base_extreme_heat
-    if weather_type == "heavy_rain":
-        return CONFIG.weather_cancel_rate_base_heavy_rain
-    raise ValueError(f"Unsupported weather_type for base rate: {weather_type}")
+def map_activity_to_weather_purpose(activity_purpose: str) -> str:
+    aliases = PARAMETERS["activity_purpose_aliases"]
+    purpose = aliases.get(activity_purpose, activity_purpose)
+    supported = {
+        "medical", "work", "family_care", "family_activity", "visit",
+        "shopping", "social_leisure",
+    }
+    if purpose not in supported:
+        raise ValueError(f"Unsupported activity purpose for T2: {activity_purpose}")
+    return purpose
 
 
-def _get_purpose_modifier(purpose: str) -> Any:
-    purpose = purpose.lower()
-    if purpose == "medical":
-        return CONFIG.cancel_rate_modifier_medical
-    if purpose == "work":
-        return CONFIG.cancel_rate_modifier_work
-    if purpose == "daily":
-        return CONFIG.cancel_rate_modifier_daily
-    raise ValueError(f"Unsupported purpose: {purpose}")
+def _weather_type() -> str:
+    return {"W0": "normal", "W1": "extreme_heat", "W2": "heavy_rain"}[CONFIG.current_week]
 
 
-def _get_age_modifier(age_group: str) -> Any:
-    if age_group == "18-39":
-        return CONFIG.age_sensitivity_modifier_18_39
-    if age_group == "40-59":
-        return CONFIG.age_sensitivity_modifier_40_59
+def _active_windows() -> Sequence[WeatherEvent]:
+    if CONFIG.current_week == "W1":
+        return CONFIG.w1_windows
+    if CONFIG.current_week == "W2":
+        CONFIG.validate()
+        return CONFIG.w2_windows
+    return ()
+
+
+def outbound_weather_exposure(day: str, planned_outbound_departure: Any, planned_activity_arrival: Any) -> bool:
+    """Cancellation exposure is based only on the planned outbound interval."""
+    return any(
+        event.overlaps(day, planned_outbound_departure, planned_activity_arrival)
+        for event in _active_windows()
+    )
+
+
+def _scenario_parameters(level: Optional[str] = None) -> Mapping[str, Any]:
+    selected = level or CONFIG.scenario_level
+    if selected not in SCENARIO_LEVELS:
+        raise ValueError(f"Invalid scenario level: {selected}")
+    return PARAMETERS["scenario_levels"][selected]
+
+
+def _purpose_modifier(purpose: str, level: Optional[str] = None) -> float:
+    purpose = map_activity_to_weather_purpose(purpose)
+    if purpose in {"medical", "work"}:
+        return float(_scenario_parameters(level)["purpose_multiplier"][purpose])
+    return float(PARAMETERS["fixed_purpose_multiplier"][purpose])
+
+
+def _age_modifier(age_group: str, level: Optional[str] = None) -> float:
     if age_group == "60+":
-        return CONFIG.age_sensitivity_modifier_60_plus
-    # if unknown, treat as neutral placeholder
-    return 1.0
+        return float(_scenario_parameters(level)["age_multiplier_60_plus"])
+    try:
+        return float(PARAMETERS["fixed_age_multiplier"][age_group])
+    except KeyError as exc:
+        raise ValueError(f"Unsupported age group for T2: {age_group}") from exc
 
 
-def validate_purpose_ordering() -> None:
-    """Ensure numeric purpose modifiers follow: medical < work < daily when numeric."""
-    vals = [CONFIG.cancel_rate_modifier_medical, CONFIG.cancel_rate_modifier_work, CONFIG.cancel_rate_modifier_daily]
-    if all(isinstance(v, (int, float)) for v in vals):
-        if not (vals[0] < vals[1] < vals[2]):
-            raise ValueError("Constraint violated: cancel_rate_modifier_medical < cancel_rate_modifier_work < cancel_rate_modifier_daily")
+def _required_profile_value(profile: Any, name: str) -> str:
+    if isinstance(profile, Mapping):
+        if name not in profile:
+            raise ValueError(f"agent_profile missing required T2 field: {name}")
+        value = profile[name]
+    else:
+        if not hasattr(profile, name):
+            raise ValueError(f"agent_profile missing required T2 field: {name}")
+        value = getattr(profile, name)
+    if value is None:
+        raise ValueError(f"agent_profile field may not be null: {name}")
+    return str(value)
 
 
-def _compute_p_weather_cancel(weather_type: str, purpose: str, age_group: str) -> Optional[float]:
-    """Compute p_weather_cancel according to spec. Returns None if any parameter is non-numeric (placeholders)."""
-    base = _get_base_rate(weather_type)
-    purpose_mod = _get_purpose_modifier(purpose)
-    age_mod = _get_age_modifier(age_group)
-
-    if not all(isinstance(x, (int, float)) for x in (base, purpose_mod, age_mod)):
-        # Do not silently degrade to 0. Require numeric parameters for sampling.
-        return None
-
-    p = base * purpose_mod * age_mod
-    # clamp to [0,1]
-    if p < 0:
-        p = 0.0
-    if p > 1:
-        p = 1.0
-    return float(p)
+def _validate_agent_profile(profile: Any, scenario_level: Optional[str] = None) -> Tuple[str, str, str]:
+    age_group = _required_profile_value(profile, "age_group")
+    mobility = _required_profile_value(profile, "mobility_constraint")
+    flexibility = _required_profile_value(profile, "schedule_flexibility")
+    _age_modifier(age_group, scenario_level)
+    if mobility not in PARAMETERS["mobility_constraint_multiplier"]:
+        raise ValueError(f"Unsupported mobility_constraint for T2: {mobility}")
+    if flexibility not in PARAMETERS["schedule_flexibility_multiplier"]:
+        raise ValueError(f"Unsupported schedule_flexibility for T2: {flexibility}")
+    return age_group, mobility, flexibility
 
 
-def validate_heavy_vs_heat_stronger() -> None:
-    """Validate that for every age_group×purpose, heavy_rain cancel prob > extreme_heat cancel prob when numeric."""
-    age_groups = ["18-39", "40-59", "60+"]
-    purposes = ["work", "medical", "daily"]
-    for ag in age_groups:
-        for pu in purposes:
-            p_heavy = _compute_p_weather_cancel("heavy_rain", pu, ag)
-            p_heat = _compute_p_weather_cancel("extreme_heat", pu, ag)
-            if p_heavy is None or p_heat is None:
-                # placeholders present; cannot validate numerically
-                continue
-            if not (p_heavy > p_heat):
-                raise ValueError(f"Constraint violated for {ag}×{pu}: p_heavy_rain ({p_heavy}) must be > p_extreme_heat ({p_heat})")
+def compute_weather_cancel_probability(
+    weather_type: str,
+    purpose: str,
+    age_group: str,
+    mobility_constraint: str = "none",
+    schedule_flexibility: str = "medium",
+    scenario_level: Optional[str] = None,
+) -> float:
+    if weather_type == "normal":
+        return 0.0
+    level = scenario_level or CONFIG.scenario_level
+    scenario = _scenario_parameters(level)
+    try:
+        base = float(scenario["weather_cancel_rate_base"][weather_type])
+        mobility = float(PARAMETERS["mobility_constraint_multiplier"][mobility_constraint])
+        flexibility = float(PARAMETERS["schedule_flexibility_multiplier"][schedule_flexibility])
+    except KeyError as exc:
+        raise ValueError(f"Unsupported T2 parameter category: {exc.args[0]}") from exc
+    probability = base * _purpose_modifier(purpose, level) * _age_modifier(age_group, level) * mobility * flexibility
+    return min(1.0, max(0.0, probability))
+
+
+# Backward-compatible internal name used by earlier callers/tests.
+def _compute_p_weather_cancel(weather_type: str, purpose: str, age_group: str) -> float:
+    return compute_weather_cancel_probability(weather_type, purpose, age_group)
+
+
+def combine_baseline_and_weather_cancel_probability(baseline: float, weather: float) -> float:
+    if not 0 <= baseline <= 1 or not 0 <= weather <= 1:
+        raise ValueError("Cancellation probabilities must be within [0, 1]")
+    return 1.0 - (1.0 - baseline) * (1.0 - weather)
+
+
+def _stable_uniform(agent_id: Any, activity_id: Any, weather_scenario: str, seed: int) -> float:
+    """One common draw per agent/activity/weather week, reused across levels."""
+    payload = "|".join(map(str, (agent_id, activity_id, weather_scenario, seed))).encode("utf-8")
+    integer = int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+    return integer / float(2**64)
+
+
+def _preference_signal(weather_type: str, active: bool, level: Optional[str] = None) -> Tuple[float, float]:
+    if not active or weather_type == "normal":
+        return 1.0, 0.0
+    odds = float(_scenario_parameters(level)["ride_hailing_odds_multiplier"][weather_type])
+    return odds, math.log(odds)
+
+
+def evaluate_planned_activity(
+    activity: Mapping[str, Any],
+    agent_profile: Any,
+    *,
+    scenario_level: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> Dict[str, Any]:
+    """Evaluate a planned activity before leg retention and mode choice.
+
+    Required activity fields are ``agent_id``, ``activity_id``, ``day_of_week``,
+    ``activity_purpose``, ``planned_outbound_departure`` and
+    ``planned_activity_arrival``.  A caller may populate the final two fields
+    from a provisional travel-time feasibility pass; T2 never chooses a mode.
+    """
+    required = (
+        "agent_id", "activity_id", "day_of_week", "activity_purpose",
+        "planned_outbound_departure", "planned_activity_arrival",
+    )
+    missing = [name for name in required if name not in activity]
+    if missing:
+        raise ValueError(f"Activity missing required T2 fields: {missing}")
+    result = copy.deepcopy(dict(activity))
+    purpose = map_activity_to_weather_purpose(str(activity["activity_purpose"]))
+    weather_type = _weather_type()
+    exposed = outbound_weather_exposure(
+        str(activity["day_of_week"]), activity["planned_outbound_departure"],
+        activity["planned_activity_arrival"],
+    )
+    age_group, mobility, flexibility = _validate_agent_profile(agent_profile, scenario_level)
+    probability = compute_weather_cancel_probability(
+        weather_type, purpose, age_group, mobility, flexibility, scenario_level,
+    ) if exposed else 0.0
+    draw = _stable_uniform(
+        activity["agent_id"], activity["activity_id"], CONFIG.current_week,
+        CONFIG.random_seed if seed is None else int(seed),
+    )
+    cancelled = exposed and draw < probability
+    odds, utility = _preference_signal(weather_type, exposed and not cancelled, scenario_level)
+    result.update({
+        "weather_week": CONFIG.current_week,
+        "weather_type": weather_type,
+        "outbound_weather_exposed": exposed,
+        "p_weather_cancel": probability,
+        "weather_random_draw": draw,
+        "weather_cancelled": cancelled,
+        "activity_executes": not cancelled,
+        "outbound_leg_executes": not cancelled,
+        "return_leg_executes": not cancelled,
+        "unmet_mandatory_trip": cancelled and purpose in {"work", "medical"},
+        "ride_hailing_odds_multiplier": odds,
+        "ride_hailing_utility_shift": utility,
+        "mode_choice_applied": False,
+    })
+    return result
+
+
+def apply_weather_disruption_before_mode_choice(
+    activities: Sequence[Mapping[str, Any]],
+    agent_profiles: Mapping[Any, Any],
+    *,
+    scenario_level: Optional[str] = None,
+    seed: Optional[int] = None,
+) -> Dict[str, List[Dict[str, Any]]]:
+    """Return auditable decisions and only the activities eligible for leg/mode generation."""
+    decisions: List[Dict[str, Any]] = []
+    retained: List[Dict[str, Any]] = []
+    for activity in activities:
+        agent_id = activity.get("agent_id")
+        if agent_id not in agent_profiles:
+            raise ValueError(f"Missing agent profile for {agent_id}")
+        decision = evaluate_planned_activity(
+            activity, agent_profiles[agent_id], scenario_level=scenario_level, seed=seed,
+        )
+        decisions.append(decision)
+        if decision["activity_executes"]:
+            retained.append(decision)
+    return {"activity_decisions": decisions, "retained_activities": retained}
+
+
+def annotate_leg_with_weather(leg: Dict[str, Any]) -> Dict[str, Any]:
+    """Annotate a leg for supply hand-off; this function never cancels an activity."""
+    if "day" not in leg or "departure_time" not in leg:
+        raise ValueError("Leg requires day and departure_time")
+    active = any(
+        event.overlaps(leg["day"], leg["departure_time"], leg.get("arrival_time"))
+        for event in _active_windows()
+    )
+    weather_type = _weather_type()
+    odds, utility = _preference_signal(weather_type, active)
+    leg.update({
+        "weather_week": CONFIG.current_week,
+        "weather_type": weather_type,
+        "weather_event_active": active,
+        "ride_hailing_odds_multiplier": odds,
+        "ride_hailing_utility_shift": utility,
+        "mode_choice_applied": False,
+    })
+    return leg
 
 
 def sample_weather_cancel_for_leg(leg: Dict[str, Any], agent_profile: Any) -> bool:
-    """Perform one-time weather cancel sampling for a leg.
-
-    Modifies leg in-place: sets 'trip_continues' (bool) and internal marker '_weather_sampled'.
-
-    Returns trip_continues.
-
-    Expects leg to contain 'weather_event_active' (bool), 'weather_type' ('extreme_heat'|'heavy_rain'|'normal'),
-    'purpose' ('work'|'medical'|'daily'), and agent_profile to expose 'age_group'.
-    """
-    # Precondition checks
-    if _get_state_field(leg, '_weather_sampled', False):
-        # already sampled; do not re-sample
-        return bool(leg.get('trip_continues', True))
-
-    if not leg.get('weather_event_active', False):
-        leg['trip_continues'] = True
-        _set_state_field(leg, '_weather_sampled', True)
-        # ensure output fields exist
-        leg.setdefault('ride_hailing_preference_shift', 0)
-        return True
-
-    weather_type = leg.get('weather_type')
-    if weather_type not in ("extreme_heat", "heavy_rain"):
-        raise ValueError(f"Unsupported or missing weather_type for sampling: {weather_type}")
-
-    purpose = leg.get('purpose')
-    if purpose is None:
-        raise ValueError('Leg missing purpose for weather cancel sampling')
-
-    # get agent age_group
-    age_group = getattr(agent_profile, 'age_group', None) if not isinstance(agent_profile, dict) else agent_profile.get('age_group')
-    if age_group is None:
-        raise ValueError('agent_profile missing age_group')
-
-    # validate ordering when numeric
-    validate_purpose_ordering()
-    validate_heavy_vs_heat_stronger()
-
-    p = _compute_p_weather_cancel(weather_type, purpose, age_group)
-    if p is None:
-        raise ValueError("Cannot compute weather cancel probability: one or more parameters are non-numeric. Please set numeric values in CONFIG before sampling.")
-
-    # sample once using module RNG
-    u = _RNG.random()
-    cont = (u >= p)
-    leg['trip_continues'] = bool(cont)
-    # mark sampled to avoid duplicate sampling
-    _set_state_field(leg, '_weather_sampled', True)
-    # ensure the behavioral preference marker exists (safety)
-    leg.setdefault('ride_hailing_preference_shift', 0)
-    return leg['trip_continues']
+    """Compatibility adapter: sample an explicitly identified outbound leg once."""
+    if leg.get("leg_role", "outbound") not in {"outbound", "between_activities"}:
+        raise ValueError("T2 cancellation may only be evaluated on a planned outbound leg")
+    activity = {
+        "agent_id": leg.get("agent_id"),
+        "activity_id": leg.get("activity_id"),
+        "day_of_week": leg.get("day"),
+        "activity_purpose": leg.get("purpose"),
+        "planned_outbound_departure": leg.get("departure_time"),
+        "planned_activity_arrival": leg.get("arrival_time", leg.get("departure_time")),
+    }
+    if activity["agent_id"] is None or activity["activity_id"] is None:
+        raise ValueError("Stable T2 sampling requires agent_id and activity_id")
+    decision = evaluate_planned_activity(activity, agent_profile)
+    leg.update({key: value for key, value in decision.items() if key not in activity})
+    leg["trip_continues"] = decision["activity_executes"]
+    return bool(leg["trip_continues"])
 
 
-def process_outbound_return(outbound: Dict[str, Any], ret: Dict[str, Any], agent_profile: Any, outbound_trip_completed: bool = False) -> Tuple[bool, Optional[bool]]:
-    """Process outbound and return legs per spec.
-
-    - Samples outbound always (if in event window).
-    - If outbound.trip_continues == False: invalidate return (do not check return weather).
-    - If outbound.trip_continues == True and outbound_trip_completed == True: process return sampling.
-    - If outbound.trip_continues == True and outbound_trip_completed == False: defer return sampling and mark it awaits completion.
-
-    Returns tuple (outbound_continues, return_continues_or_None).
-    """
-    # If caller provided a return leg and outbound is not yet completed, the return must NOT be pre-annotated.
-    # Enforce calling order to avoid annotate-then-rollback patterns.
-    if not outbound_trip_completed:
-        # check if ret already contains any weather output fields
-        for fld in ('weather_week','weather_type','weather_event_active','ride_hailing_preference_shift','trip_continues'):
-            if fld in ret:
-                raise ValueError('Return leg must not be annotated before outbound completion; call process_outbound_return after outbound completion or omit pre-annotation of return')
-
-    # Process outbound first (annotate+sample). Caller must not pre-annotate return when outbound not completed.
-    ob_cont = sample_weather_cancel_for_leg(outbound, agent_profile)
-    if not ob_cont:
-        # invalidate return per rules: do NOT annotate or modify return's weather fields.
-        # store invalidation in internal state instead of writing to leg
-        _set_state_field(ret, 'invalidated_by_outbound', True)
-        _set_state_field(ret, '_weather_sampled', False)
-        # ensure final exported leg does not carry internal markers
-        _ensure_no_internal_markers_in_leg(ret)
+def process_outbound_return(
+    outbound: Dict[str, Any],
+    ret: Dict[str, Any],
+    agent_profile: Any,
+    outbound_trip_completed: bool = False,
+) -> Tuple[bool, Optional[bool]]:
+    """Cancel from outbound exposure only; return weather cannot undo a completed activity."""
+    outbound["leg_role"] = outbound.get("leg_role", "outbound")
+    continues = sample_weather_cancel_for_leg(outbound, agent_profile)
+    if not continues:
+        ret.update({"trip_continues": False, "leg_executes": False, "invalidated_by_outbound": True})
         return False, False
-
-    # outbound continues (not cancelled by weather)
     if not outbound_trip_completed:
-        # cannot activate return yet; leave return untouched and mark in internal state
-        _set_state_field(ret, 'awaits_outbound_completion', True)
         return True, None
-
-    # outbound completed -> activate and process return
-    _set_state_field(ret, 'awaits_outbound_completion', False)
-    # annotate and sample return now (caller should not have annotated earlier when outbound not completed)
     annotate_leg_with_weather(ret)
-    r_cont = sample_weather_cancel_for_leg(ret, agent_profile)
-    return True, r_cont
+    ret.update({"trip_continues": True, "leg_executes": True, "invalidated_by_outbound": False})
+    return True, True
 
 
-def compute_trip_continue_rates(legs: List[Dict[str, Any]]) -> Dict[Tuple[str, str, str], Dict[str, int]]:
-    """Compute trip_continue_rate per (weather_type, age_group, purpose).
+def validate_parameter_ordering() -> None:
+    purposes = ("medical", "work", "shopping", "social_leisure")
+    for level in SCENARIO_LEVELS:
+        values = [_purpose_modifier(purpose, level) for purpose in purposes]
+        if not values[0] < values[1] < values[2] < values[3]:
+            raise ValueError(f"Invalid purpose ordering in {level}")
+        heat = _scenario_parameters(level)["weather_cancel_rate_base"]["extreme_heat"]
+        rain = _scenario_parameters(level)["weather_cancel_rate_base"]["heavy_rain"]
+        if not heat < rain:
+            raise ValueError(f"Heavy rain must exceed heat in {level}")
 
-    Returns mapping: (weather_type, age_group, purpose) -> {'continued': int, 'eligible': int}
 
-    Denominator rules:
-    - Include legs with weather_event_active == True
-    - Exclude legs marked 'invalidated_by_outbound' or with 'awaits_outbound_completion' True
-    """
-    stats: Dict[Tuple[str, str, str], Dict[str, int]] = {}
-    for leg in legs:
-        if not leg.get('weather_event_active', False):
-            continue
-        if leg.get('invalidated_by_outbound', False):
-            continue
-        if leg.get('awaits_outbound_completion', False):
-            continue
-
-        wt = leg.get('weather_type')
-        ag = leg.get('age_group') or leg.get('agent_age_group')
-        pu = leg.get('purpose')
-        if not (wt and ag and pu):
-            continue
-        key = (wt, ag, pu)
-        if key not in stats:
-            stats[key] = {'continued': 0, 'eligible': 0}
-        stats[key]['eligible'] += 1
-        if leg.get('trip_continues', False):
-            stats[key]['continued'] += 1
-
-    return stats
-
+validate_parameter_ordering()

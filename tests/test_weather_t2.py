@@ -1,246 +1,294 @@
-import sys, importlib.util
+import math
+import unittest
 
-spec = importlib.util.spec_from_file_location('custom_envs_weather', 'custom/envs/weather.py')
-mod = importlib.util.module_from_spec(spec)
-sys.modules[spec.name] = mod
-spec.loader.exec_module(mod)
+from custom.envs import weather
 
-# deterministic seed
-mod.init_rng(42)
 
-# configure numeric params for tests
-mod.CONFIG.weather_cancel_rate_base_extreme_heat = 0.2
-mod.CONFIG.weather_cancel_rate_base_heavy_rain = 0.5
-mod.CONFIG.cancel_rate_modifier_medical = 0.5
-mod.CONFIG.cancel_rate_modifier_work = 0.8
-mod.CONFIG.cancel_rate_modifier_daily = 1.0
-mod.CONFIG.age_sensitivity_modifier_18_39 = 0.9
-mod.CONFIG.age_sensitivity_modifier_40_59 = 1.0
-mod.CONFIG.age_sensitivity_modifier_60_plus = 1.05
-mod.CONFIG.ride_hailing_preference_shift_extreme_heat = 0.1
-mod.CONFIG.ride_hailing_preference_shift_heavy_rain = 0.2
+W2_WINDOWS = [
+    ("Tuesday", "07:00", "10:00"),
+    ("Thursday", "16:00", "19:00"),
+    ("Saturday", "11:00", "15:00"),
+]
 
-mod.validate_purpose_ordering()
-mod.validate_heavy_vs_heat_stronger()
 
-# helper
-def make_leg(day, time, purpose, age_group):
-    return {'day':day,'departure_time':time,'purpose':purpose,'age_group':age_group}
+def activity(activity_id="a-1", purpose="shopping", departure="07:30", arrival="08:00"):
+    return {
+        "agent_id": "agent-1",
+        "activity_id": activity_id,
+        "day_of_week": "Tuesday",
+        "activity_purpose": purpose,
+        "planned_outbound_departure": departure,
+        "planned_activity_arrival": arrival,
+    }
 
-# 1. W0 all neutral
-mod.set_week('W0')
-legs = [make_leg('Tuesday','12:00','daily','40-59'), make_leg('Wednesday','09:00','work','18-39')]
-for l in legs:
-    mod.annotate_leg_with_weather(l)
-    mod.sample_weather_cancel_for_leg(l, {'age_group':l['age_group']})
 
-assert all(l['weather_week']=='W0' and l['weather_type']=='normal' and l['weather_event_active']==False and l['trip_continues']==True and l['ride_hailing_preference_shift']==0 for l in legs)
-print('Test1 W0 OK')
+class WeatherActivityDisruptionTests(unittest.TestCase):
+    def setUp(self):
+        weather.set_week("W2")
+        weather.set_w2_windows(W2_WINDOWS)
+        weather.set_scenario_level("base")
+        weather.init_rng(47)
+        self.young = {
+            "age_group": "18-39",
+            "mobility_constraint": "none",
+            "schedule_flexibility": "medium",
+        }
 
-# 2-4. W1 windows 11:00 - 18:00 inclusive left-closed right-open
-mod.set_week('W1')
-leg_in_11 = make_leg('Tuesday','11:00','daily','40-59')
-leg_in_1759 = make_leg('Tuesday','17:59','daily','40-59')
-leg_out_1800 = make_leg('Tuesday','18:00','daily','40-59')
-for l in (leg_in_11, leg_in_1759, leg_out_1800):
-    mod.annotate_leg_with_weather(l)
+    def test_all_current_activity_types_are_explicit_and_unknown_raises(self):
+        expected = {
+            "medical": "medical",
+            "work": "work",
+            "out_of_home_family_care": "family_care",
+            "out_of_home_family_activity": "family_activity",
+            "visit": "visit",
+            "shopping": "shopping",
+            "social_leisure": "social_leisure",
+        }
+        self.assertEqual(
+            {key: weather.map_activity_to_weather_purpose(key) for key in expected},
+            expected,
+        )
+        with self.assertRaises(ValueError):
+            weather.map_activity_to_weather_purpose("daily")
 
-assert leg_in_11['weather_event_active'] == True
-assert leg_in_1759['weather_event_active'] == True
-assert leg_out_1800['weather_event_active'] == False
-print('Test2-4 W1 window boundaries OK')
+    def test_probability_ordering_weather_and_age(self):
+        probability = weather.compute_weather_cancel_probability
+        medical = probability("heavy_rain", "medical", "18-39")
+        work = probability("heavy_rain", "work", "18-39")
+        shopping = probability("heavy_rain", "shopping", "18-39")
+        leisure = probability("heavy_rain", "social_leisure", "18-39")
+        self.assertLess(medical, work)
+        self.assertLess(work, shopping)
+        self.assertLess(shopping, leisure)
+        self.assertGreater(
+            probability("heavy_rain", "shopping", "18-39"),
+            probability("extreme_heat", "shopping", "18-39"),
+        )
+        self.assertGreater(
+            probability("heavy_rain", "shopping", "60+"),
+            probability("heavy_rain", "shopping", "18-39"),
+        )
 
-# 5-6. W2 three windows recognition and right-open end
-mod.set_week('W2')
-mod.set_w2_windows([('Tuesday','07:00','10:00'),('Tuesday','15:00','16:00'),('Wednesday','09:00','10:00')])
-leg_w2_1 = make_leg('Tuesday','07:00','work','18-39')
-leg_w2_1_end = make_leg('Tuesday','10:00','work','18-39')
-leg_w2_2 = make_leg('Tuesday','15:30','daily','60+')
-leg_w2_3 = make_leg('Wednesday','09:30','medical','40-59')
-for l in (leg_w2_1,leg_w2_1_end,leg_w2_2,leg_w2_3):
-    mod.annotate_leg_with_weather(l)
+    def test_mobility_and_schedule_multipliers_and_probability_clamp(self):
+        base = weather.compute_weather_cancel_probability(
+            "heavy_rain", "shopping", "40-59", "none", "medium", "high"
+        )
+        constrained = weather.compute_weather_cancel_probability(
+            "heavy_rain", "shopping", "40-59", "high", "high", "high"
+        )
+        self.assertGreater(constrained, base)
+        self.assertLessEqual(constrained, 1.0)
 
-assert leg_w2_1['weather_event_active'] == True
-assert leg_w2_1_end['weather_event_active'] == False
-assert leg_w2_2['weather_event_active'] == True
-assert leg_w2_3['weather_event_active'] == True
-print('Test5-6 W2 windows OK')
+    def test_only_outbound_interval_can_cancel(self):
+        outbound_exposed = weather.evaluate_planned_activity(activity(), self.young)
+        self.assertTrue(outbound_exposed["outbound_weather_exposed"])
+        self.assertGreater(outbound_exposed["p_weather_cancel"], 0)
 
-# 7-12. Purpose modifiers ordering and numeric probability range, heavy>heat
-mod.CONFIG.weather_cancel_rate_base_extreme_heat = 0.2
-mod.CONFIG.weather_cancel_rate_base_heavy_rain = 0.6
-# check ordering
-mod.validate_purpose_ordering()
-mod.validate_heavy_vs_heat_stronger()
+        outbound_clear = activity(departure="06:00", arrival="06:30")
+        decision = weather.evaluate_planned_activity(outbound_clear, self.young)
+        self.assertFalse(decision["outbound_weather_exposed"])
+        self.assertFalse(decision["weather_cancelled"])
+        self.assertEqual(decision["p_weather_cancel"], 0.0)
 
-# compute some probabilities
-p_med_heat = mod._compute_p_weather_cancel('extreme_heat','medical','18-39')
-p_work_heat = mod._compute_p_weather_cancel('extreme_heat','work','18-39')
-p_daily_heat = mod._compute_p_weather_cancel('extreme_heat','daily','18-39')
-assert 0 <= p_med_heat <= 1
-assert p_med_heat < p_work_heat < p_daily_heat
-p_med_rain = mod._compute_p_weather_cancel('heavy_rain','medical','18-39')
-assert p_med_rain > p_med_heat
-print('Test7-12 purpose and heavy>heat and range OK')
+        outbound_leg = {
+            "agent_id": "agent-1", "activity_id": "return-only", "leg_role": "outbound",
+            "day": "Tuesday", "purpose": "shopping",
+            "departure_time": "06:00", "arrival_time": "06:30",
+        }
+        return_leg = {
+            "agent_id": "agent-1", "activity_id": "return-only", "leg_role": "return_home",
+            "day": "Tuesday", "departure_time": "07:30", "arrival_time": "08:00",
+        }
+        outbound_continues, return_continues = weather.process_outbound_return(
+            outbound_leg, return_leg, self.young, outbound_trip_completed=True
+        )
+        self.assertTrue(outbound_continues)
+        self.assertTrue(return_continues)
+        self.assertEqual(outbound_leg["ride_hailing_odds_multiplier"], 1.0)
+        self.assertEqual(outbound_leg["ride_hailing_utility_shift"], 0.0)
+        self.assertTrue(return_leg["weather_event_active"])
+        self.assertEqual(return_leg["ride_hailing_odds_multiplier"], 1.30)
+        self.assertAlmostEqual(return_leg["ride_hailing_utility_shift"], math.log(1.30))
+        self.assertFalse(decision["weather_cancelled"])
 
-# 13-14 sampling once and seed reproducibility
-mod.init_rng(999)
-leg_sample = make_leg('Tuesday','15:30','daily','40-59')
-mod.annotate_leg_with_weather(leg_sample)
-res1 = mod.sample_weather_cancel_for_leg(leg_sample, {'age_group':'40-59'})
-# second call should not change
-res2 = mod.sample_weather_cancel_for_leg(leg_sample, {'age_group':'40-59'})
-assert res1 == res2
-# reproducibility
-mod.init_rng(555)
-leg_a = make_leg('Tuesday','15:30','daily','40-59')
-leg_b = make_leg('Tuesday','15:30','daily','40-59')
-mod.annotate_leg_with_weather(leg_a); mod.annotate_leg_with_weather(leg_b)
-res_a = mod.sample_weather_cancel_for_leg(leg_a, {'age_group':'40-59'})
-mod.init_rng(555)
-res_b = mod.sample_weather_cancel_for_leg(leg_b, {'age_group':'40-59'})
-assert res_a == res_b
-print('Test13-14 sampling single and reproducible OK')
+    def test_outbound_and_return_preference_signals_use_their_own_times(self):
+        outbound = None
+        for index in range(100):
+            candidate = {
+                "agent_id": "agent-1", "activity_id": f"leg-signal-{index}",
+                "leg_role": "outbound", "day": "Tuesday", "purpose": "shopping",
+                "departure_time": "07:30", "arrival_time": "08:00",
+            }
+            probe = weather.evaluate_planned_activity(
+                activity(f"leg-signal-{index}"), self.young
+            )
+            if not probe["weather_cancelled"]:
+                outbound = candidate
+                break
+        self.assertIsNotNone(outbound)
+        ret = {
+            "agent_id": "agent-1", "activity_id": outbound["activity_id"],
+            "leg_role": "return_home", "day": "Tuesday",
+            "departure_time": "12:00", "arrival_time": "12:30",
+        }
+        weather.process_outbound_return(outbound, ret, self.young, outbound_trip_completed=True)
+        self.assertEqual(outbound["ride_hailing_odds_multiplier"], 1.30)
+        self.assertAlmostEqual(outbound["ride_hailing_utility_shift"], math.log(1.30))
+        self.assertEqual(ret["ride_hailing_odds_multiplier"], 1.0)
+        self.assertEqual(ret["ride_hailing_utility_shift"], 0.0)
 
-# 15. outbound cancel invalidates return
-out = make_leg('Tuesday','15:30','daily','40-59')
-mod.init_rng(1234)
-out = make_leg('Tuesday','15:30','daily','40-59')
-ret = make_leg('Tuesday','20:00','daily','40-59')
-# Do NOT annotate return before processing outbound; process_outbound_return enforces ordering.
-mod.set_week('W2')
-mod.set_w2_windows([('Tuesday','15:00','16:00'),('Wednesday','09:00','10:00'),('Thursday','08:00','09:00')])
-# set params so cancellation likely
-mod.CONFIG.weather_cancel_rate_base_heavy_rain = 0.9
-mod.CONFIG.cancel_rate_modifier_daily = 1.0
-mod.CONFIG.age_sensitivity_modifier_40_59 = 1.0
-mod.init_rng(1)
-# process outbound then return
-ob_cont, rt_cont = mod.process_outbound_return(out, ret, {'age_group':'40-59'}, outbound_trip_completed=True)
-# if outbound was cancelled then return state is stored internally; leg must not contain internal markers
-if not ob_cont:
-    try:
-        mod.assert_no_internal_markers(ret)
-    except AssertionError:
-        raise
-print('Test15 outbound->return invalidation OK (if outbound cancelled)')
+    def test_agent_behavior_fields_are_required_even_in_w0(self):
+        weather.set_week("W0")
+        required = ("age_group", "mobility_constraint", "schedule_flexibility")
+        for missing in required:
+            profile = dict(self.young)
+            profile.pop(missing)
+            with self.subTest(missing=missing), self.assertRaises(ValueError):
+                weather.evaluate_planned_activity(activity(f"missing-{missing}"), profile)
+        invalid_profiles = (
+            {**self.young, "age_group": "unknown"},
+            {**self.young, "mobility_constraint": "unknown"},
+            {**self.young, "schedule_flexibility": "unknown"},
+        )
+        for profile in invalid_profiles:
+            with self.subTest(profile=profile), self.assertRaises(ValueError):
+                weather.evaluate_planned_activity(activity("invalid-profile"), profile)
 
-# 16. outbound and return use own times
-mod.set_week('W1')
-out2 = make_leg('Tuesday','11:30','daily','40-59')
-ret2 = make_leg('Tuesday','19:00','daily','40-59')
-mod.annotate_leg_with_weather(out2); mod.annotate_leg_with_weather(ret2)
-assert out2['weather_event_active'] == True
-assert ret2['weather_event_active'] == False
-print('Test16 outbound/return independent weather OK')
+    def test_w0_is_strictly_neutral_and_preserves_inputs(self):
+        weather.set_week("W0")
+        planned = activity("w0", "medical", "07:30", "08:00")
+        planned.update({"is_mandatory": True, "baseline_cancel_probability": 0.01})
+        original_activity = dict(planned)
+        decision = weather.evaluate_planned_activity(planned, self.young)
+        self.assertEqual(planned, original_activity)
+        self.assertEqual(decision["p_weather_cancel"], 0.0)
+        self.assertEqual(decision["ride_hailing_odds_multiplier"], 1.0)
+        self.assertEqual(decision["ride_hailing_utility_shift"], 0.0)
+        self.assertFalse(decision["weather_cancelled"])
+        self.assertFalse(decision["unmet_mandatory_trip"])
+        self.assertTrue(decision["is_mandatory"])
+        self.assertEqual(decision["baseline_cancel_probability"], 0.01)
 
-# Exposure uses the actual leg interval: a trip departing before the event but
-# arriving after it starts is exposed.
-interval_leg = make_leg('Tuesday','10:50','daily','40-59')
-interval_leg['arrival_time'] = '11:10'
-mod.annotate_leg_with_weather(interval_leg)
-assert interval_leg['weather_event_active'] == True
-print('Test16b interval-overlap weather exposure OK')
+        leg = {
+            "leg_id": "w0-leg", "day": "Tuesday", "departure_time": "07:30",
+            "arrival_time": "08:00", "is_mandatory": True, "base_time_min": 30.0,
+        }
+        original_leg = dict(leg)
+        weather.annotate_leg_with_weather(leg)
+        for key, value in original_leg.items():
+            self.assertEqual(leg[key], value)
+        self.assertEqual(leg["ride_hailing_odds_multiplier"], 1.0)
+        self.assertEqual(leg["ride_hailing_utility_shift"], 0.0)
+        self.assertNotIn("weather_cancelled", leg)
+        self.assertNotIn("unmet_mandatory_trip", leg)
 
-# 17-19 supply multipliers are owned by the independent weather-supply layer
-mod.set_week('W1')
-leg_w1 = make_leg('Tuesday','12:00','daily','40-59')
-mod.annotate_leg_with_weather(leg_w1)
-mod.set_week('W2')
-mod.set_w2_windows([('Tuesday','11:00','13:00'),('Wednesday','09:00','10:00'),('Thursday','08:00','09:00')])
-leg_w2 = make_leg('Tuesday','12:00','daily','40-59')
-mod.annotate_leg_with_weather(leg_w2)
-assert 'bus_time_multiplier' not in leg_w2 and 'ride_hailing_time_multiplier' not in leg_w2
-print('Test17-19 supply multipliers not duplicated in T2 OK')
+    def test_cancelled_activity_marks_mandatory_and_leaves_no_retained_activity(self):
+        profile = {
+            "age_group": "60+", "mobility_constraint": "high",
+            "schedule_flexibility": "high",
+        }
+        cancelled = None
+        for index in range(1000):
+            candidate = activity(f"mandatory-{index}", "work")
+            decision = weather.evaluate_planned_activity(candidate, profile, scenario_level="high")
+            if decision["weather_cancelled"]:
+                cancelled = candidate
+                break
+        self.assertIsNotNone(cancelled)
+        result = weather.apply_weather_disruption_before_mode_choice(
+            [cancelled], {"agent-1": profile}, scenario_level="high"
+        )
+        decision = result["activity_decisions"][0]
+        self.assertTrue(decision["weather_cancelled"])
+        self.assertTrue(decision["unmet_mandatory_trip"])
+        self.assertFalse(decision["outbound_leg_executes"])
+        self.assertFalse(decision["return_leg_executes"])
+        self.assertEqual(result["retained_activities"], [])
 
-# 20 metro unchanged (not present in outputs)
-assert 'metro_time_multiplier' not in leg_w2
-print('Test20 metro unchanged OK')
+    def test_outbound_cancel_invalidates_both_linked_legs(self):
+        profile = {
+            "age_group": "60+", "mobility_constraint": "high",
+            "schedule_flexibility": "high",
+        }
+        outbound = None
+        for index in range(1000):
+            candidate = {
+                "agent_id": "agent-1", "activity_id": f"pair-{index}",
+                "leg_role": "outbound", "day": "Tuesday", "purpose": "social_leisure",
+                "departure_time": "07:30", "arrival_time": "08:00",
+            }
+            probe = weather.evaluate_planned_activity(
+                activity(f"pair-{index}", "social_leisure"), profile, scenario_level="high"
+            )
+            if probe["weather_cancelled"]:
+                outbound = candidate
+                break
+        self.assertIsNotNone(outbound)
+        ret = {
+            "agent_id": "agent-1", "activity_id": outbound["activity_id"],
+            "leg_role": "return_home", "day": "Tuesday",
+            "departure_time": "12:00", "arrival_time": "12:30",
+        }
+        weather.set_scenario_level("high")
+        continues, return_continues = weather.process_outbound_return(outbound, ret, profile)
+        self.assertFalse(continues)
+        self.assertFalse(return_continues)
+        self.assertFalse(outbound["trip_continues"])
+        self.assertFalse(ret["trip_continues"])
+        self.assertTrue(ret["invalidated_by_outbound"])
 
-# 21 event-out resets
-mod.set_week('W0')
-leg_neu = make_leg('Tuesday','12:00','daily','40-59')
-mod.annotate_leg_with_weather(leg_neu)
-assert leg_neu['ride_hailing_preference_shift']==0
-print('Test21 reset OK')
+    def test_low_base_high_cancellation_sets_are_nested(self):
+        profile = {
+            "age_group": "60+", "mobility_constraint": "mild",
+            "schedule_flexibility": "high",
+        }
+        sets = {}
+        for level in weather.SCENARIO_LEVELS:
+            sets[level] = {
+                index
+                for index in range(500)
+                if weather.evaluate_planned_activity(
+                    activity(f"nested-{index}", "work"), profile,
+                    scenario_level=level, seed=91,
+                )["weather_cancelled"]
+            }
+        self.assertTrue(sets["low"] <= sets["base"] <= sets["high"])
+        self.assertLess(len(sets["low"]), len(sets["high"]))
 
-# 22 output fields are behavioral/weather labels only
-allowed = {'weather_week','weather_type','weather_event_active','trip_continues','ride_hailing_preference_shift'}
-extras = set(leg_w2.keys()) - allowed
-# remove common input keys
-for k in ['day','departure_time','purpose','age_group','_weather_sampled','awaits_outbound_completion','invalidated_by_outbound']:
-    extras.discard(k)
-assert extras <= allowed
-print('Test22 output field restriction OK')
+    def test_stable_draw_is_independent_of_level_and_call_order(self):
+        draws = [
+            weather.evaluate_planned_activity(activity("stable"), self.young, scenario_level=level)["weather_random_draw"]
+            for level in ("high", "low", "base")
+        ]
+        self.assertEqual(draws[0], draws[1])
+        self.assertEqual(draws[1], draws[2])
 
-# 25. non-numeric parameters must raise when sampling
-mod.init_rng(7)
-mod.CONFIG.weather_cancel_rate_base_extreme_heat = 'to_be_calibrated'
-mod.set_week('W1')
-leg_bad = make_leg('Tuesday','12:00','daily','40-59')
-mod.annotate_leg_with_weather(leg_bad)
-try:
-    mod.sample_weather_cancel_for_leg(leg_bad, {'age_group':'40-59'})
-    raise AssertionError('Expected ValueError due to non-numeric params')
-except ValueError:
-    print('Test25 non-numeric params raise OK')
+    def test_ride_hailing_output_is_signal_only(self):
+        decision = None
+        for index in range(100):
+            candidate = weather.evaluate_planned_activity(activity(f"signal-{index}"), self.young)
+            if not candidate["weather_cancelled"]:
+                decision = candidate
+                break
+        self.assertIsNotNone(decision)
+        self.assertEqual(decision["ride_hailing_odds_multiplier"], 1.30)
+        self.assertAlmostEqual(decision["ride_hailing_utility_shift"], math.log(1.30))
+        self.assertFalse(decision["mode_choice_applied"])
+        for forbidden in ("selected_mode", "ride_hailing_demand", "excess_road_flow_pcu_per_hour"):
+            self.assertNotIn(forbidden, decision)
 
-# 26. calling process_outbound_return when return already annotated and outbound not completed should raise
-mod.set_week('W0')
-o = make_leg('Tuesday','12:00','daily','40-59')
-r = make_leg('Tuesday','12:00','daily','40-59')
-mod.annotate_leg_with_weather(r)
-try:
-    mod.process_outbound_return(o, r, {'age_group':'40-59'}, outbound_trip_completed=False)
-    raise AssertionError('Expected no annotation-before-outbound error')
-except ValueError:
-    print('Test26 prevent premature return annotate OK')
+    def test_baseline_probability_combines_multiplicatively(self):
+        self.assertAlmostEqual(
+            weather.combine_baseline_and_weather_cancel_probability(0.20, 0.30),
+            0.44,
+        )
 
-# 27. final output must not include internal markers
-leg_final = make_leg('Tuesday','12:00','daily','40-59')
-mod.set_week('W2')
-mod.set_w2_windows([('Tuesday','11:00','13:00'),('Wednesday','09:00','10:00'),('Thursday','08:00','09:00')])
-mod.annotate_leg_with_weather(leg_final)
-mod.sample_weather_cancel_for_leg(leg_final, {'age_group':'40-59'})
-# assert no internal markers in dict
-for mk in ('_weather_sampled','invalidated_by_outbound','awaits_outbound_completion'):
-    assert mk not in leg_final
-print('Test27 final output marker cleanup OK')
+    def test_parameter_provenance_is_explicit(self):
+        metadata = weather.PARAMETERS["metadata"]
+        self.assertEqual(metadata["source_type"], "model_assumption")
+        self.assertEqual(metadata["calibration_status"], "sensitivity_analysis")
+        self.assertIs(metadata["not_database_estimate"], True)
 
-# 23 base_time not overwritten
-base = {'bus_base_time':30,'ride_hailing_base_time':20}
-leg_time = make_leg('Tuesday','12:00','daily','40-59')
-leg_time.update(base)
-mod.set_week('W2')
-mod.set_w2_windows([('Tuesday','11:00','13:00'),('Wednesday','09:00','10:00'),('Thursday','08:00','09:00')])
-mod.annotate_leg_with_weather(leg_time)
-assert leg_time['bus_base_time']==30 and leg_time['ride_hailing_base_time']==20
-print('Test23 base_time preserved OK')
 
-# 24 no final mode/order generation
-assert 'final_mode' not in leg_time and 'orders' not in leg_time
-print('Test24 no final mode/order OK')
-
-# compute trip_continue_rate per group
-legs_for_stats = [leg_w2, leg_w2, leg_w2]  # small sample - just ensure function runs
-for l in legs_for_stats:
-    l['age_group']='40-59'; l['purpose']='daily'
-stats = mod.compute_trip_continue_rates(legs_for_stats)
-print('Stats sample:', stats)
-
-print('All tests passed (subject to probabilistic outcomes).')
-
-# Detailed activity purposes map to the three weather-sensitivity groups.
-assert mod.map_activity_to_weather_purpose('work') == 'work'
-assert mod.map_activity_to_weather_purpose('medical') == 'medical'
-for activity_purpose in (
-    'shopping', 'social_leisure', 'visit',
-    'out_of_home_family_care', 'out_of_home_family_activity',
-):
-    assert mod.map_activity_to_weather_purpose(activity_purpose) == 'daily'
-for removed_purpose in ('social', 'leisure'):
-    try:
-        mod.map_activity_to_weather_purpose(removed_purpose)
-        raise AssertionError('legacy purpose unexpectedly accepted')
-    except ValueError:
-        pass
+if __name__ == "__main__":
+    unittest.main()
