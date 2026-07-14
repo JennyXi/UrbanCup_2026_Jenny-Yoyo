@@ -1,0 +1,68 @@
+{
+  "experiment_id": "symmetric_weather_exposure_v1",
+  "description": "Independent paired W1/W2 experiment; does not modify the formal weather calendars.",
+  "total_agents": 50,
+  "s2_home_share": 0.60,
+  "scenario_level": "base",
+  "purposes": {
+    "work": {"departure_time": "08:00", "return_time": "18:00", "origin": "home_zone", "destination": "S1", "necessary": true, "max_leg_time_min": 75.0, "max_leg_budget_yuan": 30.0},
+    "medical": {"departure_time": "10:00", "return_time": "12:00", "origin": "home_zone", "destination": "S1", "necessary": true, "max_leg_time_min": 90.0, "max_leg_budget_yuan": 35.0},
+    "shopping": {"departure_time": "12:00", "return_time": "14:00", "origin": "home_zone", "destination": "stable_S1_or_S2", "s1_destination_probability": 0.40, "necessary": false, "max_leg_time_min": 65.0, "max_leg_budget_yuan": 25.0}
+  },
+  "day_types": ["workday", "rest_day"],
+  "work_schedule": {
+    "regular_worker_start_times": ["08:00", "08:30", "09:00", "09:30", "10:00", "10:30"],
+    "regular_worker_duration_min": [480, 510, 540, 570, 600],
+    "part_time_worker_start_times": ["10:00", "10:30"],
+    "part_time_worker_duration_min": [390, 420, 450],
+    "minimum_end_time": "17:00",
+    "maximum_end_time": "21:30",
+    "baseline_departure_reference_mode": "bus"
+  },
+  "work_remote_probability": {
+    "normal": 0.00,
+    "extreme_heat": 0.02,
+    "heavy_rain": 0.05
+  },
+  "work_remote_probability_sensitivity": {
+    "normal": [0.00, 0.02],
+    "extreme_heat": [0.00, 0.05],
+    "heavy_rain": [0.02, 0.10]
+  },
+  "work_weather_windows": {
+    "W1": ["07:00", "10:00"],
+    "W2": ["07:00", "10:00"]
+  },
+  "mode_preferences": {
+    "heat_walking_preference": -0.75,
+    "heat_bus_preference": -0.25,
+    "heat_ride_hailing_preference": 0.15,
+    "rain_walking_preference": -1.50,
+    "rain_bus_preference": -0.60,
+    "rain_ride_hailing_preference": 0.25
+  },
+  "transport_success_probability": {
+    "W0": {"walk": 1.00, "bus": 1.00, "ride_hailing": 1.00},
+    "W1": {"walk": 1.00, "bus": 0.96, "ride_hailing": 0.95},
+    "W2": {"walk": 1.00, "bus": 0.88, "ride_hailing": 0.85}
+  },
+  "failed_attempt_charge_fraction": {
+    "walk": 0.00,
+    "bus": 1.00,
+    "ride_hailing": 0.00
+  },
+  "hazard_exposure_weight": {
+    "W1_heat": 1.00,
+    "W2_rain": 1.00
+  },
+  "mobility_constraint_by_age": {"18-39": "none", "40-59": "none", "60+": "mild"},
+  "schedule_flexibility_by_work_status": {
+    "regular_worker": "low",
+    "flexible_non_worker": "high",
+    "part_time_worker": "medium",
+    "retired": "high"
+  },
+  "seed_start": 2001,
+  "seed_count": 30,
+  "provenance": "All experiment-only values are transparent MVP assumptions for sensitivity analysis, not empirical estimates. Heavy rain represents ordinary intense rainfall, not a typhoon, natural disaster, or shutdown scenario."
+}

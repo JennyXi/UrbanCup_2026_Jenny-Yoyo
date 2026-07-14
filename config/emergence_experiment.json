@@ -1,0 +1,52 @@
+{
+  "experiment_id": "two_day_transport_emergence_v1",
+  "description": "Independent two-zone emergence experiment with one shared-state feedback iteration.",
+  "total_agents": 50,
+  "s2_home_share": 0.60,
+  "day_types": ["workday", "rest_day"],
+  "weather_weeks": ["W0", "W1", "W2"],
+  "time_bin_minutes": 30,
+  "representative_part_time_day": "scheduled_workday",
+  "optional_destination_s1_probability": {
+    "medical": 1.00,
+    "shopping": 0.40,
+    "social_leisure": 0.55,
+    "visit": 0.45,
+    "out_of_home_family_activity": 0.50,
+    "out_of_home_family_care": 0.60
+  },
+  "optional_departure_slots": {
+    "workday_nonworker": ["09:30", "12:00", "15:00", "18:00"],
+    "workday_after_work_offsets_min": [30, 90, 150],
+    "rest_day": ["10:00", "12:30", "15:00", "18:00"]
+  },
+  "activity_constraints": {
+    "necessary_max_leg_time_min": 90.0,
+    "necessary_max_leg_budget_yuan": 35.0,
+    "optional_max_leg_time_min": 75.0,
+    "optional_max_leg_budget_yuan": 28.0
+  },
+  "bus_feedback": {
+    "base_capacity_representative_trips_per_30_min_direction": 6.0,
+    "rest_day_supply_multiplier": 0.80,
+    "crowding_threshold_ratio": 0.80,
+    "extra_wait_min_per_load_above_threshold": 10.0,
+    "maximum_extra_wait_min": 20.0,
+    "crowding_utility_penalty_per_load_above_threshold": 0.80
+  },
+  "ride_hailing_feedback": {
+    "available_vehicles_per_30_min": {"S1": 8.0, "S2": 5.0},
+    "rest_day_supply_multiplier": 0.85,
+    "extra_wait_min_per_demand_supply_ratio": 4.0,
+    "maximum_system_extra_wait_min": 18.0
+  },
+  "road_feedback": {
+    "reference_ride_hailing_vehicles_per_30_min": 14.0,
+    "congestion_strength": 0.55,
+    "minimum_speed_multiplier": 0.65
+  },
+  "feedback_iterations": 1,
+  "seed_start": 3001,
+  "seed_count": 30,
+  "provenance": "All supply, capacity and feedback values are transparent emergence-test assumptions, not calibrated Shanghai observations."
+}
