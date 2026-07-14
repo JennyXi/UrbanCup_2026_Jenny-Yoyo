@@ -4,6 +4,8 @@
 
 当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、正常天气分时段基础交通供给、天气响应规则、天气交通供给、动态道路拥堵和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
 
+> **experiment分支说明：** 本分支新增了独立的两区三方式简化实验，已经实现50个异质Agent的walking、bus与ride-hailing方式选择、工作日/休息日活动、W0/W1/W2天气、remote work、非必要活动取消、一次fallback、共享公交/网约车/道路反馈及30-seed敏感性分析。实验明确区分老年人的智能手机拥有、独立数字接入与家庭协助，并将其用于网约车可用性判断。完整设计、修复后结果、限制与复现命令见 [`docs/emergence_experiment/README.md`](docs/emergence_experiment/README.md)。该简化实验不修改正式九区模型和T2天气日历。
+
 ## 已完成模块
 
 ### T1：Agent population 与七日 baseline activities
