@@ -197,6 +197,15 @@ def _next_weather_boundary(
     return min(future) if future else None
 
 
+def next_weather_boundary(
+    moment: datetime,
+    events: Sequence[Mapping[str, Any]],
+    config: Mapping[str, Any],
+) -> Optional[datetime]:
+    """Public boundary helper for downstream supply layers."""
+    return _next_weather_boundary(moment, events, config)
+
+
 def _advance_combined_vehicle_work(
     start: datetime,
     base_vehicle_minutes: float,

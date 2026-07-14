@@ -19,6 +19,7 @@ from .weather_supply import (
     WEATHER_SUPPLY_EXTRA_FIELDS,
     calculate_weather_adjusted_leg_mode_option,
     load_weather_supply_configuration,
+    next_weather_boundary,
     weather_events_from_t2_config,
     weather_supply_parameters,
 )
@@ -27,6 +28,7 @@ from .dynamic_congestion import (
     bpr_dynamic_congestion_multiplier,
     calculate_dynamic_congestion_leg_mode_option,
     load_dynamic_congestion_configuration,
+    marginal_extra_multiplier,
 )
 
 __all__ = [
@@ -44,10 +46,12 @@ __all__ = [
     "WEATHER_SUPPLY_EXTRA_FIELDS",
     "calculate_weather_adjusted_leg_mode_option",
     "load_weather_supply_configuration",
+    "next_weather_boundary",
     "weather_events_from_t2_config",
     "weather_supply_parameters",
     "DYNAMIC_CONGESTION_EXTRA_FIELDS",
     "bpr_dynamic_congestion_multiplier",
     "calculate_dynamic_congestion_leg_mode_option",
     "load_dynamic_congestion_configuration",
+    "marginal_extra_multiplier",
 ]

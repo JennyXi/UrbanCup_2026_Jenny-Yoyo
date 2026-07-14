@@ -1,51 +1,96 @@
 {
-  "schema_version": "1.0",
-  "layer_id": "dynamic_exogenous_road_congestion_v1",
+  "schema_version": "3.0",
+  "layer_id": "marginal_dynamic_road_congestion_v3",
   "road_modes": ["bus", "ride_hailing"],
   "non_road_modes": ["walk", "metro"],
-  "capacity_unit": "passenger_car_equivalent_per_hour_per_direction",
+  "flow_unit": "PCU/hour/direction",
   "capacity_profiles": {
-    "aggregate_network": {
-      "normal_road_capacity": 1800.0,
-      "provenance": "model_assumption_for_aggregate_directional_road_state",
+    "representative_directional_corridor": {
+      "corridor_capacity_pcu_per_hour_per_direction": 1800.0,
+      "spatial_semantics": "representative_directional_corridor",
+      "provenance": "model_assumption_for_representative_directional_corridor",
       "sensitivity_range": {"low": 1200.0, "base": 1800.0, "high": 2400.0}
     }
   },
+  "baseline_vc": {
+    "provenance": "model_assumption_for_t8_background_load_not_estimated_from_yoyo_database",
+    "period_base": {
+      "morning_shoulder": 0.68,
+      "morning_core_peak": 0.88,
+      "morning_recovery": 0.64,
+      "day_off_peak": 0.45,
+      "evening_shoulder": 0.70,
+      "evening_core_peak": 0.90,
+      "evening_recovery": 0.65,
+      "night": 0.30
+    },
+    "main_commute_direction_addition": {
+      "morning_shoulder": 0.10,
+      "morning_core_peak": 0.17,
+      "morning_recovery": 0.08,
+      "day_off_peak": 0.00,
+      "evening_shoulder": 0.10,
+      "evening_core_peak": 0.17,
+      "evening_recovery": 0.08,
+      "night": 0.00
+    }
+  },
   "congestion_function": {
-    "type": "bpr_speed_multiplier",
+    "type": "marginal_bpr_speed_ratio",
     "alpha": 0.15,
     "beta": 4.0,
-    "formula": "dynamic_congestion_multiplier = 1 / (1 + alpha * volume_capacity_ratio ^ beta)",
+    "formula": "extra_multiplier = min(1, BPR_speed(scenario_vc) / BPR_speed(baseline_vc_weather))",
     "provenance": "model_assumption_for_sensitivity_analysis_not_estimated_from_yoyo_database",
     "sensitivity_ranges": {
       "alpha": {"low": 0.05, "base": 0.15, "high": 0.30},
       "beta": {"low": 2.0, "base": 4.0, "high": 6.0}
     }
   },
-  "traffic_volume_input": {
-    "source": "explicit_exogenous_or_aggregate_road_state_input_from_model_runner",
+  "safety_limits": {
+    "maximum_vc": 3.0,
+    "minimum_final_speed_kmh": 10.0,
+    "maximum_segment_time_min": 120.0,
+    "speed_floor_scope": ["bus", "ride_hailing"],
+    "speed_floor_semantics": "severe_oversaturation_model_floor_not_normal_operating_speed",
+    "maximum_segment_time_semantics": "single_dynamic_segment_or_iteration_guard_not_whole_trip_cap",
+    "provenance": "model_assumption_for_motor_vehicle_numerical_safety"
+  },
+  "traffic_flow_input": {
+    "field": "excess_road_flow_pcu_per_hour",
+    "unit": "PCU/hour/direction",
+    "semantics": "scenario_flow_minus_t8_background_flow",
+    "must_exclude_baseline_flow": true,
+    "negative_scenario_delta_policy": "reject_negative_input_use_max_zero_upstream",
+    "includes_weather_response_from_agent_mode_choice": true,
+    "manual_weather_demand_addition_allowed": false,
     "generated_by_this_layer": false,
-    "agent_mode_choice_required": false,
-    "unit": "passenger_car_equivalent_per_hour_per_direction",
-    "notes": "Bus and ride_hailing must receive the same road_state_id, capacity profile and aggregate volume when they share a road state. This layer does not add the evaluated trip to volume."
+    "allowed_sources": ["agent_mode_choice_scenario_delta", "policy_scenario_delta", "combined_scenario_delta"]
+  },
+  "shared_state_key": {
+    "fields": ["corridor_id", "direction", "time_bin"],
+    "bus_and_ride_hailing_must_share_state": true,
+    "requires_preaggregated_all_motorized_excess_pcu": true,
+    "separate_mode_flow_inputs_allowed": false,
+    "global_state_registry_implemented": false,
+    "global_state_registry_owner": "future_model_runner"
   },
   "calculation_order": [
-    "weather_free_flow_speed = base_speed * period_direction_multiplier * weather_speed_multiplier",
-    "weather_capacity = normal_road_capacity * road_capacity_multiplier",
-    "volume_capacity_ratio = current_road_volume / weather_capacity",
-    "dynamic_congestion_multiplier = congestion_function(volume_capacity_ratio)",
-    "final_speed = weather_free_flow_speed * dynamic_congestion_multiplier"
+    "weather_capacity = corridor_capacity * weather_capacity_multiplier",
+    "baseline_vc_weather = baseline_vc / weather_capacity_multiplier",
+    "scenario_vc = baseline_vc_weather + excess_road_flow_pcu_per_hour / weather_capacity",
+    "extra_multiplier = min(1, BPR_speed(scenario_vc) / BPR_speed(baseline_vc_weather))",
+    "final_speed_kmh = t9_speed_kmh * extra_multiplier"
   ],
   "boundaries": {
     "t7_fields_overwritten": false,
     "t8_fields_overwritten": false,
     "t9_fields_overwritten": false,
-    "road_capacity_multiplier_used_directly_as_speed_multiplier": false,
+    "background_flow_reapplied": false,
+    "manual_weather_demand_added": false,
     "agent_mode_choice_applied": false,
     "ride_hailing_vehicle_turnover_applied": false,
     "dispatch_applied": false,
     "dynamic_waiting_applied": false,
-    "dynamic_pricing_applied": false,
-    "dispatch_failure_applied": false
+    "dynamic_pricing_applied": false
   }
 }
