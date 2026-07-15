@@ -41,10 +41,15 @@
     "definition": "Scheduled B1 vehicle trips across both directions. P1 changes frequency; per-vehicle passenger capacity remains fixed."
   },
   "ride_hailing_feedback": {
-    "available_vehicles_per_30_min": {"S1": 8.0, "S2": 5.0},
-    "rest_day_supply_multiplier": 0.85,
+    "initial_daily_vehicles_by_day_type": {
+      "workday": {"S1": 8, "S2": 5},
+      "rest_day": {"S1": 7, "S2": 4}
+    },
+    "vehicle_id_prefix": "RH",
+    "supply_multiplier_integer_rounding": "half_up",
     "extra_wait_min_per_demand_supply_ratio": 4.0,
-    "maximum_system_extra_wait_min": 18.0
+    "maximum_system_extra_wait_min": 18.0,
+    "fleet_definition": "Integer daily fleet initialized once per day type and weather run. Vehicles remain at trip destinations; no driver shifts, empty return, or active repositioning."
   },
   "road_feedback": {
     "reference_road_vehicles_per_30_min": 14.0,
@@ -180,6 +185,37 @@
     "fixed_bus_frequency_multiplier": 1.0,
     "fixed_ride_supply_multiplier": 1.0,
     "interpretation": "Scenario assumptions for a 50-agent mechanism experiment. D1 targets training to smartphone-owning unassisted elders first; D3 includes device provision. These are not observed Shanghai intervention rates."
+  },
+  "coupon_experiment": {
+    "policies": ["C0_no_coupon", "C1_public_limited", "C2_elder_limited", "C3_mixed"],
+    "discount_multiplier": 0.80,
+    "daily_total_coupon_pool": 10,
+    "public_participation_probability": {
+      "18-39": 0.80,
+      "40-59": 0.65,
+      "60+": 0.45
+    },
+    "mixed_public_pool_share": 0.70,
+    "community_phone_coverage_rate": 0.40,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0,
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "interpretation": "Finite daily 20-percent-off coupon mechanism assumptions; not observed platform take-up, Shanghai subsidy, or welfare estimates. In C3, an awarded community/phone elder-reserve coupon includes one proxy booking without changing the elder's digital_access status."
+  },
+  "agent_scale_screen": {
+    "agent_counts": [50, 100, 200, 500],
+    "default_seed_count": 3,
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "fixed_reference_road_vehicles_per_30_min": 14.0,
+    "competition_flags": {
+      "ride_demand_supply_ratio": 1.0,
+      "road_volume_capacity_ratio": 1.0,
+      "under60_ride_wait_increase_minutes": 0.1
+    },
+    "interpretation": "Fixed-supply demand stress screen. Agent counts are mechanism loads, not Shanghai population forecasts; supply is intentionally not scaled with agents."
   },
   "seed_start": 3001,
   "seed_count": 30,

@@ -5,6 +5,7 @@ import random
 import unittest
 
 from custom.agents.emergence_experiment import (
+    _RideHailingFleet, _dispatch_priority,
     build_emergence_activities, calculate_heat_hazard_dose,
     heat_vulnerability_weight, load_emergence_config,
     run_emergence_experiment, run_emergence_weather, summarize_macro,
@@ -498,6 +499,126 @@ class EmergenceExperimentTests(unittest.TestCase):
 
     def test_config_requires_one_feedback_iteration(self):
         self.assertEqual(load_emergence_config()["feedback_iterations"], 1)
+
+    def test_integer_daily_fleet_is_conserved(self):
+        config = load_emergence_config()
+        states = self.result["ride_hailing_vehicle_states"]
+        for week in WEATHER_TYPES:
+            for day_type in ("workday", "rest_day"):
+                rows = [
+                    row for row in states
+                    if row["weather_week"] == week and row["day_type"] == day_type
+                ]
+                expected = sum(
+                    config["ride_hailing_feedback"]["initial_daily_vehicles_by_day_type"][day_type].values()
+                )
+                self.assertEqual(len(rows), expected)
+                self.assertEqual(len({row["vehicle_id"] for row in rows}), expected)
+                self.assertTrue(all(row["status"] in {"idle", "busy"} for row in rows))
+                self.assertEqual(
+                    sum(row["status"] == "idle" for row in rows)
+                    + sum(row["status"] == "busy" for row in rows),
+                    expected,
+                )
+
+    def test_vehicle_cannot_be_dispatched_on_overlapping_orders(self):
+        successful = [row for row in self.result["ride_hailing_requests"] if row["succeeded"]]
+        by_vehicle = {}
+        for row in successful:
+            by_vehicle.setdefault((row["weather_week"], row["day_type"], row["vehicle_id"]), []).append(row)
+        for rows in by_vehicle.values():
+            rows.sort(key=lambda row: row["busy_start"])
+            for previous, current in zip(rows, rows[1:]):
+                self.assertGreaterEqual(current["busy_start"], previous["busy_until"])
+                self.assertEqual(current["origin_zone"], previous["destination_zone"])
+
+    def test_successful_dispatch_removes_idle_origin_vehicle(self):
+        immediate = [
+            row for row in self.result["ride_hailing_requests"]
+            if row["succeeded"] and row["idle_vehicles_at_request"] > 0
+        ]
+        self.assertTrue(immediate)
+        self.assertTrue(all(
+            row["idle_vehicles_after_dispatch"] == row["idle_vehicles_at_request"] - 1
+            for row in immediate
+        ))
+
+    def test_vehicle_releases_only_into_trip_destination(self):
+        fleet = _RideHailingFleet("workday", {"S1": 1, "S2": 1})
+        first = fleet.request(
+            request_time=0.0, origin_zone="S1", destination_zone="S2",
+            base_pickup_wait_min=2.0, in_vehicle_time_min=10.0,
+            maximum_vehicle_wait_min=18.0, non_capacity_success=True,
+        )
+        self.assertTrue(first["succeeded"])
+        self.assertEqual(fleet.idle_vehicle_ids("S1", first["busy_until"] - 0.01), [])
+        fleet.release_arrivals(first["busy_until"])
+        self.assertNotIn(first["vehicle_id"], fleet.idle_vehicle_ids("S1", first["busy_until"]))
+        self.assertIn(first["vehicle_id"], fleet.idle_vehicle_ids("S2", first["busy_until"]))
+
+    def test_simultaneous_successes_cannot_exceed_available_origin_vehicles(self):
+        fleet = _RideHailingFleet("workday", {"S1": 1, "S2": 1})
+        first = fleet.request(
+            request_time=0.0, origin_zone="S1", destination_zone="S2",
+            base_pickup_wait_min=0.0, in_vehicle_time_min=10.0,
+            maximum_vehicle_wait_min=0.0, non_capacity_success=True,
+        )
+        second = fleet.request(
+            request_time=0.0, origin_zone="S1", destination_zone="S2",
+            base_pickup_wait_min=0.0, in_vehicle_time_min=10.0,
+            maximum_vehicle_wait_min=0.0, non_capacity_success=True,
+        )
+        self.assertTrue(first["succeeded"])
+        self.assertFalse(second["succeeded"])
+        self.assertEqual(second["failure_reason"], "no_vehicle_available")
+
+    def test_each_leg_makes_at_most_one_ride_hailing_request(self):
+        counts = Counter(
+            (row["weather_week"], row["leg_id"])
+            for row in self.result["ride_hailing_requests"]
+        )
+        self.assertTrue(all(count <= 1 for count in counts.values()))
+
+    def test_fallback_request_uses_actual_time_across_30_minute_boundary(self):
+        crossed = []
+        leg_lookup = {
+            (row["weather_week"], row["leg_id"]): row
+            for row in self.result["leg_results"]
+        }
+        for request in self.result["ride_hailing_requests"]:
+            if request["attempt_number"] != 2:
+                continue
+            leg = leg_lookup[(request["weather_week"], request["leg_id"])]
+            departure = int(leg["departure_time"][:2]) * 60 + int(leg["departure_time"][3:])
+            if int(departure // 30) != int(request["request_time"] // 30):
+                crossed.append(request)
+                self.assertEqual(request["request_time"], leg["fallback_start_minute"])
+        self.assertTrue(crossed)
+
+    def test_dispatch_audit_is_reproducible(self):
+        rerun = run_emergence_experiment(self.seed)
+        self.assertEqual(self.result["ride_hailing_requests"], rerun["ride_hailing_requests"])
+        self.assertEqual(self.result["ride_hailing_vehicle_states"], rerun["ride_hailing_vehicle_states"])
+
+    def test_dispatch_priority_is_policy_and_age_independent(self):
+        leg_id = "E001-WORKDAY-01-WORK-outbound"
+        expected = _dispatch_priority(self.seed, leg_id)
+        self.assertEqual(expected, _dispatch_priority(self.seed, leg_id))
+        base = run_emergence_experiment(self.seed, ride_supply_multiplier=1.0)
+        policy = run_emergence_experiment(self.seed, ride_supply_multiplier=1.4)
+        base_priorities = {row["leg_id"]: row["dispatch_priority"] for row in base["ride_hailing_requests"]}
+        policy_priorities = {row["leg_id"]: row["dispatch_priority"] for row in policy["ride_hailing_requests"]}
+        common = set(base_priorities) & set(policy_priorities)
+        self.assertTrue(common)
+        self.assertTrue(all(base_priorities[key] == policy_priorities[key] for key in common))
+
+    def test_ride_capacity_is_not_a_success_probability(self):
+        ride_states = [
+            row for row in self.result["system_state"] if row["state_type"] == "ride_hailing"
+        ]
+        self.assertTrue(ride_states)
+        self.assertTrue(all(row["success_factor"] == 1.0 for row in ride_states))
+        self.assertTrue(all(row["supply_is_statistical_reference_only"] for row in ride_states))
 
 
 if __name__ == "__main__":

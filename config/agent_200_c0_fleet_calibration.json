@@ -1,0 +1,24 @@
+{
+  "experiment_id": "agent_200_c0_fleet_calibration",
+  "description": "Three-tier no-coupon fleet calibration for the 200-agent simplified experiment.",
+  "total_agents": 200,
+  "seed_start": 3001,
+  "default_seed_count": 3,
+  "bus_frequency_multiplier": 1.0,
+  "ride_hailing_noncapacity_success_probability": 1.0,
+  "fleet_tiers": {
+    "low": {
+      "workday": {"S1": 16, "S2": 10},
+      "rest_day": {"S1": 14, "S2": 8}
+    },
+    "middle": {
+      "workday": {"S1": 24, "S2": 15},
+      "rest_day": {"S1": 21, "S2": 12}
+    },
+    "proportional": {
+      "workday": {"S1": 32, "S2": 20},
+      "rest_day": {"S1": 28, "S2": 16}
+    }
+  },
+  "interpretation": "Mechanism baseline calibration only. Fleet tiers preserve the original day-type and S1/S2 proportions; they are not calibrated Shanghai fleet estimates."
+}

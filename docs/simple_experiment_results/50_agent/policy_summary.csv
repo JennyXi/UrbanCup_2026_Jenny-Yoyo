@@ -1,0 +1,5 @@
+﻿policy,seed_count,ride_hailing_requests,failed_ride_hailing_requests,mean_ride_hailing_wait_minutes_per_request,road_vehicle_volume,mean_volume_capacity_ratio,necessary_activity_completion_rate,mean_total_travel_time,total_heat_risk_burden,coupon_redeemed,coupon_induced_requests
+C0_no_coupon,30,22.066667,1.933333,8.325639,140.133333,0.208532,0.989624,28.732076,5923.144533,0.0,0.0
+C1_public_limited,30,23.505556,2.35,8.482388,141.155556,0.210053,0.988015,28.746175,5932.413311,4.15,1.594444
+C2_elder_limited,30,22.305556,1.972222,8.334911,140.333333,0.208829,0.989913,28.723869,5920.290778,0.877778,0.277778
+C3_mixed,30,23.155556,2.255556,8.439177,140.9,0.209673,0.98773,28.734182,5912.331806,3.111111,1.205556

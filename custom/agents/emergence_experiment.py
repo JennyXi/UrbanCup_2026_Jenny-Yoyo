@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import hashlib
+import heapq
 import json
 import math
 import random
@@ -12,6 +13,8 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, Mapping
 
 from custom.agents.agent_population import AgentProfile, generate_population_agents
+from custom.agents.coupon_experiment import community_assisted_booking
+from custom.agents.coupon_experiment import validate_coupon_config
 from custom.agents.simple_experiment import AGE_VALUE_OF_TIME, assign_two_zone_homes
 from custom.agents.simple_mode_choice import MODES, SimpleAgent, build_mode_options, choose_mode, load_simple_config
 from custom.agents.symmetric_weather_experiment import (
@@ -42,9 +45,18 @@ def load_emergence_config(path: Path | str = CONFIG_PATH) -> Dict[str, Any]:
     for key in ("per_vehicle_capacity_representative_passengers", "maximum_extra_wait_min"):
         if float(config["bus_feedback"][key]) < 0:
             raise ValueError("bus feedback values must be non-negative")
-    for value in config["ride_hailing_feedback"]["available_vehicles_per_30_min"].values():
-        if float(value) <= 0:
-            raise ValueError("ride-hailing supply must be positive")
+    ride = config["ride_hailing_feedback"]
+    if set(ride["initial_daily_vehicles_by_day_type"]) != set(DAY_TYPES):
+        raise ValueError("ride-hailing fleet must configure every day type")
+    for day_type, by_zone in ride["initial_daily_vehicles_by_day_type"].items():
+        if set(by_zone) != {"S1", "S2"}:
+            raise ValueError(f"ride-hailing fleet for {day_type} must cover S1/S2")
+        if any(not isinstance(value, int) or isinstance(value, bool) or value <= 0 for value in by_zone.values()):
+            raise ValueError("ride-hailing initial daily vehicles must be positive integers")
+    if ride["supply_multiplier_integer_rounding"] != "half_up":
+        raise ValueError("ride-hailing fleet multiplier must use half_up integer rounding")
+    if float(ride["maximum_system_extra_wait_min"]) < 0:
+        raise ValueError("ride-hailing maximum vehicle wait must be non-negative")
     schedule = config["bus_vehicle_schedule"]
     if float(schedule["ordinary_vehicle_trips_per_30_min"]) <= 0:
         raise ValueError("ordinary bus vehicle trips must be positive")
@@ -75,6 +87,18 @@ def load_emergence_config(path: Path | str = CONFIG_PATH) -> Dict[str, Any]:
         raise ValueError("digital-access experiment must hold bus frequency at P0")
     if float(digital_experiment["fixed_ride_supply_multiplier"]) != 1.0:
         raise ValueError("digital-access experiment must hold ride supply at P0")
+    scale_screen = config["agent_scale_screen"]
+    counts = [int(value) for value in scale_screen["agent_counts"]]
+    if counts != sorted(set(counts)) or counts[0] != 50 or any(value <= 0 for value in counts):
+        raise ValueError("agent scale screen must be sorted, unique, positive and start at 50")
+    for key in (
+        "fixed_bus_frequency_multiplier", "fixed_ride_supply_multiplier",
+    ):
+        if float(scale_screen[key]) != 1.0:
+            raise ValueError("agent scale screen must hold transport policy at P0")
+    if float(scale_screen["fixed_reference_road_vehicles_per_30_min"]) != float(config["road_feedback"]["reference_road_vehicles_per_30_min"]):
+        raise ValueError("agent scale screen must use the formal road reference")
+    validate_coupon_config(config)
     heat = config["heat_exposure"]
     if heat["method"] != "utci_degree_minutes_above_threshold":
         raise ValueError("unsupported heat exposure method")
@@ -113,6 +137,153 @@ def _stable_seed(seed: int, *parts: Any) -> int:
 
 def _uniform(seed: int, *parts: Any) -> float:
     return _stable_seed(seed, *parts) / 2**64
+
+
+def _dispatch_priority(seed: int, leg_id: str) -> float:
+    """Policy- and age-independent priority used only to break equal request times."""
+    return _uniform(seed, leg_id, "ride-dispatch-priority")
+
+
+def _elder_dispatch_rank(
+    policy: str, leg: Mapping[str, Any], profile: AgentProfile,
+) -> int:
+    """Return the policy rank used after actual request time and before base priority."""
+    if policy == "R0_first_come":
+        return 0
+    if policy == "R1_elder_medical_priority":
+        return 0 if profile.is_elder and leg["activity_purpose"] == "medical" else 1
+    if policy == "R2_all_elder_priority":
+        return 0 if profile.is_elder else 1
+    raise ValueError(f"unknown elder dispatch priority policy: {policy}")
+
+
+def _initial_fleet_counts(
+    emergence: Mapping[str, Any], day_type: str, ride_supply_multiplier: float,
+) -> Dict[str, int]:
+    configured = emergence["ride_hailing_feedback"]["initial_daily_vehicles_by_day_type"][day_type]
+    return {
+        zone: max(1, int(math.floor(int(count) * float(ride_supply_multiplier) + 0.5)))
+        for zone, count in configured.items()
+    }
+
+
+class _RideHailingFleet:
+    """Minimal conserved two-zone fleet with destination retention."""
+
+    def __init__(
+        self, day_type: str, counts: Mapping[str, int], *, vehicle_id_prefix: str = "RH",
+    ) -> None:
+        self.day_type = day_type
+        self.initial_counts = {zone: int(count) for zone, count in counts.items()}
+        self.vehicles: Dict[str, Dict[str, Any]] = {}
+        for zone in sorted(self.initial_counts):
+            for sequence in range(1, self.initial_counts[zone] + 1):
+                vehicle_id = f"{vehicle_id_prefix}-{day_type}-{zone}-{sequence:03d}"
+                self.vehicles[vehicle_id] = {
+                    "vehicle_id": vehicle_id,
+                    "current_zone": zone,
+                    "status": "idle",
+                    "busy_until": 0.0,
+                    "destination_zone": "",
+                }
+        self.successful_assignments: list[Dict[str, Any]] = []
+
+    @property
+    def initial_total(self) -> int:
+        return sum(self.initial_counts.values())
+
+    def release_arrivals(self, minute: float) -> None:
+        for vehicle in self.vehicles.values():
+            if vehicle["status"] == "busy" and float(vehicle["busy_until"]) <= minute + 1e-12:
+                vehicle["current_zone"] = vehicle["destination_zone"]
+                vehicle["destination_zone"] = ""
+                vehicle["status"] = "idle"
+
+    def idle_vehicle_ids(self, zone: str, minute: float) -> list[str]:
+        self.release_arrivals(minute)
+        return sorted(
+            vehicle_id for vehicle_id, vehicle in self.vehicles.items()
+            if vehicle["status"] == "idle" and vehicle["current_zone"] == zone
+        )
+
+    def _next_vehicle_for_zone(self, zone: str) -> tuple[float, str] | None:
+        candidates = sorted(
+            (float(vehicle["busy_until"]), vehicle_id)
+            for vehicle_id, vehicle in self.vehicles.items()
+            if vehicle["status"] == "busy" and vehicle["destination_zone"] == zone
+        )
+        return candidates[0] if candidates else None
+
+    def request(
+        self, *, request_time: float, origin_zone: str, destination_zone: str,
+        base_pickup_wait_min: float, in_vehicle_time_min: float,
+        maximum_vehicle_wait_min: float, non_capacity_success: bool,
+    ) -> Dict[str, Any]:
+        idle_at_request = self.idle_vehicle_ids(origin_zone, request_time)
+        vehicle_id = idle_at_request[0] if idle_at_request else ""
+        dispatch_time = float(request_time)
+        queue_wait = 0.0
+        if not vehicle_id:
+            next_vehicle = self._next_vehicle_for_zone(origin_zone)
+            if next_vehicle is None:
+                return {
+                    "succeeded": False, "failure_reason": "no_vehicle_available",
+                    "request_time": request_time, "dispatch_time": None,
+                    "pickup_wait_min": maximum_vehicle_wait_min,
+                    "vehicle_id": "", "idle_vehicles_at_request": 0,
+                }
+            dispatch_time, vehicle_id = next_vehicle
+            queue_wait = max(0.0, dispatch_time - request_time)
+            if queue_wait > maximum_vehicle_wait_min + 1e-12:
+                return {
+                    "succeeded": False, "failure_reason": "vehicle_wait_limit_exceeded",
+                    "request_time": request_time, "dispatch_time": None,
+                    "pickup_wait_min": maximum_vehicle_wait_min,
+                    "vehicle_id": "", "idle_vehicles_at_request": 0,
+                }
+        pickup_wait = queue_wait + base_pickup_wait_min
+        if not non_capacity_success:
+            return {
+                "succeeded": False, "failure_reason": "non_capacity_transport_failure",
+                "request_time": request_time, "dispatch_time": dispatch_time,
+                "pickup_wait_min": pickup_wait, "vehicle_id": "",
+                "idle_vehicles_at_request": len(idle_at_request),
+            }
+        vehicle = self.vehicles[vehicle_id]
+        previous_busy_until = float(vehicle["busy_until"])
+        busy_start = max(request_time, dispatch_time)
+        boarding_time = request_time + pickup_wait
+        busy_until = boarding_time + in_vehicle_time_min
+        vehicle.update({
+            "current_zone": origin_zone,
+            "status": "busy",
+            "busy_until": busy_until,
+            "destination_zone": destination_zone,
+        })
+        idle_after_dispatch = sum(
+            other["status"] == "idle" and other["current_zone"] == origin_zone
+            for other in self.vehicles.values()
+        )
+        assignment = {
+            "vehicle_id": vehicle_id, "origin_zone": origin_zone,
+            "destination_zone": destination_zone, "busy_start": busy_start,
+            "busy_until": busy_until, "previous_busy_until": previous_busy_until,
+        }
+        self.successful_assignments.append(assignment)
+        return {
+            "succeeded": True, "failure_reason": "",
+            "request_time": request_time, "dispatch_time": dispatch_time,
+            "pickup_wait_min": pickup_wait, "vehicle_id": vehicle_id,
+            "idle_vehicles_at_request": len(idle_at_request), **assignment,
+            "idle_vehicles_after_dispatch": idle_after_dispatch,
+        }
+
+    def states(self, minute: float) -> list[Dict[str, Any]]:
+        self.release_arrivals(minute)
+        return [
+            {"day_type": self.day_type, **dict(vehicle)}
+            for vehicle in sorted(self.vehicles.values(), key=lambda row: row["vehicle_id"])
+        ]
 
 
 def _minutes(value: str) -> int:
@@ -209,12 +380,14 @@ def _gate_w1_preference(
         }
 
 
-def _agent(profile: AgentProfile) -> SimpleAgent:
+def _agent(
+    profile: AgentProfile, *, community_booking_assistance: bool = False,
+) -> SimpleAgent:
     return SimpleAgent(
         agent_id=str(profile.agent_id), age_group=profile.age_group,
         home_zone=str(profile.home_zone), digital_access=bool(profile.digital_access),
         value_of_time_yuan_per_hour=AGE_VALUE_OF_TIME[profile.age_group],
-        family_assistance=bool(profile.family_assistance),
+        family_assistance=bool(profile.family_assistance or community_booking_assistance),
     )
 
 
@@ -357,6 +530,18 @@ def _initial_choices(
     return choices
 
 
+def _initial_choice_with_community_booking(
+    leg: Mapping[str, Any], profile: AgentProfile, weather_week: str, *, seed: int,
+    transport: Mapping[str, Any], emergence: Mapping[str, Any],
+) -> Dict[str, Any]:
+    local_transport = copy.deepcopy(transport)
+    _gate_w1_preference(local_transport, leg, weather_week, emergence)
+    return choose_mode(
+        _agent(profile, community_booking_assistance=True),
+        _trip(leg), weather_week, seed=seed, config=local_transport,
+    )
+
+
 def _scheduled_bus_vehicle_trips(
     time_bin: str, emergence: Mapping[str, Any], *, bus_frequency_multiplier: float = 1.0,
 ) -> float:
@@ -425,12 +610,14 @@ def _build_system_state(
         rows.append({"state_stage": state_stage, "state_type": "bus", "day_type": day_type, "time_bin": time_bin, "spatial_key": direction, **bus_state[key]})
     for key, demand in sorted(ride_counts.items()):
         day_type, time_bin, origin = key
-        day_multiplier = float(ride["rest_day_supply_multiplier"]) if day_type == "rest_day" else 1.0
-        supply = float(ride["available_vehicles_per_30_min"][origin]) * day_multiplier * ride_supply_multiplier
+        supply = float(_initial_fleet_counts(emergence, day_type, ride_supply_multiplier)[origin])
         ratio = demand / supply
         extra_wait = min(ratio * float(ride["extra_wait_min_per_demand_supply_ratio"]), float(ride["maximum_system_extra_wait_min"]))
-        success_factor = min(1.0, supply / demand) if demand else 1.0
-        ride_state[key] = {"demand": demand, "supply": supply, "load_ratio": ratio, "extra_wait_min": extra_wait, "success_factor": success_factor}
+        ride_state[key] = {
+            "demand": demand, "supply": supply, "load_ratio": ratio,
+            "extra_wait_min": extra_wait, "success_factor": 1.0,
+            "supply_is_statistical_reference_only": True,
+        }
         rows.append({"state_stage": state_stage, "state_type": "ride_hailing", "day_type": day_type, "time_bin": time_bin, "spatial_key": origin, **ride_state[key]})
     for key in sorted(active_road_bins):
         ride_vehicle_trips = float(road_counts[key])
@@ -458,6 +645,7 @@ def _local_choice(
     bus_state: Mapping[tuple[str, str, str], Mapping[str, float]],
     ride_state: Mapping[tuple[str, str, str], Mapping[str, float]],
     road_state: Mapping[tuple[str, str], Mapping[str, float]],
+    community_booking_assistance: bool = False,
 ) -> Dict[str, Any]:
     config = copy.deepcopy(base_transport)
     weather_type = WEATHER_TYPES[weather_week]
@@ -481,9 +669,44 @@ def _local_choice(
     config["weather"][weather_type]["speed_multiplier"]["ride_hailing"] *= speed_factor
     ride = ride_state.get((leg["day_type"], leg["time_bin"], leg["origin_zone"]), {})
     return choose_mode(
-        _agent(profile), _trip(leg), weather_week, seed=seed, config=config,
+        _agent(profile, community_booking_assistance=community_booking_assistance),
+        _trip(leg), weather_week, seed=seed, config=config,
         ride_hailing_extra_wait_min=float(ride.get("extra_wait_min", 0.0)),
     )
+
+
+def _coupon_discounted_choice(
+    choice: Mapping[str, Any], *, discount_multiplier: float,
+    transport: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Apply a fare-only coupon while preserving every random utility draw."""
+    alternatives = []
+    generalized_cost_weight = float(transport["choice_weights"]["generalized_cost"])
+    for source in choice["alternatives"]:
+        option = dict(source)
+        original = float(option["fare_yuan"])
+        option["fare_before_coupon_yuan"] = original
+        if option["mode"] == "ride_hailing":
+            discounted = round(original * float(discount_multiplier), 2)
+            option["fare_yuan"] = discounted
+            option["fare_after_coupon_yuan"] = discounted
+            option["coupon_discount_yuan"] = round(original - discounted, 2)
+            option["utility"] = round(
+                float(option["utility"])
+                + generalized_cost_weight * (original - discounted),
+                6,
+            )
+        else:
+            option["fare_after_coupon_yuan"] = original
+            option["coupon_discount_yuan"] = 0.0
+        alternatives.append(option)
+    selected = max(alternatives, key=lambda row: (row["utility"], row["mode"]))
+    return {
+        **dict(choice), "chosen_mode": selected["mode"],
+        "chosen_time_min": selected["travel_time_min"],
+        "chosen_fare_yuan": selected["fare_yuan"],
+        "alternatives": alternatives, "coupon_price_applied_to_choice": True,
+    }
 
 
 def _attempt_segments(
@@ -527,8 +750,6 @@ def _success_probability(
     probability = float(symmetric["transport_success_probability"][weather_week][mode])
     if mode == "bus":
         probability *= float(bus_state.get((leg["day_type"], leg["time_bin"], leg["direction"]), {}).get("success_factor", 1.0))
-    elif mode == "ride_hailing":
-        probability *= float(ride_state.get((leg["day_type"], leg["time_bin"], leg["origin_zone"]), {}).get("success_factor", 1.0))
     return min(max(probability, 0.0), 1.0)
 
 
@@ -633,10 +854,373 @@ def _simulate_leg(
     }
 
 
+def _new_leg_context(
+    leg: Mapping[str, Any], choice: Mapping[str, Any], profile: AgentProfile,
+    coupon_choice: Mapping[str, Any] | None = None,
+) -> Dict[str, Any]:
+    return {
+        "leg": dict(leg), "choice": choice, "full_price_choice": choice,
+        "coupon_choice": coupon_choice, "profile": profile,
+        "options": {row["mode"]: dict(row) for row in choice["alternatives"]},
+        "primary": choice["chosen_mode"], "elapsed": 0.0, "spent": 0.0,
+        "wait": 0.0, "exposure": 0.0, "ride_wait": 0.0,
+        "heat_dose": 0.0, "failed_heat_dose": 0.0,
+        "segments": Counter(), "attempts": [], "final_mode": "",
+        "failure_reason": "", "coupon_price_active": False,
+    }
+
+
+def _finalize_leg_context(
+    context: Mapping[str, Any], weather_week: str, emergence: Mapping[str, Any],
+) -> Dict[str, Any]:
+    leg = context["leg"]
+    attempts = context["attempts"]
+    segments = context["segments"]
+    vulnerability = heat_vulnerability_weight(context["profile"].age_group, config=emergence)
+    ride_requests = [row for row in attempts if row["mode"] == "ride_hailing"]
+    request = ride_requests[0] if ride_requests else {}
+    return {
+        **leg, "weather_week": weather_week, "weather_type": WEATHER_TYPES[weather_week],
+        "initial_mode": attempts[0]["mode"], "attempt_count": len(attempts),
+        "fallback_used": len(attempts) == 2,
+        "fallback_mode": attempts[1]["mode"] if len(attempts) == 2 else "",
+        "fallback_success": len(attempts) == 2 and attempts[1]["succeeded"],
+        "final_success_mode": context["final_mode"],
+        "transport_failure": not bool(context["final_mode"]),
+        "failure_reason": "" if context["final_mode"] else context["failure_reason"],
+        "ride_hailing_request_count": len(ride_requests),
+        "primary_success_probability": round(float(attempts[0]["success_probability"]), 6),
+        "supply_constrained_primary": bool(
+            attempts[0]["mode"] == "ride_hailing"
+            and attempts[0]["failure_reason"] in {"no_vehicle_available", "vehicle_wait_limit_exceeded"}
+        ),
+        "cumulative_wait_min": round(float(context["wait"]), 3),
+        "ride_hailing_wait_min": round(float(context["ride_wait"]), 3),
+        "cumulative_travel_time_min": round(float(context["elapsed"]), 3),
+        "cumulative_fare_yuan": round(float(context["spent"]), 3),
+        "outdoor_exposure_minutes": round(float(context["exposure"]), 3),
+        "failed_attempt_outdoor_exposure_minutes": round(sum(
+            float(row["outdoor_exposure_minutes"]) for row in attempts if not row["succeeded"]
+        ), 3),
+        "bus_origin_walk_minutes": round(segments["bus_origin_walk"], 3),
+        "bus_wait_minutes": round(segments["bus_wait"], 3),
+        "bus_in_vehicle_minutes": round(segments["bus_in_vehicle"], 3),
+        "bus_destination_walk_minutes": round(segments["bus_destination_walk"], 3),
+        "walking_minutes": round(segments["walking"], 3),
+        "ride_hailing_wait_segment_minutes": round(segments["ride_hailing_wait"], 3),
+        "ride_hailing_in_vehicle_minutes": round(segments["ride_hailing_in_vehicle"], 3),
+        "ride_hailing_access_minutes": round(segments["ride_hailing_access"], 3),
+        "fallback_start_minute": round(attempts[1]["attempt_start_minute"], 3) if len(attempts) == 2 else None,
+        "heat_hazard_dose_c_min": round(float(context["heat_dose"]), 3),
+        "failed_attempt_heat_hazard_dose_c_min": round(float(context["failed_heat_dose"]), 3),
+        "heat_vulnerability_weight": round(vulnerability, 3),
+        "heat_risk_burden": round(float(context["heat_dose"]) * vulnerability, 3),
+        "request_time": request.get("request_time"),
+        "dispatch_time": request.get("dispatch_time"),
+        "pickup_wait_min": request.get("pickup_wait_min", 0.0),
+        "vehicle_id": request.get("vehicle_id", ""),
+        "coupon_induced_request": request.get("coupon_induced_request", False),
+        "coupon_bound": request.get("coupon_bound", False),
+        "coupon_redeemed": request.get("coupon_redeemed", False),
+        "community_assisted_booking": request.get("community_assisted_booking", False),
+        "coupon_subsidy_yuan": round(sum(float(row.get("coupon_subsidy_yuan", 0.0)) for row in ride_requests), 2),
+        "fare_before_coupon_yuan": request.get("fare_before_coupon_yuan"),
+        "fare_after_coupon_yuan": request.get("fare_after_coupon_yuan"),
+        "idle_vehicles_at_request": request.get("idle_vehicles_at_request"),
+    }
+
+
+def _simulate_transport_events(
+    prospective_legs: Iterable[Mapping[str, Any]], choices: Mapping[str, Mapping[str, Any]],
+    profiles: Mapping[int, AgentProfile], states: Mapping[str, Mapping[str, Any]],
+    weather_week: str, *, seed: int, emergence: Mapping[str, Any],
+    symmetric: Mapping[str, Any], transport: Mapping[str, Any],
+    bus_state: Mapping[tuple[str, str, str], Mapping[str, float]],
+    ride_supply_multiplier: float,
+    coupon_choices: Mapping[str, Mapping[str, Any]] | None = None,
+    coupon_allocations: Mapping[tuple[int, str], Mapping[str, Any]] | None = None,
+) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]], list[Dict[str, Any]], list[Dict[str, Any]]]:
+    """Run attempts in actual-time order against conserved daily vehicle pools."""
+    legs = {row["leg_id"]: dict(row) for row in prospective_legs}
+    contexts = {
+        leg_id: _new_leg_context(
+            leg, choices[leg_id], profiles[leg["agent_id"]],
+            (coupon_choices or {}).get(leg_id),
+        )
+        for leg_id, leg in legs.items()
+    }
+    allocation_rows = coupon_allocations or {}
+    coupon_states: Dict[tuple[int, str], Dict[str, Any]] = {}
+    for key, allocation in allocation_rows.items():
+        coupon_states[key] = {
+            **dict(allocation),
+            "community_assisted_booking": community_assisted_booking(allocation),
+            "coupon_status": "available" if allocation.get("coupon_awarded") else "not_awarded",
+            "coupon_first_request_leg_id": "", "coupon_first_request_time": None,
+            "coupon_failure_reason": "", "coupon_subsidy_yuan": 0.0,
+            "coupon_redeemed": False,
+        }
+    fleets = {
+        day_type: _RideHailingFleet(
+            day_type, _initial_fleet_counts(emergence, day_type, ride_supply_multiplier),
+            vehicle_id_prefix=str(emergence["ride_hailing_feedback"]["vehicle_id_prefix"]),
+        ) for day_type in DAY_TYPES
+    }
+    queue: list[tuple[float, float, str, int, str]] = []
+    dispatch_policy = str(
+        emergence["ride_hailing_feedback"].get("dispatch_priority_policy", "R0_first_come")
+    )
+
+    def coupon_available(context: Mapping[str, Any]) -> bool:
+        leg = context["leg"]
+        state = coupon_states.get((int(leg["agent_id"]), str(leg["day_type"])))
+        return bool(
+            state and state["coupon_status"] == "available"
+            and context.get("coupon_choice") is not None
+        )
+
+    def activate_primary_choice(context: Dict[str, Any]) -> None:
+        choice = context["coupon_choice"] if coupon_available(context) else context["full_price_choice"]
+        context["choice"] = choice
+        context["options"] = {row["mode"]: dict(row) for row in choice["alternatives"]}
+        context["primary"] = choice["chosen_mode"]
+        context["coupon_price_active"] = choice is context.get("coupon_choice")
+
+    def push(context: Mapping[str, Any], attempt_number: int, mode: str, minute: float) -> None:
+        leg_id = context["leg"]["leg_id"]
+        if mode == "ride_hailing":
+            leg = context["leg"]
+            rank = _elder_dispatch_rank(dispatch_policy, leg, context["profile"])
+            priority = rank + _dispatch_priority(seed, leg_id)
+        else:
+            priority = 2.0 + _uniform(seed, leg_id, attempt_number, "non-ride-event")
+        heapq.heappush(queue, (float(minute), priority, leg_id, attempt_number, mode))
+
+    for context in contexts.values():
+        leg = context["leg"]
+        if leg["leg_role"] == "outbound" and states[leg["activity_id"]]["travel_required"]:
+            activate_primary_choice(context)
+            push(context, 1, context["primary"], _minutes(leg["departure_time"]))
+
+    results: Dict[str, Dict[str, Any]] = {}
+    request_audit: list[Dict[str, Any]] = []
+    maximum_vehicle_wait = float(emergence["ride_hailing_feedback"]["maximum_system_extra_wait_min"])
+
+    def finish(context: Dict[str, Any]) -> None:
+        leg = context["leg"]
+        row = _finalize_leg_context(context, weather_week, emergence)
+        results[leg["leg_id"]] = row
+        if leg["leg_role"] == "outbound" and row["final_success_mode"]:
+            return_leg = legs[f'{leg["activity_id"]}-return']
+            return_context = contexts[return_leg["leg_id"]]
+            activate_primary_choice(return_context)
+            push(return_context, 1, return_context["primary"], _minutes(return_leg["departure_time"]))
+
+    while queue:
+        attempt_start, _, leg_id, attempt_number, mode = heapq.heappop(queue)
+        if leg_id in results:
+            continue
+        context = contexts[leg_id]
+        leg = context["leg"]
+        if attempt_number == 1:
+            activate_primary_choice(context)
+            mode = context["primary"]
+        option = dict(context["options"][mode])
+        probability = _success_probability(mode, leg, weather_week, symmetric, bus_state, {})
+        draw = _uniform(seed, leg_id, attempt_number, mode, "non-capacity-success")
+        dispatch: Dict[str, Any] = {}
+        if mode == "ride_hailing":
+            coupon_key = (int(leg["agent_id"]), str(leg["day_type"]))
+            coupon_state = coupon_states.get(coupon_key)
+            coupon_bound = bool(
+                coupon_state and coupon_state["coupon_status"] == "available"
+                and context["coupon_price_active"]
+            )
+            full_choice = context["full_price_choice"]
+            if attempt_number == 1:
+                full_counterfactual_mode = full_choice["chosen_mode"]
+            else:
+                full_candidates = [
+                    row for row in full_choice["alternatives"]
+                    if row["mode"] != context["primary"]
+                    and float(row["travel_time_min"]) <= float(leg["max_leg_time_min"]) - context["elapsed"]
+                    and float(row["fare_yuan"]) <= float(leg["max_leg_budget_yuan"]) - context["spent"]
+                ]
+                full_counterfactual_mode = (
+                    max(full_candidates, key=lambda row: (row["utility"], row["mode"]))["mode"]
+                    if full_candidates else ""
+                )
+            coupon_induced = coupon_bound and full_counterfactual_mode != "ride_hailing"
+            if coupon_bound:
+                coupon_state.update({
+                    "coupon_status": "bound",
+                    "coupon_first_request_leg_id": leg_id,
+                    "coupon_first_request_time": round(float(attempt_start), 3),
+                })
+            estimated_extra_wait = float(context["choice"].get("ride_hailing_extra_wait_min", 0.0))
+            base_pickup_wait = max(0.0, float(option["wait_time_min"]) - estimated_extra_wait)
+            non_wait_time = max(0.0, float(option["travel_time_min"]) - float(option["wait_time_min"]))
+            remaining_time = float(leg["max_leg_time_min"]) - float(context["elapsed"])
+            allowed_queue_wait = max(0.0, min(
+                maximum_vehicle_wait,
+                remaining_time - base_pickup_wait - non_wait_time,
+            ))
+            dispatch = fleets[leg["day_type"]].request(
+                request_time=attempt_start, origin_zone=leg["origin_zone"],
+                destination_zone=leg["destination_zone"],
+                base_pickup_wait_min=base_pickup_wait,
+                in_vehicle_time_min=float(option["in_vehicle_time_min"]),
+                maximum_vehicle_wait_min=allowed_queue_wait,
+                non_capacity_success=draw < probability,
+            )
+            succeeded = bool(dispatch["succeeded"])
+            fare_before_coupon = float(option.get("fare_before_coupon_yuan", option["fare_yuan"]))
+            fare_after_coupon = float(option["fare_yuan"])
+            coupon_subsidy = round(fare_before_coupon - fare_after_coupon, 2) if coupon_bound and succeeded else 0.0
+            if coupon_bound:
+                coupon_state.update({
+                    "coupon_status": "redeemed" if succeeded else "expired_after_failed_request",
+                    "coupon_redeemed": succeeded,
+                    "coupon_failure_reason": "" if succeeded else dispatch["failure_reason"],
+                    "coupon_subsidy_yuan": coupon_subsidy,
+                })
+            option["wait_time_min"] = float(dispatch["pickup_wait_min"])
+            option["travel_time_min"] = non_wait_time + float(dispatch["pickup_wait_min"])
+            dispatch_priority = _dispatch_priority(seed, leg_id)
+            dispatch_group_rank = _elder_dispatch_rank(
+                dispatch_policy, leg, profiles[int(leg["agent_id"])]
+            )
+            audit = {
+                "weather_week": weather_week, "day_type": leg["day_type"],
+                "leg_id": leg_id, "activity_id": leg["activity_id"],
+                "agent_id": leg["agent_id"], "attempt_number": attempt_number,
+                "age_group": profiles[int(leg["agent_id"])].age_group,
+                "activity_purpose": leg["activity_purpose"],
+                "request_time": round(float(dispatch["request_time"]), 3),
+                "dispatch_time": round(float(dispatch["dispatch_time"]), 3) if dispatch["dispatch_time"] is not None else None,
+                "pickup_wait_min": round(float(dispatch["pickup_wait_min"]), 3),
+                "vehicle_id": dispatch["vehicle_id"],
+                "origin_zone": leg["origin_zone"], "destination_zone": leg["destination_zone"],
+                "failure_reason": dispatch["failure_reason"],
+                "idle_vehicles_at_request": int(dispatch["idle_vehicles_at_request"]),
+                "coupon_induced_request": coupon_induced,
+                "coupon_bound": coupon_bound,
+                "coupon_redeemed": bool(coupon_bound and succeeded),
+                "coupon_subsidy_yuan": coupon_subsidy,
+                "fare_before_coupon_yuan": round(fare_before_coupon, 2),
+                "fare_after_coupon_yuan": round(fare_after_coupon, 2),
+                "coupon_policy": coupon_state.get("coupon_policy", "C0_no_coupon") if coupon_state else "C0_no_coupon",
+                "community_assisted_booking": bool(
+                    coupon_state and coupon_state.get("community_assisted_booking") and coupon_bound
+                ),
+                "dispatch_priority": dispatch_priority,
+                "dispatch_priority_policy": dispatch_policy,
+                "dispatch_priority_group_rank": dispatch_group_rank,
+                "effective_dispatch_priority": round(dispatch_group_rank + dispatch_priority, 12),
+                "succeeded": succeeded,
+                "busy_start": dispatch.get("busy_start"),
+                "busy_until": dispatch.get("busy_until"),
+                "previous_busy_until": dispatch.get("previous_busy_until"),
+                "idle_vehicles_after_dispatch": dispatch.get("idle_vehicles_after_dispatch"),
+            }
+            request_audit.append(audit)
+        else:
+            succeeded = draw < probability
+        segments = _attempt_segments(option, leg, transport, succeeded=succeeded)
+        attempt_elapsed = attempt_outdoor = attempt_heat_dose = 0.0
+        for name, duration, is_outdoor in segments:
+            context["segments"][name] += duration
+            if is_outdoor:
+                attempt_outdoor += duration
+                attempt_heat_dose += calculate_heat_hazard_dose(
+                    attempt_start + attempt_elapsed, duration, weather_week,
+                    segment_factor=float(emergence["heat_exposure"]["outdoor_segment_factor"][mode]),
+                    config=emergence,
+                )
+            attempt_elapsed += duration
+        actual_wait = sum(duration for name, duration, _ in segments if name in {"bus_wait", "ride_hailing_wait"})
+        context["wait"] += actual_wait
+        context["exposure"] += attempt_outdoor
+        context["heat_dose"] += attempt_heat_dose
+        if mode == "ride_hailing":
+            context["ride_wait"] += actual_wait
+        failure_reason = dispatch.get("failure_reason", "" if succeeded else "non_capacity_transport_failure")
+        coupon_induced = bool(dispatch and coupon_induced)
+        context["attempts"].append({
+            "mode": mode, "success_probability": probability,
+            "success_draw": draw, "succeeded": succeeded,
+            "failure_reason": failure_reason,
+            "attempt_start_minute": round(attempt_start, 3),
+            "actual_elapsed_minutes": round(attempt_elapsed, 3),
+            "outdoor_exposure_minutes": round(attempt_outdoor, 3),
+            "heat_hazard_dose_c_min": round(attempt_heat_dose, 3),
+            "request_time": dispatch.get("request_time"),
+            "dispatch_time": dispatch.get("dispatch_time"),
+            "pickup_wait_min": dispatch.get("pickup_wait_min", 0.0),
+            "vehicle_id": dispatch.get("vehicle_id", ""),
+            "idle_vehicles_at_request": dispatch.get("idle_vehicles_at_request"),
+            "coupon_induced_request": coupon_induced,
+            "coupon_bound": bool(dispatch and coupon_bound),
+            "coupon_redeemed": bool(dispatch and coupon_bound and succeeded),
+            "community_assisted_booking": bool(
+                dispatch and coupon_bound and coupon_state.get("community_assisted_booking")
+            ),
+            "coupon_subsidy_yuan": coupon_subsidy if dispatch else 0.0,
+            "fare_before_coupon_yuan": fare_before_coupon if dispatch else None,
+            "fare_after_coupon_yuan": fare_after_coupon if dispatch else None,
+        })
+        context["elapsed"] += attempt_elapsed
+        if succeeded:
+            context["spent"] += float(option["fare_yuan"])
+            context["final_mode"] = mode
+            finish(context)
+            continue
+        context["failed_heat_dose"] += attempt_heat_dose
+        context["spent"] += float(option["fare_yuan"]) * float(symmetric["failed_attempt_charge_fraction"][mode])
+        context["failure_reason"] = failure_reason
+        if attempt_number == 2:
+            finish(context)
+            continue
+        candidates = [
+            row for name, row in context["options"].items() if name != context["primary"]
+            and float(row["travel_time_min"]) <= float(leg["max_leg_time_min"]) - context["elapsed"]
+            and float(row["fare_yuan"]) <= float(leg["max_leg_budget_yuan"]) - context["spent"]
+        ]
+        if not candidates:
+            context["failure_reason"] = "no_feasible_fallback"
+            finish(context)
+            continue
+        fallback = max(candidates, key=lambda row: (row["utility"], row["mode"]))
+        push(context, 2, fallback["mode"], _minutes(leg["departure_time"]) + context["elapsed"])
+
+    final_minute = max(
+        (_minutes(row["departure_time"]) + float(row["cumulative_travel_time_min"]) for row in results.values()),
+        default=0.0,
+    )
+    vehicle_states = [state for fleet in fleets.values() for state in fleet.states(final_minute)]
+    coupon_outcomes = []
+    for state in coupon_states.values():
+        final_state = dict(state)
+        if final_state["coupon_status"] == "available":
+            final_state["coupon_status"] = "unused_no_ride_request"
+            final_state["coupon_failure_reason"] = "no_ride_hailing_request"
+        coupon_outcomes.append({
+            "weather_week": weather_week,
+            "weather_type": WEATHER_TYPES[weather_week],
+            **final_state,
+        })
+    return (
+        sorted(results.values(), key=lambda row: row["leg_id"]),
+        request_audit, vehicle_states,
+        sorted(coupon_outcomes, key=lambda row: (row["day_type"], row["agent_id"])),
+    )
+
+
 def run_emergence_weather(
     profiles: Iterable[AgentProfile], activities: Iterable[Mapping[str, Any]], weather_week: str,
     *, seed: int, bus_frequency_multiplier: float = 1.0, ride_supply_multiplier: float = 1.0,
     config: Mapping[str, Any] | None = None, symmetric: Mapping[str, Any] | None = None,
+    coupon_allocations: Mapping[tuple[int, str], Mapping[str, Any]] | None = None,
 ) -> Dict[str, list[Dict[str, Any]]]:
     if bus_frequency_multiplier <= 0 or ride_supply_multiplier <= 0:
         raise ValueError("supply multipliers must be positive")
@@ -674,8 +1258,29 @@ def run_emergence_weather(
         prospective_legs, profile_by_id, weather_week, seed=seed,
         transport=transport, emergence=emergence,
     )
+    coupon_allocations = coupon_allocations or {}
+    discount_multiplier = float(emergence["coupon_experiment"]["discount_multiplier"])
+    first_coupon: Dict[str, Dict[str, Any]] = {}
+    for leg in prospective_legs:
+        allocation = coupon_allocations.get((int(leg["agent_id"]), str(leg["day_type"])), {})
+        if not allocation.get("coupon_awarded"):
+            continue
+        coupon_base_choice = first[leg["leg_id"]]
+        if community_assisted_booking(allocation):
+            coupon_base_choice = _initial_choice_with_community_booking(
+                leg, profile_by_id[leg["agent_id"]], weather_week,
+                seed=seed, transport=transport, emergence=emergence,
+            )
+        first_coupon[leg["leg_id"]] = _coupon_discounted_choice(
+            coupon_base_choice, discount_multiplier=discount_multiplier,
+            transport=transport,
+        )
+    first_for_feedback = {
+        leg["leg_id"]: first_coupon.get(leg["leg_id"], first[leg["leg_id"]])
+        for leg in prospective_legs
+    }
     bus_state, ride_state, road_state, pre_feedback_rows = _build_system_state(
-        prospective_legs, first, emergence, bus_frequency_multiplier=bus_frequency_multiplier,
+        prospective_legs, first_for_feedback, emergence, bus_frequency_multiplier=bus_frequency_multiplier,
         ride_supply_multiplier=ride_supply_multiplier, state_stage="pre_feedback",
     )
     second = {
@@ -685,34 +1290,45 @@ def run_emergence_weather(
             ride_state=ride_state, road_state=road_state,
         ) for leg in prospective_legs
     }
+    second_coupon: Dict[str, Dict[str, Any]] = {}
+    for leg in prospective_legs:
+        allocation = coupon_allocations.get((int(leg["agent_id"]), str(leg["day_type"])), {})
+        if not allocation.get("coupon_awarded"):
+            continue
+        coupon_base_choice = second[leg["leg_id"]]
+        if community_assisted_booking(allocation):
+            coupon_base_choice = _local_choice(
+                leg, profile_by_id[leg["agent_id"]], weather_week, seed=seed,
+                base_transport=transport, emergence=emergence,
+                bus_state=bus_state, ride_state=ride_state, road_state=road_state,
+                community_booking_assistance=True,
+            )
+        second_coupon[leg["leg_id"]] = _coupon_discounted_choice(
+            coupon_base_choice, discount_multiplier=discount_multiplier,
+            transport=transport,
+        )
     leg_by_activity_role = {(leg["activity_id"], leg["leg_role"]): leg for leg in prospective_legs}
-    leg_results: list[Dict[str, Any]] = []
+    leg_results, ride_request_audit, ride_vehicle_states, coupon_outcomes = _simulate_transport_events(
+        prospective_legs, second, profile_by_id, states, weather_week,
+        seed=seed, emergence=emergence, symmetric=symmetric, transport=transport,
+        bus_state=bus_state, ride_supply_multiplier=ride_supply_multiplier,
+        coupon_choices=second_coupon, coupon_allocations=coupon_allocations,
+    )
+    result_by_leg = {row["leg_id"]: row for row in leg_results}
     activity_results: list[Dict[str, Any]] = []
     for activity in ordered:
         profile = profile_by_id[activity["agent_id"]]
         state = states[activity["activity_id"]]
-        outbound_result = None
-        return_result = None
-        if state["travel_required"]:
+        outbound_result = result_by_leg.get(f'{activity["activity_id"]}-outbound')
+        return_result = result_by_leg.get(f'{activity["activity_id"]}-return')
+        if outbound_result:
             outbound_leg = leg_by_activity_role[(activity["activity_id"], "outbound")]
-            outbound_result = _simulate_leg(
-                outbound_leg, second[outbound_leg["leg_id"]], weather_week, seed=seed,
-                profile=profile, emergence=emergence,
-                symmetric=symmetric, transport=transport, bus_state=bus_state, ride_state=ride_state,
-            )
-            outbound_result["pre_feedback_mode"] = first[outbound_leg["leg_id"]]["chosen_mode"]
+            outbound_result["pre_feedback_mode"] = first_for_feedback[outbound_leg["leg_id"]]["chosen_mode"]
             outbound_result["mode_changed_after_feedback"] = outbound_result["initial_mode"] != outbound_result["pre_feedback_mode"]
-            leg_results.append(outbound_result)
-            if outbound_result["final_success_mode"]:
+            if return_result:
                 return_leg = leg_by_activity_role[(activity["activity_id"], "return")]
-                return_result = _simulate_leg(
-                    return_leg, second[return_leg["leg_id"]], weather_week, seed=seed,
-                    profile=profile, emergence=emergence,
-                    symmetric=symmetric, transport=transport, bus_state=bus_state, ride_state=ride_state,
-                )
-                return_result["pre_feedback_mode"] = first[return_leg["leg_id"]]["chosen_mode"]
+                return_result["pre_feedback_mode"] = first_for_feedback[return_leg["leg_id"]]["chosen_mode"]
                 return_result["mode_changed_after_feedback"] = return_result["initial_mode"] != return_result["pre_feedback_mode"]
-                leg_results.append(return_result)
         remote = bool(state["remote_work"])
         outbound_success = bool(outbound_result and outbound_result["final_success_mode"])
         completed = remote or outbound_success
@@ -743,6 +1359,8 @@ def run_emergence_weather(
             "fallback_successes": sum(row["fallback_success"] for row in used_legs),
             "cumulative_wait_min": round(sum(float(row["cumulative_wait_min"]) for row in used_legs), 3),
             "cumulative_fare_yuan": round(sum(float(row["cumulative_fare_yuan"]) for row in used_legs), 3),
+            "coupon_subsidy_yuan": round(sum(float(row["coupon_subsidy_yuan"]) for row in used_legs), 2),
+            "coupon_induced_requests": sum(bool(row["coupon_induced_request"]) for row in used_legs),
             "outdoor_exposure_minutes": round(outdoor, 3),
             "heat_exposure_index": round(outdoor if weather_week == "W1" else 0.0, 3),
             "heat_exposure_index_is_outdoor_minutes_alias": True,
@@ -785,6 +1403,9 @@ def run_emergence_weather(
     return {
         "activity_results": activity_results,
         "leg_results": leg_results,
+        "ride_hailing_requests": ride_request_audit,
+        "ride_hailing_vehicle_states": ride_vehicle_states,
+        "coupon_outcomes": coupon_outcomes,
         "pre_feedback_system_state": pre_feedback_rows,
         "system_state": final_system_rows,
     }
@@ -805,6 +1426,9 @@ def run_emergence_experiment(
     leg_results: list[Dict[str, Any]] = []
     pre_feedback_system_state: list[Dict[str, Any]] = []
     system_state: list[Dict[str, Any]] = []
+    ride_hailing_requests: list[Dict[str, Any]] = []
+    ride_hailing_vehicle_states: list[Dict[str, Any]] = []
+    coupon_outcomes: list[Dict[str, Any]] = []
     for week in WEATHER_TYPES:
         result = run_emergence_weather(
             profiles, activities, week, seed=seed,
@@ -816,9 +1440,18 @@ def run_emergence_experiment(
         leg_results.extend(result["leg_results"])
         pre_feedback_system_state.extend(result["pre_feedback_system_state"])
         system_state.extend(result["system_state"])
+        ride_hailing_requests.extend(result["ride_hailing_requests"])
+        ride_hailing_vehicle_states.extend(
+            {**row, "weather_week": week, "weather_type": WEATHER_TYPES[week]}
+            for row in result["ride_hailing_vehicle_states"]
+        )
+        coupon_outcomes.extend(result["coupon_outcomes"])
     return {
         "seed": seed, "profiles": profiles, "activities": activities,
         "activity_results": activity_results, "leg_results": leg_results,
+        "ride_hailing_requests": ride_hailing_requests,
+        "ride_hailing_vehicle_states": ride_hailing_vehicle_states,
+        "coupon_outcomes": coupon_outcomes,
         "pre_feedback_system_state": pre_feedback_system_state,
         "system_state": system_state,
     }

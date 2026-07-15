@@ -18,8 +18,13 @@ from custom.agents.symmetric_weather_experiment import WEATHER_TYPES
 def write_csv(path: Path, rows: list[dict]) -> None:
     if not rows:
         return
+    fieldnames = list(rows[0])
+    fieldnames.extend(
+        key for row in rows for key in row
+        if key not in fieldnames
+    )
     with path.open("w", encoding="utf-8-sig", newline="") as handle:
-        writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
@@ -129,6 +134,8 @@ def main() -> None:
     activity_rows: list[dict] = []
     leg_rows: list[dict] = []
     state_rows: list[dict] = []
+    ride_request_rows: list[dict] = []
+    ride_vehicle_rows: list[dict] = []
     identity_rows: list[dict] = []
     for seed in seeds:
         result = run_emergence_experiment(
@@ -141,6 +148,8 @@ def main() -> None:
             activity_rows.extend({"seed": seed, **row} for row in result["activity_results"])
             leg_rows.extend({"seed": seed, **row} for row in result["leg_results"])
             state_rows.extend({"seed": seed, **row} for row in result["system_state"])
+            ride_request_rows.extend({"seed": seed, **row} for row in result["ride_hailing_requests"])
+            ride_vehicle_rows.extend({"seed": seed, **row} for row in result["ride_hailing_vehicle_states"])
         paired = {(row["activity_id"], row["weather_week"]): row for row in result["activity_results"]}
         fields = ("agent_id", "activity_id", "day_type", "activity_purpose", "departure_time", "return_time", "origin_zone", "destination_zone", "distance_km")
         for activity in result["activities"]:
@@ -181,6 +190,8 @@ def main() -> None:
         write_csv(output / "activity_results_all_seeds.csv", activity_rows)
         write_csv(output / "leg_results_all_seeds.csv", leg_rows)
         write_csv(output / "time_bin_system_state_all_seeds.csv", state_rows)
+        write_csv(output / "ride_hailing_request_audit_all_seeds.csv", ride_request_rows)
+        write_csv(output / "ride_hailing_vehicle_state_all_seeds.csv", ride_vehicle_rows)
     metadata = {
         "seeds": seeds, "bus_frequency_multiplier": args.bus_frequency_multiplier,
         "ride_supply_multiplier": args.ride_supply_multiplier, "detail_written": args.detail,
