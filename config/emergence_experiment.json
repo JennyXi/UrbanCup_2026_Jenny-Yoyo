@@ -135,6 +135,52 @@
       "P2_ride_supply_plus_40pct": {"bus_frequency_multiplier": 1.0, "ride_supply_multiplier": 1.4}
     }
   },
+  "ride_supply_threshold_experiment": {
+    "ride_supply_multipliers": [0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0],
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_reference_road_vehicles_per_30_min": 10.0,
+    "accessibility_saturation_rule": {
+      "maximum_adjacent_necessary_completion_gain_percentage_points": 0.5,
+      "maximum_adjacent_ride_wait_reduction_percent": 5.0
+    },
+    "road_pressure_rule": {
+      "minimum_speed_decline_from_p0_percent": 10.0,
+      "minimum_mean_total_travel_time_increase_from_p0_percent": 5.0,
+      "peak_volume_capacity_ratio_threshold": 1.0
+    },
+    "interpretation": "Constrained-road mechanism stress test. The 10 vehicles/30 min reference applies only here; the formal baseline remains 14. Values are not calibrated Shanghai optimum or regulatory standards."
+  },
+  "elder_digital_access_experiment": {
+    "policies": {
+      "D0_baseline": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false
+      },
+      "D1_targeted_digital_training_75pct": {
+        "elder_digital_access_target": 0.75,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": true
+      },
+      "D2_family_assistance_90pct": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": 0.90,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false
+      },
+      "D3_universal_elder_digital_access": {
+        "elder_digital_access_target": 1.0,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": true,
+        "prioritize_unassisted_for_training": true
+      }
+    },
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "interpretation": "Scenario assumptions for a 50-agent mechanism experiment. D1 targets training to smartphone-owning unassisted elders first; D3 includes device provision. These are not observed Shanghai intervention rates."
+  },
   "seed_start": 3001,
   "seed_count": 30,
   "provenance": "All supply, capacity and feedback values are transparent emergence-test assumptions, not calibrated Shanghai observations."

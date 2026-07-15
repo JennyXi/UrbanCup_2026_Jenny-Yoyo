@@ -52,6 +52,29 @@ def load_emergence_config(path: Path | str = CONFIG_PATH) -> Dict[str, Any]:
         raise ValueError("peak bus vehicle trips must exceed ordinary trips")
     if schedule["frequency_policy_changes_vehicle_trips"] is not True:
         raise ValueError("bus frequency policy must change scheduled vehicle trips")
+    threshold_experiment = config["ride_supply_threshold_experiment"]
+    grid = [float(value) for value in threshold_experiment["ride_supply_multipliers"]]
+    if grid != sorted(set(grid)) or any(value <= 0 for value in grid) or 1.0 not in grid:
+        raise ValueError("ride supply threshold grid must be sorted, unique, positive and include 1.0")
+    if float(threshold_experiment["fixed_bus_frequency_multiplier"]) != 1.0:
+        raise ValueError("ride supply threshold experiment must hold bus frequency at P0")
+    if float(threshold_experiment["fixed_reference_road_vehicles_per_30_min"]) <= 0:
+        raise ValueError("ride supply threshold road reference must be positive")
+    digital_experiment = config["elder_digital_access_experiment"]
+    if tuple(digital_experiment["policies"]) != (
+        "D0_baseline", "D1_targeted_digital_training_75pct",
+        "D2_family_assistance_90pct", "D3_universal_elder_digital_access",
+    ):
+        raise ValueError("unexpected elder digital-access policy order")
+    for policy in digital_experiment["policies"].values():
+        for key in ("elder_digital_access_target", "elder_family_assistance_target"):
+            value = policy[key]
+            if value is not None and not 0.0 <= float(value) <= 1.0:
+                raise ValueError(f"{key} must be null or in [0, 1]")
+    if float(digital_experiment["fixed_bus_frequency_multiplier"]) != 1.0:
+        raise ValueError("digital-access experiment must hold bus frequency at P0")
+    if float(digital_experiment["fixed_ride_supply_multiplier"]) != 1.0:
+        raise ValueError("digital-access experiment must hold ride supply at P0")
     heat = config["heat_exposure"]
     if heat["method"] != "utci_degree_minutes_above_threshold":
         raise ValueError("unsupported heat exposure method")
@@ -598,6 +621,10 @@ def _simulate_leg(
         "bus_wait_minutes": round(segment_minutes["bus_wait"], 3),
         "bus_in_vehicle_minutes": round(segment_minutes["bus_in_vehicle"], 3),
         "bus_destination_walk_minutes": round(segment_minutes["bus_destination_walk"], 3),
+        "walking_minutes": round(segment_minutes["walking"], 3),
+        "ride_hailing_wait_segment_minutes": round(segment_minutes["ride_hailing_wait"], 3),
+        "ride_hailing_in_vehicle_minutes": round(segment_minutes["ride_hailing_in_vehicle"], 3),
+        "ride_hailing_access_minutes": round(segment_minutes["ride_hailing_access"], 3),
         "fallback_start_minute": round(attempts[1]["attempt_start_minute"], 3) if len(attempts) == 2 else None,
         "heat_hazard_dose_c_min": round(heat_dose, 3),
         "failed_attempt_heat_hazard_dose_c_min": round(failed_heat_dose, 3),
@@ -838,6 +865,9 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
             )
             total_bus_wait = sum(float(row["bus_wait_minutes"]) for row in legs)
             total_ride_wait = sum(float(row["ride_hailing_wait_min"]) for row in legs)
+            total_travel_time = sum(float(row["cumulative_travel_time_min"]) for row in legs)
+            total_bus_in_vehicle = sum(float(row["bus_in_vehicle_minutes"]) for row in legs)
+            total_ride_in_vehicle = sum(float(row["ride_hailing_in_vehicle_minutes"]) for row in legs)
             summaries.append({
                 "seed": result["seed"], "weather_week": week, "weather_type": WEATHER_TYPES[week], "day_type": day_type,
                 "planned_activities": len(activities),
@@ -883,8 +913,17 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
                     total_ride_wait / ride_requests, 6
                 ) if ride_requests else 0.0,
                 "mean_total_travel_time": round(
-                    sum(float(row["cumulative_travel_time_min"]) for row in legs) / len(legs), 6
+                    total_travel_time / len(legs), 6
                 ) if legs else 0.0,
+                "total_travel_time_minutes": round(total_travel_time, 6),
+                "total_non_wait_travel_time_minutes": round(
+                    total_travel_time - total_bus_wait - total_ride_wait, 6
+                ),
+                "total_in_vehicle_time_minutes": round(
+                    total_bus_in_vehicle + total_ride_in_vehicle, 6
+                ),
+                "total_bus_in_vehicle_time_minutes": round(total_bus_in_vehicle, 6),
+                "total_ride_hailing_in_vehicle_time_minutes": round(total_ride_in_vehicle, 6),
                 "bus_demand": bus_demand,
                 "ride_hailing_requests": ride_requests,
                 "successful_ride_hailing_requests": modes["ride_hailing"],
@@ -895,6 +934,9 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
                 "mean_volume_capacity_ratio": round(
                     sum(float(row["load_ratio"]) for row in road_states) / len(road_states), 6
                 ) if road_states else 0.0,
+                "peak_road_volume_capacity_ratio": round(
+                    max((float(row["load_ratio"]) for row in road_states), default=0.0), 6
+                ),
                 "mean_dynamic_congestion_multiplier": round(
                     sum(float(row["dynamic_congestion_multiplier"]) for row in road_states) / len(road_states), 6
                 ) if road_states else 1.0,
