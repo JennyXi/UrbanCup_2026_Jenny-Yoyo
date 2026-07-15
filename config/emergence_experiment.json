@@ -27,12 +27,18 @@
     "optional_max_leg_budget_yuan": 28.0
   },
   "bus_feedback": {
-    "base_capacity_representative_trips_per_30_min_direction": 6.0,
-    "rest_day_supply_multiplier": 0.80,
+    "per_vehicle_capacity_representative_passengers": 6.0,
     "crowding_threshold_ratio": 0.80,
     "extra_wait_min_per_load_above_threshold": 10.0,
     "maximum_extra_wait_min": 20.0,
     "crowding_utility_penalty_per_load_above_threshold": 0.80
+  },
+  "bus_vehicle_schedule": {
+    "ordinary_vehicle_trips_per_30_min": 2.0,
+    "peak_vehicle_trips_per_30_min": 4.0,
+    "peak_windows": [["07:00", "10:00"], ["17:00", "20:00"]],
+    "frequency_policy_changes_vehicle_trips": true,
+    "definition": "Scheduled B1 vehicle trips across both directions. P1 changes frequency; per-vehicle passenger capacity remains fixed."
   },
   "ride_hailing_feedback": {
     "available_vehicles_per_30_min": {"S1": 8.0, "S2": 5.0},
@@ -41,11 +47,94 @@
     "maximum_system_extra_wait_min": 18.0
   },
   "road_feedback": {
-    "reference_ride_hailing_vehicles_per_30_min": 14.0,
+    "reference_road_vehicles_per_30_min": 14.0,
     "congestion_strength": 0.55,
     "minimum_speed_multiplier": 0.65
   },
+  "heat_exposure": {
+    "method": "utci_degree_minutes_above_threshold",
+    "enabled_weather_weeks": ["W1"],
+    "time_bin_minutes": 30,
+    "heat_stress_threshold_c": 26.0,
+    "heat_stress_threshold_sensitivity_c": [26.0, 32.0],
+    "daily_profile_mapping": "periodic_24_hour",
+    "default_utci_c": 25.0,
+    "utci_c_by_30_min": {
+      "00:00": 27.5,
+      "00:30": 27.2,
+      "01:00": 27.0,
+      "01:30": 26.8,
+      "02:00": 26.5,
+      "02:30": 26.3,
+      "03:00": 26.0,
+      "03:30": 26.0,
+      "04:00": 26.0,
+      "04:30": 26.0,
+      "05:00": 26.0,
+      "05:30": 26.5,
+      "06:00": 27.0,
+      "06:30": 27.5,
+      "07:00": 28.0,
+      "07:30": 29.0,
+      "08:00": 30.0,
+      "08:30": 31.0,
+      "09:00": 32.0,
+      "09:30": 33.0,
+      "10:00": 34.0,
+      "10:30": 35.0,
+      "11:00": 36.0,
+      "11:30": 37.0,
+      "12:00": 38.0,
+      "12:30": 39.0,
+      "13:00": 40.0,
+      "13:30": 41.0,
+      "14:00": 42.0,
+      "14:30": 42.0,
+      "15:00": 41.0,
+      "15:30": 40.5,
+      "16:00": 40.0,
+      "16:30": 39.0,
+      "17:00": 38.0,
+      "17:30": 37.0,
+      "18:00": 36.0,
+      "18:30": 35.0,
+      "19:00": 34.0,
+      "19:30": 33.0,
+      "20:00": 32.0,
+      "20:30": 31.0,
+      "21:00": 30.5,
+      "21:30": 30.0,
+      "22:00": 29.5,
+      "22:30": 29.0,
+      "23:00": 28.5,
+      "23:30": 28.0
+    },
+    "outdoor_segment_factor": {
+      "walk": 1.0,
+      "bus": 1.0,
+      "ride_hailing": 1.0
+    },
+    "age_vulnerability_weight": {
+      "18-39": 1.0,
+      "40-59": 1.1,
+      "60+": 1.3
+    },
+    "age_vulnerability_sensitivity": {
+      "18-39": [1.0, 1.0],
+      "40-59": [1.0, 1.2],
+      "60+": [1.15, 1.5]
+    },
+    "provenance": "Synthetic full-day W1 UTCI profile with periodic 24-hour mapping and scenario age weights for mechanism sensitivity only; not observed Shanghai meteorology or clinical risk ratios. W1 heat dose uses the full day; 11:00-18:00 only gates behavioral responses. Digital access does not change biological vulnerability."
+  },
   "feedback_iterations": 1,
+  "extreme_heat_behavior_window": ["11:00", "18:00"],
+  "heat_threshold_sensitivity": {
+    "policy_scenarios": {
+      "P0_baseline": {"bus_frequency_multiplier": 1.0, "ride_supply_multiplier": 1.0},
+      "P1_bus_frequency_plus_50pct": {"bus_frequency_multiplier": 1.5, "ride_supply_multiplier": 1.0},
+      "P2_ride_supply_plus_40pct": {"bus_frequency_multiplier": 1.0, "ride_supply_multiplier": 1.4}
+    }
+  },
   "seed_start": 3001,
   "seed_count": 30,
   "provenance": "All supply, capacity and feedback values are transparent emergence-test assumptions, not calibrated Shanghai observations."

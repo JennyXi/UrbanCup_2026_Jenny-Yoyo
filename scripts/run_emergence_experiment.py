@@ -47,27 +47,64 @@ def summarize_groups(result: dict) -> list[dict]:
     for week in WEATHER_TYPES:
         for day_type in DAY_TYPES:
             subset = [row for row in result["activity_results"] if row["weather_week"] == week and row["day_type"] == day_type]
-            keys = sorted({(row["age_group"], access_group(row)) for row in subset})
+            keys = sorted({
+                (profile.age_group, access_group({
+                    "digital_access": profile.digital_access,
+                    "family_assistance": profile.family_assistance,
+                })) for profile in result["profiles"]
+            })
             for age, access in keys:
                 group = [row for row in subset if row["age_group"] == age and access_group(row) == access]
+                members = [
+                    profile for profile in result["profiles"]
+                    if profile.age_group == age and access_group({
+                        "digital_access": profile.digital_access,
+                        "family_assistance": profile.family_assistance,
+                    }) == access
+                ]
                 legs = [leg for row in group for leg in legs_by_activity.get(f'{week}|{row["activity_id"]}', [])]
                 modes = Counter(leg["final_success_mode"] for leg in legs if leg["final_success_mode"])
                 successful = sum(modes.values())
                 necessary = [row for row in group if row["necessary_activity"]]
+                planned_travel_required_necessary = [
+                    row for row in necessary if row["travel_required"]
+                ]
+                completed_travel_required_necessary = [
+                    row for row in planned_travel_required_necessary if row["activity_completed"]
+                ]
+                travel_required = sum(row["travel_required"] for row in group)
+                completed_necessary = sum(row["activity_completed"] for row in necessary)
+                heat_dose = sum(float(row["heat_hazard_dose_c_min"]) for row in group)
+                heat_risk = sum(float(row["heat_risk_burden"]) for row in group)
+                necessary_heat_risk = sum(float(row["heat_risk_burden"]) for row in necessary)
                 rows.append({
                     "seed": result["seed"], "weather_week": week, "day_type": day_type,
                     "age_group": age, "access_group": access,
+                    "agent_count": len(members),
                     "planned_activities": len(group), "weather_cancellations": sum(row["weather_cancellation"] for row in group),
                     "activity_completion_rate": round(sum(row["activity_completed"] for row in group) / len(group), 6) if group else 0.0,
                     "necessary_completion_rate": round(sum(row["activity_completed"] for row in necessary) / len(necessary), 6) if necessary else 1.0,
                     "transport_related_unmet": sum(row["transport_related_unmet"] for row in group),
-                    "stranded_after_activity": sum(row["stranded_after_activity"] for row in group),
                     "walking_share": round(modes["walk"] / successful, 6) if successful else 0.0,
                     "bus_share": round(modes["bus"] / successful, 6) if successful else 0.0,
                     "ride_hailing_share": round(modes["ride_hailing"] / successful, 6) if successful else 0.0,
                     "average_wait_min": round(sum(float(leg["cumulative_wait_min"]) for leg in legs) / len(legs), 6) if legs else 0.0,
                     "average_fare_yuan": round(sum(float(leg["cumulative_fare_yuan"]) for leg in legs) / len(legs), 6) if legs else 0.0,
                     "outdoor_exposure_minutes": round(sum(float(row["outdoor_exposure_minutes"]) for row in group), 6),
+                    "heat_exposure_minutes_alias": round(sum(float(row["heat_exposure_index"]) for row in group), 6),
+                    "heat_hazard_dose_c_min": round(heat_dose, 6),
+                    "heat_risk_burden": round(heat_risk, 6),
+                    "heat_hazard_dose_per_agent": round(heat_dose / len(members), 6) if members else 0.0,
+                    "heat_risk_burden_per_agent": round(heat_risk / len(members), 6) if members else 0.0,
+                    "heat_risk_per_travel_required_activity": round(heat_risk / travel_required, 6) if travel_required else 0.0,
+                    "necessary_heat_risk_burden": round(necessary_heat_risk, 6),
+                    "heat_risk_per_completed_travel_required_necessary_activity": round(
+                        necessary_heat_risk / len(completed_travel_required_necessary), 6
+                    ) if completed_travel_required_necessary else 0.0,
+                    "planned_travel_required_necessary_activities": len(planned_travel_required_necessary),
+                    "heat_risk_per_planned_travel_required_necessary_activity": round(
+                        necessary_heat_risk / len(planned_travel_required_necessary), 6
+                    ) if planned_travel_required_necessary else 0.0,
                 })
     return rows
 
@@ -77,7 +114,7 @@ def main() -> None:
     parser.add_argument("--output", default="outputs/emergence_experiment")
     parser.add_argument("--seed-start", type=int)
     parser.add_argument("--seed-count", type=int)
-    parser.add_argument("--bus-capacity-multiplier", type=float, default=1.0)
+    parser.add_argument("--bus-frequency-multiplier", type=float, default=1.0)
     parser.add_argument("--ride-supply-multiplier", type=float, default=1.0)
     parser.add_argument("--detail", action="store_true", help="write activity, leg and time-bin detail CSV files")
     args = parser.parse_args()
@@ -95,7 +132,7 @@ def main() -> None:
     identity_rows: list[dict] = []
     for seed in seeds:
         result = run_emergence_experiment(
-            seed, bus_capacity_multiplier=args.bus_capacity_multiplier,
+            seed, bus_frequency_multiplier=args.bus_frequency_multiplier,
             ride_supply_multiplier=args.ride_supply_multiplier, config=config,
         )
         macro_rows.extend(summarize_macro(result))
@@ -122,7 +159,7 @@ def main() -> None:
     checks = {
         "walking_W0_gt_W1_gt_W2": lambda w0, w1, w2: w0["walking_share"] > w1["walking_share"] > w2["walking_share"],
         "ride_hailing_W0_lt_W1_lt_W2": lambda w0, w1, w2: w0["ride_hailing_share"] < w1["ride_hailing_share"] < w2["ride_hailing_share"],
-        "fallback_W2_gt_W0": lambda w0, w1, w2: w2["fallback_uses"] > w0["fallback_uses"],
+        "fallback_W2_gt_W0": lambda w0, w1, w2: w2["fallback_attempts"] > w0["fallback_attempts"],
         "road_speed_W2_lt_W0": lambda w0, w1, w2: w2["minimum_road_speed_multiplier"] < w0["minimum_road_speed_multiplier"],
         "feedback_changes_some_modes": lambda w0, w1, w2: max(w0["mode_changes_after_feedback"], w1["mode_changes_after_feedback"], w2["mode_changes_after_feedback"]) > 0,
         "shared_supply_constraint_appears": lambda w0, w1, w2: max(w0["supply_constrained_primary_attempts"], w1["supply_constrained_primary_attempts"], w2["supply_constrained_primary_attempts"]) > 0,
@@ -145,7 +182,7 @@ def main() -> None:
         write_csv(output / "leg_results_all_seeds.csv", leg_rows)
         write_csv(output / "time_bin_system_state_all_seeds.csv", state_rows)
     metadata = {
-        "seeds": seeds, "bus_capacity_multiplier": args.bus_capacity_multiplier,
+        "seeds": seeds, "bus_frequency_multiplier": args.bus_frequency_multiplier,
         "ride_supply_multiplier": args.ride_supply_multiplier, "detail_written": args.detail,
         "paired_schedule_all_passed": all(row["paired_schedule_identical"] for row in identity_rows),
         "feedback_iterations": 1, "config": config,
@@ -156,7 +193,7 @@ def main() -> None:
     compact = {
         f"{week}_{day}": {
             metric: describe([float(row[metric]) for row in macro_rows if row["weather_week"] == week and row["day_type"] == day])["mean"]
-            for metric in ("planned_activities", "walking_share", "bus_share", "ride_hailing_share", "peak_bus_load_ratio", "bus_over_capacity_bins", "average_ride_system_extra_wait_min", "minimum_road_speed_multiplier", "mode_changes_after_feedback", "fallback_uses", "transport_related_unmet")
+            for metric in ("planned_activities", "walking_share", "bus_share", "ride_hailing_share", "peak_bus_load_ratio", "bus_over_capacity_bins", "average_ride_system_extra_wait_min", "minimum_road_speed_multiplier", "mode_changes_after_feedback", "fallback_attempts", "transport_related_unmet", "total_heat_hazard_dose_c_min", "total_heat_risk_burden", "heat_risk_per_completed_travel_required_necessary_activity", "heat_risk_per_planned_travel_required_necessary_activity")
         } for week in WEATHER_TYPES for day in DAY_TYPES
     }
     print(json.dumps({"output": str(output.resolve()), "scenario_means": compact, "checks": check_rows}, ensure_ascii=False, indent=2))

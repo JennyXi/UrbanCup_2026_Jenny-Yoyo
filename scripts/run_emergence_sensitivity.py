@@ -41,11 +41,11 @@ def main() -> None:
         for ride_multiplier in args.ride_grid:
             for seed in seeds:
                 result = run_emergence_experiment(
-                    seed, bus_capacity_multiplier=bus_multiplier,
+                    seed, bus_frequency_multiplier=bus_multiplier,
                     ride_supply_multiplier=ride_multiplier, config=config,
                 )
                 per_seed.extend({
-                    "bus_capacity_multiplier": bus_multiplier,
+                    "bus_frequency_multiplier": bus_multiplier,
                     "ride_supply_multiplier": ride_multiplier,
                     **row,
                 } for row in summarize_macro(result))
@@ -54,9 +54,14 @@ def main() -> None:
         "bus_over_capacity_bins", "peak_ride_demand_supply_ratio",
         "average_ride_system_extra_wait_min", "minimum_road_speed_multiplier",
         "mode_changes_after_feedback", "supply_constrained_primary_attempts",
-        "fallback_uses", "transport_failures", "transport_related_unmet",
+        "fallback_attempts", "transport_failures", "transport_related_unmet",
         "necessary_activity_completion_rate", "total_wait_min", "total_fare_yuan",
-        "total_outdoor_exposure_minutes",
+        "total_outdoor_exposure_minutes", "total_heat_exposure_minutes",
+        "total_heat_hazard_dose_c_min", "total_heat_risk_burden",
+        "necessary_heat_risk_burden", "mean_heat_risk_per_travel_required_activity",
+        "heat_risk_per_completed_travel_required_necessary_activity",
+        "planned_travel_required_necessary_activities",
+        "heat_risk_per_planned_travel_required_necessary_activity",
     )
     aggregate = []
     for bus_multiplier in args.bus_grid:
@@ -65,12 +70,12 @@ def main() -> None:
                 for day_type in DAY_TYPES:
                     rows = [
                         row for row in per_seed
-                        if row["bus_capacity_multiplier"] == bus_multiplier
+                        if row["bus_frequency_multiplier"] == bus_multiplier
                         and row["ride_supply_multiplier"] == ride_multiplier
                         and row["weather_week"] == week and row["day_type"] == day_type
                     ]
                     aggregate.append({
-                        "bus_capacity_multiplier": bus_multiplier,
+                        "bus_frequency_multiplier": bus_multiplier,
                         "ride_supply_multiplier": ride_multiplier,
                         "weather_week": week, "day_type": day_type,
                         **{f"mean_{metric}": round(statistics.mean(float(row[metric]) for row in rows), 6) for metric in metrics},
