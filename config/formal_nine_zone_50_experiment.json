@@ -1,0 +1,39 @@
+{
+  "experiment_id": "formal_nine_zone_50_agent_weather_v1",
+  "description": "Formal nine-zone 50-Agent P0 experiment using main T1/T6 origins and destinations with the experiment-branch activity state flow.",
+  "formal_transport_config": "config/formal_nine_zone_agent_experiment.json",
+  "symmetric_behavior_config": "config/symmetric_weather_experiment.json",
+  "emergence_heat_config": "config/emergence_experiment.json",
+  "total_agents": 50,
+  "seed": 47,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_types": ["workday", "rest_day"],
+  "policy": "P0_no_policy",
+  "activity_state_machine": {
+    "work_weather_cancellation_allowed": false,
+    "medical_weather_cancellation_allowed": false,
+    "optional_cancellation_requires_departure_in_weather_window": true,
+    "remote_work_probability": {
+      "normal": 0.00,
+      "extreme_heat": 0.02,
+      "heavy_rain": 0.05
+    },
+    "remote_work_is_activity_level_single_draw": true,
+    "schedule_shift_enabled": false
+  },
+  "outdoor_exposure": {
+    "walk": "entire final walking attempt",
+    "bus": "origin access walk plus wait plus destination access walk",
+    "metro": "origin access walk plus platform wait plus destination access walk",
+    "ride_hailing": "pickup wait",
+    "failed_ride_hailing": "consumed wait before fallback",
+    "w1_heat_method": "utci_degree_minutes_above_threshold",
+    "w2_rain_method": "outdoor minutes overlapping active heavy-rain windows"
+  },
+  "scope_notes": [
+    "Agent profiles, home zones, activities, destination zones, OD distances and planned times come from the main T1/T6 pipeline.",
+    "W0/W1/W2 use paired planned activities. Weather cancellation and remote work alter travel-required activities only after the common plan is built.",
+    "This first formal migration runs P0 only; coupon, elder priority and supply policies remain separate later experiments.",
+    "All behavioral and heat parameters are scenario assumptions, not Shanghai estimates."
+  ]
+}

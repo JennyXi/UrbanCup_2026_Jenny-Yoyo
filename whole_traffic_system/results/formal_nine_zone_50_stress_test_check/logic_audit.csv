@@ -1,0 +1,5 @@
+﻿experiment_condition,weather_scenario,initial_vehicle_total,end_vehicle_total,vehicle_conservation_pass,vehicle_service_overlap_free,fallback_departure_time_updated,completion_threshold_logic_pass
+P0_baseline,W0,16,16,True,True,True,True
+P0_baseline,W2,16,16,True,True,True,True
+stress_test,W0,8,8,True,True,True,True
+stress_test,W2,8,8,True,True,True,True

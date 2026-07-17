@@ -171,6 +171,7 @@ def _distribution(rows: list[dict[str, Any]], keys: tuple[str, ...], metrics: tu
 def run_priority_experiment(
     *, seed_start: int, seed_count: int, output: Path,
     experiment: Mapping[str, Any] | None = None,
+    transport_config: Mapping[str, Any] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     experiment = experiment or load_priority_config()
     policies = list(experiment["policies"])
@@ -184,7 +185,10 @@ def run_priority_experiment(
         results: dict[str, Mapping[str, Any]] = {}
         for policy in policies:
             config = build_run_config(experiment, policy)
-            result = run_emergence_experiment(seed, config=config, symmetric=symmetric)
+            result = run_emergence_experiment(
+                seed, config=config, symmetric=symmetric,
+                transport_config=transport_config,
+            )
             results[policy] = result
             system_rows.extend({"policy": policy, **row} for row in summarize_macro(result))
             group_rows.extend(summarize_groups(result, policy))

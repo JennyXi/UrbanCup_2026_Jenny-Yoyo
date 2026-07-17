@@ -68,6 +68,7 @@ def _main_symmetric_config(config: Mapping[str, Any]) -> Dict[str, Any]:
 def run_coupon_policy(
     profiles: list[AgentProfile], activities: list[dict[str, Any]], policy: str,
     *, seed: int, config: Mapping[str, Any], symmetric: Mapping[str, Any],
+    transport_config: Mapping[str, Any] | None = None,
 ) -> tuple[Dict[str, Any], list[Dict[str, Any]]]:
     allocations = []
     for day_type in DAY_TYPES:
@@ -89,6 +90,7 @@ def run_coupon_policy(
             bus_frequency_multiplier=float(experiment["fixed_bus_frequency_multiplier"]),
             ride_supply_multiplier=float(experiment["fixed_ride_supply_multiplier"]),
             config=config, symmetric=symmetric, coupon_allocations=mapped,
+            transport_config=transport_config,
         )
         activity_results.extend(weather["activity_results"])
         leg_results.extend(weather["leg_results"])
@@ -281,6 +283,7 @@ def _consistency_checks(
 def run_coupon_experiment(
     *, seed_start: int, seed_count: int, output: Path,
     config: Mapping[str, Any] | None = None,
+    transport_config: Mapping[str, Any] | None = None,
 ) -> Dict[str, list[Dict[str, Any]]]:
     config = config or load_emergence_config()
     symmetric = _main_symmetric_config(config)
@@ -300,6 +303,7 @@ def run_coupon_experiment(
         for policy in COUPON_POLICIES:
             result, allocations = run_coupon_policy(
                 profiles, activities, policy, seed=seed, config=config, symmetric=symmetric,
+                transport_config=transport_config,
             )
             system_rows.extend(summarize_coupon_system(result, allocations, policy))
             group_rows.extend(summarize_coupon_groups(result, allocations, policy))

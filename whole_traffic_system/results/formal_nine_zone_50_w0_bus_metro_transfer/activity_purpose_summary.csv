@@ -1,0 +1,13 @@
+﻿weather_scenario,day_type,activity_purpose,planned_activities,weather_exposed_activities,weather_cancelled_activities,conditional_cancel_rate,remote_work,completed_activities,transport_unmet
+W0,rest_day,medical,2,0,0,,0,2,0
+W0,rest_day,out_of_home_family_activity,13,0,0,,0,13,0
+W0,rest_day,out_of_home_family_care,5,0,0,,0,5,0
+W0,rest_day,shopping,23,0,0,,0,23,0
+W0,rest_day,social_leisure,23,0,0,,0,23,0
+W0,rest_day,visit,12,0,0,,0,12,0
+W0,workday,medical,4,0,0,,0,4,0
+W0,workday,out_of_home_family_activity,3,0,0,,0,3,0
+W0,workday,shopping,7,0,0,,0,7,0
+W0,workday,social_leisure,2,0,0,,0,2,0
+W0,workday,visit,2,0,0,,0,2,0
+W0,workday,work,34,0,0,,0,34,0

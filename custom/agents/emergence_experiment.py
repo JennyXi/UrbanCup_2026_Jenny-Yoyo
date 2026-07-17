@@ -16,7 +16,10 @@ from custom.agents.agent_population import AgentProfile, generate_population_age
 from custom.agents.coupon_experiment import community_assisted_booking
 from custom.agents.coupon_experiment import validate_coupon_config
 from custom.agents.simple_experiment import AGE_VALUE_OF_TIME, assign_two_zone_homes
-from custom.agents.simple_mode_choice import MODES, SimpleAgent, build_mode_options, choose_mode, load_simple_config
+from custom.agents.simple_mode_choice import (
+    MODES, SimpleAgent, build_mode_options, choose_mode, load_simple_config,
+    metro_service_at_time,
+)
 from custom.agents.symmetric_weather_experiment import (
     EMPLOYED_STATUSES, WEATHER_TYPES, load_symmetric_experiment_config,
     remote_work_decision, weather_cancellation_decision,
@@ -349,18 +352,30 @@ def _weighted_choice(rng: random.Random, options: Iterable[tuple[Any, float]]) -
     return rng.choices(values, weights=weights, k=1)[0]
 
 
-def _mode_config(symmetric: Mapping[str, Any]) -> Dict[str, Any]:
-    config = copy.deepcopy(load_simple_config())
+def _mode_config(
+    symmetric: Mapping[str, Any], transport_config: Mapping[str, Any] | None = None,
+) -> Dict[str, Any]:
+    config = copy.deepcopy(transport_config or load_simple_config())
     p = symmetric["mode_preferences"]
-    config["weather"]["extreme_heat"]["utility_penalty"] = {
+    config["weather"]["extreme_heat"]["utility_penalty"].update({
         "walk": p["heat_walking_preference"], "bus": p["heat_bus_preference"],
         "ride_hailing": p["heat_ride_hailing_preference"],
-    }
-    config["weather"]["heavy_rain"]["utility_penalty"] = {
+    })
+    config["weather"]["heavy_rain"]["utility_penalty"].update({
         "walk": p["rain_walking_preference"], "bus": p["rain_bus_preference"],
         "ride_hailing": p["rain_ride_hailing_preference"],
-    }
+    })
     return config
+
+
+def _apply_metro_schedule(
+    transport: Dict[str, Any], departure_time: str | float,
+) -> Dict[str, float | bool] | None:
+    if "metro" not in transport["modes"]:
+        return None
+    service = metro_service_at_time(departure_time, config=transport)
+    transport["modes"]["metro"]["wait_min"] = float(service["average_wait_min"])
+    return service
 
 
 def _w1_behavior_active(clock: str, emergence: Mapping[str, Any]) -> bool:
@@ -376,7 +391,7 @@ def _gate_w1_preference(
     """Remove only W1 behavioral preference shifts outside 11:00-18:00."""
     if weather_week == "W1" and not _w1_behavior_active(str(leg["departure_time"]), emergence):
         transport["weather"]["extreme_heat"]["utility_penalty"] = {
-            mode: 0.0 for mode in MODES
+            mode: 0.0 for mode in transport["modes"]
         }
 
 
@@ -522,6 +537,7 @@ def _initial_choices(
     choices = {}
     for leg in sorted(legs, key=lambda row: row["leg_id"]):
         local_transport = copy.deepcopy(transport)
+        _apply_metro_schedule(local_transport, str(leg["departure_time"]))
         _gate_w1_preference(local_transport, leg, weather_week, emergence)
         choices[leg["leg_id"]] = choose_mode(
             _agent(profiles[leg["agent_id"]]), _trip(leg), weather_week,
@@ -535,6 +551,7 @@ def _initial_choice_with_community_booking(
     transport: Mapping[str, Any], emergence: Mapping[str, Any],
 ) -> Dict[str, Any]:
     local_transport = copy.deepcopy(transport)
+    _apply_metro_schedule(local_transport, str(leg["departure_time"]))
     _gate_w1_preference(local_transport, leg, weather_week, emergence)
     return choose_mode(
         _agent(profile, community_booking_assistance=True),
@@ -649,6 +666,7 @@ def _local_choice(
 ) -> Dict[str, Any]:
     config = copy.deepcopy(base_transport)
     weather_type = WEATHER_TYPES[weather_week]
+    _apply_metro_schedule(config, str(leg["departure_time"]))
     _gate_w1_preference(config, leg, weather_week, emergence)
     road = road_state.get((leg["day_type"], leg["time_bin"]), {})
     scheduled = float(road.get(
@@ -728,6 +746,17 @@ def _attempt_segments(
             ("ride_hailing_in_vehicle", in_vehicle, False),
             ("ride_hailing_access", residual, False),
         ]
+    if mode == "metro":
+        service = transport["metro_zone_service_parameters"]
+        origin_walk = float(service[leg["origin_zone"]]["metro_access_min"]) / 2.0
+        destination_walk = float(service[leg["destination_zone"]]["metro_access_min"]) / 2.0
+        segments = [("metro_origin_walk", origin_walk, True), ("metro_wait", wait, False)]
+        if succeeded:
+            segments.extend([
+                ("metro_in_vehicle", float(option["in_vehicle_time_min"]), False),
+                ("metro_destination_walk", destination_walk, True),
+            ])
+        return segments
     service = transport["zone_service_parameters"]
     # The simple model historically used half of each zone's access value; this
     # split preserves its total bus travel time and therefore its mode choices.
@@ -863,7 +892,7 @@ def _new_leg_context(
         "coupon_choice": coupon_choice, "profile": profile,
         "options": {row["mode"]: dict(row) for row in choice["alternatives"]},
         "primary": choice["chosen_mode"], "elapsed": 0.0, "spent": 0.0,
-        "wait": 0.0, "exposure": 0.0, "ride_wait": 0.0,
+        "wait": 0.0, "exposure": 0.0, "ride_wait": 0.0, "metro_wait": 0.0,
         "heat_dose": 0.0, "failed_heat_dose": 0.0,
         "segments": Counter(), "attempts": [], "final_mode": "",
         "failure_reason": "", "coupon_price_active": False,
@@ -906,6 +935,17 @@ def _finalize_leg_context(
         "bus_wait_minutes": round(segments["bus_wait"], 3),
         "bus_in_vehicle_minutes": round(segments["bus_in_vehicle"], 3),
         "bus_destination_walk_minutes": round(segments["bus_destination_walk"], 3),
+        "metro_origin_walk_minutes": round(segments["metro_origin_walk"], 3),
+        "metro_wait_minutes": round(segments["metro_wait"], 3),
+        "metro_in_vehicle_minutes": round(segments["metro_in_vehicle"], 3),
+        "metro_destination_walk_minutes": round(segments["metro_destination_walk"], 3),
+        "metro_train_trips_per_30_min": next((
+            row.get("metro_train_trips_per_30_min") for row in attempts
+            if row["mode"] == "metro"
+        ), None),
+        "metro_peak_service_used": next((
+            row.get("metro_is_peak") for row in attempts if row["mode"] == "metro"
+        ), None),
         "walking_minutes": round(segments["walking"], 3),
         "ride_hailing_wait_segment_minutes": round(segments["ride_hailing_wait"], 3),
         "ride_hailing_in_vehicle_minutes": round(segments["ride_hailing_in_vehicle"], 3),
@@ -1026,6 +1066,14 @@ def _simulate_transport_events(
             activate_primary_choice(context)
             mode = context["primary"]
         option = dict(context["options"][mode])
+        if mode == "metro":
+            service = metro_service_at_time(attempt_start, config=transport)
+            old_wait = float(option["wait_time_min"])
+            new_wait = float(service["average_wait_min"])
+            option["wait_time_min"] = new_wait
+            option["travel_time_min"] = float(option["travel_time_min"]) + new_wait - old_wait
+            option["metro_is_peak"] = bool(service["is_peak"])
+            option["metro_train_trips_per_30_min"] = float(service["train_trips_per_30_min"])
         probability = _success_probability(mode, leg, weather_week, symmetric, bus_state, {})
         draw = _uniform(seed, leg_id, attempt_number, mode, "non-capacity-success")
         dispatch: Dict[str, Any] = {}
@@ -1134,16 +1182,21 @@ def _simulate_transport_events(
                 attempt_outdoor += duration
                 attempt_heat_dose += calculate_heat_hazard_dose(
                     attempt_start + attempt_elapsed, duration, weather_week,
-                    segment_factor=float(emergence["heat_exposure"]["outdoor_segment_factor"][mode]),
+                    segment_factor=float(emergence["heat_exposure"]["outdoor_segment_factor"].get(mode, 1.0)),
                     config=emergence,
                 )
             attempt_elapsed += duration
-        actual_wait = sum(duration for name, duration, _ in segments if name in {"bus_wait", "ride_hailing_wait"})
+        actual_wait = sum(
+            duration for name, duration, _ in segments
+            if name in {"bus_wait", "ride_hailing_wait", "metro_wait"}
+        )
         context["wait"] += actual_wait
         context["exposure"] += attempt_outdoor
         context["heat_dose"] += attempt_heat_dose
         if mode == "ride_hailing":
             context["ride_wait"] += actual_wait
+        elif mode == "metro":
+            context["metro_wait"] += actual_wait
         failure_reason = dispatch.get("failure_reason", "" if succeeded else "non_capacity_transport_failure")
         coupon_induced = bool(dispatch and coupon_induced)
         context["attempts"].append({
@@ -1154,6 +1207,8 @@ def _simulate_transport_events(
             "actual_elapsed_minutes": round(attempt_elapsed, 3),
             "outdoor_exposure_minutes": round(attempt_outdoor, 3),
             "heat_hazard_dose_c_min": round(attempt_heat_dose, 3),
+            "metro_is_peak": option.get("metro_is_peak"),
+            "metro_train_trips_per_30_min": option.get("metro_train_trips_per_30_min"),
             "request_time": dispatch.get("request_time"),
             "dispatch_time": dispatch.get("dispatch_time"),
             "pickup_wait_min": dispatch.get("pickup_wait_min", 0.0),
@@ -1221,12 +1276,13 @@ def run_emergence_weather(
     *, seed: int, bus_frequency_multiplier: float = 1.0, ride_supply_multiplier: float = 1.0,
     config: Mapping[str, Any] | None = None, symmetric: Mapping[str, Any] | None = None,
     coupon_allocations: Mapping[tuple[int, str], Mapping[str, Any]] | None = None,
+    transport_config: Mapping[str, Any] | None = None,
 ) -> Dict[str, list[Dict[str, Any]]]:
     if bus_frequency_multiplier <= 0 or ride_supply_multiplier <= 0:
         raise ValueError("supply multipliers must be positive")
     emergence = config or load_emergence_config()
     symmetric = symmetric or load_symmetric_experiment_config()
-    transport = _mode_config(symmetric)
+    transport = _mode_config(symmetric, transport_config=transport_config)
     behavior_symmetric = copy.deepcopy(symmetric)
     behavior_symmetric["work_weather_windows"]["W1"] = list(
         emergence["extreme_heat_behavior_window"]
@@ -1414,6 +1470,7 @@ def run_emergence_weather(
 def run_emergence_experiment(
     seed: int, *, bus_frequency_multiplier: float = 1.0, ride_supply_multiplier: float = 1.0,
     config: Mapping[str, Any] | None = None, symmetric: Mapping[str, Any] | None = None,
+    transport_config: Mapping[str, Any] | None = None,
 ) -> Dict[str, Any]:
     emergence = config or load_emergence_config()
     symmetric = symmetric or load_symmetric_experiment_config()
@@ -1434,7 +1491,7 @@ def run_emergence_experiment(
             profiles, activities, week, seed=seed,
             bus_frequency_multiplier=bus_frequency_multiplier,
             ride_supply_multiplier=ride_supply_multiplier,
-            config=emergence, symmetric=symmetric,
+            config=emergence, symmetric=symmetric, transport_config=transport_config,
         )
         activity_results.extend(result["activity_results"])
         leg_results.extend(result["leg_results"])
@@ -1487,6 +1544,10 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
                 for row in legs
             )
             ride_requests = sum(int(row["ride_hailing_request_count"]) for row in legs)
+            metro_demand = sum(
+                int(row["initial_mode"] == "metro") + int(row["fallback_mode"] == "metro")
+                for row in legs
+            )
             fallback_attempts = sum(row["fallback_used"] for row in legs)
             fallback_successes = sum(row["fallback_success"] for row in legs)
             scheduled_bus_vehicle_trips = sum(float(row["scheduled_bus_vehicle_trips"]) for row in road_states)
@@ -1498,9 +1559,11 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
             )
             total_bus_wait = sum(float(row["bus_wait_minutes"]) for row in legs)
             total_ride_wait = sum(float(row["ride_hailing_wait_min"]) for row in legs)
+            total_metro_wait = sum(float(row.get("metro_wait_minutes", 0.0)) for row in legs)
             total_travel_time = sum(float(row["cumulative_travel_time_min"]) for row in legs)
             total_bus_in_vehicle = sum(float(row["bus_in_vehicle_minutes"]) for row in legs)
             total_ride_in_vehicle = sum(float(row["ride_hailing_in_vehicle_minutes"]) for row in legs)
+            total_metro_in_vehicle = sum(float(row.get("metro_in_vehicle_minutes", 0.0)) for row in legs)
             summaries.append({
                 "seed": result["seed"], "weather_week": week, "weather_type": WEATHER_TYPES[week], "day_type": day_type,
                 "planned_activities": len(activities),
@@ -1514,12 +1577,15 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
                 "remote_work": sum(row["remote_work"] for row in activities),
                 "successful_legs": successful, "walking_legs": modes["walk"], "bus_legs": modes["bus"],
                 "ride_hailing_legs": modes["ride_hailing"],
+                "metro_legs": modes["metro"],
                 "walking_share": round(modes["walk"] / successful, 6) if successful else 0.0,
                 "bus_share": round(modes["bus"] / successful, 6) if successful else 0.0,
                 "ride_hailing_share": round(modes["ride_hailing"] / successful, 6) if successful else 0.0,
+                "metro_share": round(modes["metro"] / successful, 6) if successful else 0.0,
                 "walking_mode_share": round(modes["walk"] / successful, 6) if successful else 0.0,
                 "bus_mode_share": round(modes["bus"] / successful, 6) if successful else 0.0,
                 "ride_hailing_mode_share": round(modes["ride_hailing"] / successful, 6) if successful else 0.0,
+                "metro_mode_share": round(modes["metro"] / successful, 6) if successful else 0.0,
                 "fallback_attempts": fallback_attempts,
                 "fallback_successes": fallback_successes,
                 "transport_success_rate": round(successful / len(legs), 6) if legs else 1.0,
@@ -1538,26 +1604,32 @@ def summarize_macro(result: Mapping[str, Any]) -> list[Dict[str, Any]]:
                 "minimum_road_speed_multiplier": round(min((float(row["success_factor"]) for row in road_states), default=1.0), 6),
                 "total_bus_wait_minutes": round(total_bus_wait, 6),
                 "total_ride_hailing_wait_minutes": round(total_ride_wait, 6),
-                "total_system_wait_minutes": round(total_bus_wait + total_ride_wait, 6),
+                "total_metro_wait_minutes": round(total_metro_wait, 6),
+                "total_system_wait_minutes": round(total_bus_wait + total_ride_wait + total_metro_wait, 6),
                 "mean_bus_wait_minutes_per_attempt": round(
                     total_bus_wait / bus_demand, 6
                 ) if bus_demand else 0.0,
                 "mean_ride_hailing_wait_minutes_per_request": round(
                     total_ride_wait / ride_requests, 6
                 ) if ride_requests else 0.0,
+                "mean_metro_wait_minutes_per_attempt": round(
+                    total_metro_wait / metro_demand, 6
+                ) if metro_demand else 0.0,
                 "mean_total_travel_time": round(
                     total_travel_time / len(legs), 6
                 ) if legs else 0.0,
                 "total_travel_time_minutes": round(total_travel_time, 6),
                 "total_non_wait_travel_time_minutes": round(
-                    total_travel_time - total_bus_wait - total_ride_wait, 6
+                    total_travel_time - total_bus_wait - total_ride_wait - total_metro_wait, 6
                 ),
                 "total_in_vehicle_time_minutes": round(
-                    total_bus_in_vehicle + total_ride_in_vehicle, 6
+                    total_bus_in_vehicle + total_ride_in_vehicle + total_metro_in_vehicle, 6
                 ),
                 "total_bus_in_vehicle_time_minutes": round(total_bus_in_vehicle, 6),
                 "total_ride_hailing_in_vehicle_time_minutes": round(total_ride_in_vehicle, 6),
+                "total_metro_in_vehicle_time_minutes": round(total_metro_in_vehicle, 6),
                 "bus_demand": bus_demand,
+                "metro_demand": metro_demand,
                 "ride_hailing_requests": ride_requests,
                 "successful_ride_hailing_requests": modes["ride_hailing"],
                 "failed_ride_hailing_requests": ride_requests - modes["ride_hailing"],

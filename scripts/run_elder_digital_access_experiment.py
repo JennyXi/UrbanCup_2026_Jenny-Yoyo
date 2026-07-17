@@ -131,7 +131,7 @@ def apply_digital_policy(
 def _run_policy(
     base_profiles: list[AgentProfile], activities: list[dict[str, Any]],
     policy: str, *, seed: int, config: Mapping[str, Any],
-    symmetric: Mapping[str, Any],
+    symmetric: Mapping[str, Any], transport_config: Mapping[str, Any] | None = None,
 ) -> tuple[list[AgentProfile], dict[str, Any]]:
     profiles = apply_digital_policy(base_profiles, policy, seed=seed, config=config)
     activity_results: list[dict[str, Any]] = []
@@ -144,7 +144,7 @@ def _run_policy(
             profiles, activities, week, seed=seed,
             bus_frequency_multiplier=float(experiment["fixed_bus_frequency_multiplier"]),
             ride_supply_multiplier=float(experiment["fixed_ride_supply_multiplier"]),
-            config=config, symmetric=symmetric,
+            config=config, symmetric=symmetric, transport_config=transport_config,
         )
         activity_results.extend(result["activity_results"])
         leg_results.extend(result["leg_results"])
@@ -279,6 +279,7 @@ def _policy_changes(distribution: list[dict[str, Any]], keys: tuple[str, ...]) -
 def run_digital_access_experiment(
     *, seed_start: int, seed_count: int, output: Path,
     config: Mapping[str, Any] | None = None,
+    transport_config: Mapping[str, Any] | None = None,
 ) -> dict[str, list[dict[str, Any]]]:
     config = config or load_emergence_config()
     symmetric = load_symmetric_experiment_config()
@@ -298,6 +299,7 @@ def run_digital_access_experiment(
         for policy in policies:
             profiles, result = _run_policy(
                 base_profiles, activities, policy, seed=seed, config=config, symmetric=symmetric,
+                transport_config=transport_config,
             )
             results[policy] = result
             system_rows.extend({

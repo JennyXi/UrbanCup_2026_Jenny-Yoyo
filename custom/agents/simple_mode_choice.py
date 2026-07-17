@@ -30,6 +30,42 @@ class SimpleAgent:
     family_assistance: bool = False
 
 
+def _configured_modes(config: Mapping[str, Any]) -> tuple[str, ...]:
+    return tuple(config.get("mode_order", tuple(config["modes"])))
+
+
+def metro_service_at_time(
+    departure_time: str | float, *, config: Mapping[str, Any],
+) -> Dict[str, float | bool]:
+    """Return schedule frequency and implied average wait for one departure."""
+    if "metro" not in config["modes"]:
+        raise ValueError("metro service requested for a configuration without metro")
+    schedule = config["metro_schedule"]
+    if isinstance(departure_time, str):
+        hour, minute = map(int, departure_time.split(":"))
+        minute_of_day = hour * 60 + minute
+    else:
+        minute_of_day = float(departure_time) % (24 * 60)
+
+    def in_window(start: str, end: str) -> bool:
+        start_h, start_m = map(int, start.split(":"))
+        end_h, end_m = map(int, end.split(":"))
+        left, right = start_h * 60 + start_m, end_h * 60 + end_m
+        return left <= minute_of_day < right if left <= right else (
+            minute_of_day >= left or minute_of_day < right
+        )
+
+    is_peak = any(in_window(start, end) for start, end in schedule["peak_windows"])
+    key = "peak_train_trips_per_30_min" if is_peak else "ordinary_train_trips_per_30_min"
+    trips = float(schedule[key])
+    wait = float(schedule["average_wait_numerator_minutes"]) / trips
+    return {
+        "is_peak": is_peak,
+        "train_trips_per_30_min": round(trips, 6),
+        "average_wait_min": round(wait, 6),
+    }
+
+
 def load_simple_config(path: Path | str = CONFIG_PATH) -> Dict[str, Any]:
     with Path(path).open(encoding="utf-8") as handle:
         config = json.load(handle)
@@ -39,10 +75,36 @@ def load_simple_config(path: Path | str = CONFIG_PATH) -> Dict[str, Any]:
     line = config["bus_line"]["zones"]
     if set(line) != set(zone_ids) or len(line) != len(zone_ids):
         raise ValueError("the simple model bus line must serve every zone exactly once")
-    if set(config["modes"]) != set(MODES):
-        raise ValueError(f"simple model must define exactly {MODES}")
+    configured_modes = _configured_modes(config)
+    if set(config["modes"]) != set(configured_modes):
+        raise ValueError("mode_order must contain every configured mode exactly once")
+    if not set(MODES).issubset(configured_modes):
+        raise ValueError(f"simple model must include the base modes {MODES}")
+    if "metro" in configured_modes:
+        metro_line = config.get("metro_line", {}).get("zones", [])
+        if set(metro_line) != set(zone_ids) or len(metro_line) != len(zone_ids):
+            raise ValueError("the simple metro line must serve every zone exactly once")
+        metro_service = config.get("metro_zone_service_parameters", {})
+        if set(metro_service) != set(zone_ids):
+            raise ValueError("metro_zone_service_parameters must cover every zone")
+        schedule = config.get("metro_schedule", {})
+        ordinary = float(schedule.get("ordinary_train_trips_per_30_min", 0.0))
+        peak = float(schedule.get("peak_train_trips_per_30_min", 0.0))
+        if ordinary <= 0 or peak <= ordinary:
+            raise ValueError("metro peak train trips must exceed positive ordinary trips")
+        if not schedule.get("peak_windows"):
+            raise ValueError("metro_schedule must define peak windows")
+        if float(schedule.get("average_wait_numerator_minutes", 0.0)) <= 0:
+            raise ValueError("metro average-wait numerator must be positive")
     if set(config["weather"]) != set(WEATHER_BY_WEEK.values()):
         raise ValueError("weather configuration must define W0/W1/W2 weather types")
+    for weather in config["weather"].values():
+        for key in ("speed_multiplier", "wait_multiplier", "utility_penalty"):
+            if set(weather[key]) != set(configured_modes):
+                raise ValueError(f"weather {key} must cover every configured mode")
+    for age_group in ("18-39", "40-59", "60+"):
+        if set(config["age_mode_constant"][age_group]) != set(configured_modes):
+            raise ValueError("age_mode_constant must cover every configured mode")
     service = config.get("zone_service_parameters", {})
     if set(service) != set(zone_ids):
         raise ValueError("zone_service_parameters must cover every zone")
@@ -101,7 +163,7 @@ def build_mode_options(
     config: Mapping[str, Any] | None = None,
     ride_hailing_extra_wait_min: float = 0.0,
 ) -> Dict[str, Dict[str, Any]]:
-    """Build the three alternatives for one OD and one weather scenario."""
+    """Build the configured alternatives for one OD and one weather scenario."""
     config = config or load_simple_config()
     if ride_hailing_extra_wait_min < 0:
         raise ValueError("ride_hailing_extra_wait_min must be non-negative")
@@ -112,9 +174,15 @@ def build_mode_options(
     distance = _distance_km(origin, destination, config)
     service = config["zone_service_parameters"]
     result: Dict[str, Dict[str, Any]] = {}
-    for mode in MODES:
+    for mode in _configured_modes(config):
         params = config["modes"][mode]
         available = not (mode == "walk" and distance > float(params["maximum_distance_km"]))
+        if mode == "metro":
+            available = (
+                origin != destination
+                and origin in config["metro_line"]["zones"]
+                and destination in config["metro_line"]["zones"]
+            )
         speed = float(params["speed_kmh"]) * float(weather["speed_multiplier"][mode])
         in_vehicle_time = distance / speed * 60.0
         if mode == "bus":
@@ -129,6 +197,19 @@ def build_mode_options(
                 float(origin_service["bus_coverage_rate"]),
                 float(destination_service["bus_coverage_rate"]),
             )
+        elif mode == "metro":
+            origin_service = config["metro_zone_service_parameters"][origin]
+            destination_service = config["metro_zone_service_parameters"][destination]
+            wait = float(params["wait_min"]) * float(weather["wait_multiplier"][mode])
+            access = (
+                float(origin_service["metro_access_min"])
+                + float(destination_service["metro_access_min"])
+            ) / 2.0
+            coverage = min(
+                float(origin_service["metro_coverage_rate"]),
+                float(destination_service["metro_coverage_rate"]),
+            )
+            available = available and coverage > 0.0
         else:
             wait = float(params.get("wait_min", 0.0)) * float(weather["wait_multiplier"][mode])
             if mode == "ride_hailing":
@@ -174,6 +255,12 @@ def _stable_gumbel(seed: int, agent_id: str, trip_id: str, mode: str) -> float:
     return -math.log(-math.log(uniform))
 
 
+def _stable_uniform(seed: int, agent_id: str, trip_id: str, mode: str, purpose: str) -> float:
+    payload = f"{seed}|{agent_id}|{trip_id}|{mode}|{purpose}".encode("utf-8")
+    integer = int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+    return (integer + 0.5) / (2**64)
+
+
 def choose_mode(
     agent: SimpleAgent,
     trip: Mapping[str, Any],
@@ -198,10 +285,33 @@ def choose_mode(
     weather_type = WEATHER_BY_WEEK[weather_week]
     weather_penalty = config["weather"][weather_type]["utility_penalty"]
     weights = config["choice_weights"]
+    mode_order = _configured_modes(config)
     scored = []
+    availability_audit: Dict[str, Dict[str, Any]] = {}
     for mode, option in options.items():
         ride_hailing_access = agent.digital_access or agent.family_assistance
-        if not option["available"] or (mode == "ride_hailing" and not ride_hailing_access):
+        enforce_coverage = bool(config["modes"][mode].get("enforce_service_coverage", False))
+        coverage_key = "-".join(sorted((
+            str(trip["origin_zone"]), str(trip["destination_zone"]),
+        )))
+        coverage_draw = _stable_uniform(
+            seed, agent.agent_id, coverage_key, mode, "service-coverage"
+        ) if enforce_coverage else None
+        coverage_available = (
+            not enforce_coverage
+            or float(coverage_draw) < float(option["service_coverage_rate"])
+        )
+        available = bool(option["available"]) and coverage_available
+        if mode == "ride_hailing" and not ride_hailing_access:
+            available = False
+        availability_audit[mode] = {
+            "physical_available": bool(option["available"]),
+            "service_coverage_rate": float(option["service_coverage_rate"]),
+            "coverage_enforced": enforce_coverage,
+            "coverage_draw": round(float(coverage_draw), 6) if coverage_draw is not None else None,
+            "available_after_coverage": available,
+        }
+        if not available:
             continue
         time_cost = option["travel_time_min"] / 60.0 * agent.value_of_time_yuan_per_hour
         utility = -float(weights["generalized_cost"]) * (time_cost + option["fare_yuan"])
@@ -223,7 +333,8 @@ def choose_mode(
         "chosen_time_min": selected["travel_time_min"],
         "chosen_fare_yuan": selected["fare_yuan"],
         "ride_hailing_extra_wait_min": round(float(ride_hailing_extra_wait_min), 3),
-        "alternatives": sorted(scored, key=lambda row: MODES.index(row["mode"])),
+        "mode_availability": availability_audit,
+        "alternatives": sorted(scored, key=lambda row: mode_order.index(row["mode"])),
     }
 
 

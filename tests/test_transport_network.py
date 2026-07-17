@@ -10,6 +10,8 @@ from custom.transport.network import (
     calculate_leg_mode_option,
     calculate_od_option,
     intrazonal_metro_is_covered,
+    metro_endpoint_is_accessible,
+    metro_leg_accessibility,
 )
 
 
@@ -46,7 +48,7 @@ class TransportNetworkTests(unittest.TestCase):
         self.assertTrue(all(row["road"] and row["bus"] and row["ride_hailing"] for row in services.values()))
         self.assertEqual(
             {zone for zone, row in services.items() if row["metro"]},
-            {"Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7", "Z8"},
+            {"Z1", "Z2", "Z3", "Z7"},
         )
         for zone in self.network["zone_ids"]:
             self.assertTrue(self.by_key[(zone, zone, "bus")]["available"])
@@ -162,6 +164,50 @@ class TransportNetworkTests(unittest.TestCase):
         self.assertTrue(self.by_key[("Z1", "Z7", "metro")]["available"])
         self.assertTrue(all("Z9" not in line["zones"] for line in self.network["config"]["graphs"]["metro"]["lines"]))
 
+    def test_bus_endpoint_access_is_shorter_than_metro_and_probabilities_cover_all_zones(self):
+        probabilities = self.network["config"]["metro_accessibility"]["coverage_probability"]
+        self.assertEqual(set(probabilities), {f"Z{index}" for index in range(1, 10)})
+        for zone in (f"Z{index}" for index in range(1, 9)):
+            service = self.network["config"]["zone_service_parameters"][zone]
+            self.assertLess(service["bus_access_min"], service["metro_access_min"])
+
+    def test_metro_endpoint_accessibility_is_stable_and_requires_both_endpoints(self):
+        leg = {
+            "leg_id": "stable-cross-zone", "agent_id": 17, "purpose": "work",
+            "origin_zone": "Z4", "destination_zone": "Z1",
+            "road_network_distance_km": 20.0,
+        }
+        first = metro_leg_accessibility(self.network, leg, seed=47)
+        second = metro_leg_accessibility(self.network, dict(leg), seed=47)
+        self.assertEqual(first, second)
+        self.assertEqual(
+            first["metro_origin_accessible"],
+            metro_endpoint_is_accessible(
+                self.network, seed=47, agent_id=17, zone_id="Z4", purpose="work",
+            ),
+        )
+        inaccessible_agent = next(
+            agent_id for agent_id in range(10000)
+            if not all(metro_leg_accessibility(
+                self.network, {**leg, "agent_id": agent_id}, seed=47,
+            ).values())
+        )
+        row = calculate_leg_mode_option(
+            self.network, {**leg, "agent_id": inaccessible_agent}, "metro", seed=47,
+        )
+        self.assertFalse(row["available"])
+        self.assertFalse(row["metro_origin_accessible"] and row["metro_destination_accessible"])
+        feeder_topology = calculate_leg_mode_option(
+            self.network,
+            {**leg, "agent_id": inaccessible_agent, "allow_bus_metro_feeder": True},
+            "metro", seed=47,
+        )
+        self.assertTrue(feeder_topology["available"])
+        self.assertEqual(
+            (row["metro_origin_accessible"], row["metro_destination_accessible"]),
+            (feeder_topology["metro_origin_accessible"], feeder_topology["metro_destination_accessible"]),
+        )
+
     def test_z9_metro_feeder_time_is_not_counted_twice(self):
         feeder = self.by_key[("Z9", "Z6", "bus")]
         metro = self.by_key[("Z9", "Z1", "metro")]
@@ -173,26 +219,34 @@ class TransportNetworkTests(unittest.TestCase):
         )
 
     def test_intrazonal_metro_coverage_and_long_trip_rule(self):
-        expected = {"Z1": .75, "Z2": .60, "Z3": .60, "Z4": .35, "Z5": .30, "Z6": .35, "Z7": .50, "Z8": .25, "Z9": 0.0}
+        expected = {"Z1": .75, "Z2": .60, "Z3": .60, "Z4": 0.0, "Z5": 0.0, "Z6": 0.0, "Z7": .50, "Z8": 0.0, "Z9": 0.0}
         self.assertEqual(self.network["config"]["intrazonal_metro"]["metro_coverage_rate"], expected)
         mean = self.network["zone_by_id"]["Z1"]["mean_intrazonal_distance"]
         short_leg = {
-            "leg_id": "short-z1", "origin_zone": "Z1", "destination_zone": "Z1",
+            "leg_id": "short-z1", "agent_id": 1, "purpose": "shopping",
+            "origin_zone": "Z1", "destination_zone": "Z1",
             "road_network_distance_km": mean * 0.5,
         }
         self.assertFalse(calculate_leg_mode_option(self.network, short_leg, "metro")["available"])
         long_distance = mean * 1.2
-        covered_key = next(
-            f"covered-{index}" for index in range(10000)
-            if intrazonal_metro_is_covered(self.network, "Z1", long_distance, f"covered-{index}", 47)
+        covered_agent = next(
+            index for index in range(10000)
+            if metro_endpoint_is_accessible(
+                self.network, seed=47, agent_id=index, zone_id="Z1", purpose="shopping",
+            )
         )
-        uncovered_key = next(
-            f"uncovered-{index}" for index in range(10000)
-            if not intrazonal_metro_is_covered(self.network, "Z1", long_distance, f"uncovered-{index}", 47)
+        uncovered_agent = next(
+            index for index in range(10000)
+            if not metro_endpoint_is_accessible(
+                self.network, seed=47, agent_id=index, zone_id="Z1", purpose="shopping",
+            )
         )
-        base = {"origin_zone": "Z1", "destination_zone": "Z1", "road_network_distance_km": long_distance}
-        self.assertTrue(calculate_leg_mode_option(self.network, {**base, "leg_id": covered_key}, "metro")["available"])
-        self.assertFalse(calculate_leg_mode_option(self.network, {**base, "leg_id": uncovered_key}, "metro")["available"])
+        base = {
+            "leg_id": "long-z1", "purpose": "shopping", "origin_zone": "Z1",
+            "destination_zone": "Z1", "road_network_distance_km": long_distance,
+        }
+        self.assertTrue(calculate_leg_mode_option(self.network, {**base, "agent_id": covered_agent}, "metro")["available"])
+        self.assertFalse(calculate_leg_mode_option(self.network, {**base, "agent_id": uncovered_agent}, "metro")["available"])
         self.assertFalse(intrazonal_metro_is_covered(self.network, "Z9", 20.0, "z9", 47))
 
     def test_intrazonal_distance_reuses_zone_specific_spatial_value(self):
