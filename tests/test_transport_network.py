@@ -61,7 +61,7 @@ class TransportNetworkTests(unittest.TestCase):
             "access_mode", "main_network_distance_km", "access_distance_km", "network_distance_km",
             "in_vehicle_time_min", "access_time_min",
             "wait_time_min", "transfer_time_min", "total_time_min", "main_fare",
-            "access_fare", "fare", "line_transfer_count", "mode_transfer_count",
+            "access_fare", "fare", "line_transfer_count", "mode_transfer_count", "transfers",
         )))
 
     def test_available_times_and_fares_are_non_negative_and_add_up(self):
@@ -73,9 +73,14 @@ class TransportNetworkTests(unittest.TestCase):
                 "access_distance_km", "network_distance_km",
                 "in_vehicle_time_min", "access_time_min",
                 "wait_time_min", "transfer_time_min", "total_time_min", "main_fare",
-                "access_fare", "fare", "line_transfer_count", "mode_transfer_count",
+                "access_fare", "fare", "line_transfer_count", "mode_transfer_count", "transfers",
             ):
                 self.assertGreaterEqual(row[field], 0, (row, field))
+            self.assertEqual(
+                row["transfers"],
+                row["line_transfer_count"] + row["mode_transfer_count"],
+                row,
+            )
             expected = sum(row[field] for field in (
                 "in_vehicle_time_min", "access_time_min", "wait_time_min", "transfer_time_min"
             ))
@@ -92,7 +97,12 @@ class TransportNetworkTests(unittest.TestCase):
         transfer = self.by_key[("Z6", "Z4", "metro")]
         self.assertTrue(direct["available"] and transfer["available"])
         self.assertEqual(direct["line_transfer_count"], 0)
+        self.assertEqual(direct["transfers"], 0)
         self.assertGreaterEqual(transfer["line_transfer_count"], 1)
+        self.assertEqual(
+            transfer["transfers"],
+            transfer["line_transfer_count"] + transfer["mode_transfer_count"],
+        )
         short = self.by_key[("Z1", "Z2", "ride_hailing")]
         long = self.by_key[("Z9", "Z1", "ride_hailing")]
         self.assertGreater(long["network_distance_km"], short["network_distance_km"])
@@ -151,6 +161,10 @@ class TransportNetworkTests(unittest.TestCase):
         self.assertTrue(z9_metro["available"])
         self.assertEqual(z9_metro["access_mode"], "bus")
         self.assertEqual(z9_metro["mode_transfer_count"], 1)
+        self.assertEqual(
+            z9_metro["transfers"],
+            z9_metro["line_transfer_count"] + z9_metro["mode_transfer_count"],
+        )
         self.assertEqual(z9_metro["access_fare"], 2.0)
         self.assertGreater(z9_metro["access_distance_km"], 0)
         self.assertAlmostEqual(

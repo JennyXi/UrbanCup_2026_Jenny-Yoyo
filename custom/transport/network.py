@@ -36,6 +36,7 @@ OUTPUT_FIELDS = (
     "fare",
     "line_transfer_count",
     "mode_transfer_count",
+    "transfers",
 )
 
 
@@ -332,6 +333,7 @@ def _unavailable(
         "fare": None,
         "line_transfer_count": None,
         "mode_transfer_count": None,
+        "transfers": None,
     }
 
 
@@ -375,6 +377,7 @@ def _available(
         "fare": round(main_fare + access_fare, 2),
         "line_transfer_count": line_transfer_count,
         "mode_transfer_count": mode_transfer_count,
+        "transfers": line_transfer_count + mode_transfer_count,
     }
 
 

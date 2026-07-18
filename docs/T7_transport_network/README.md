@@ -85,7 +85,7 @@ in_vehicle_time_min
 + transfer_time_min
 ```
 
-`line_transfer_count`只统计公交内部或地铁内部的线路换乘；`mode_transfer_count`统计公交接驳地铁等方式转换。`access_mode`说明接驳方式。`main_fare`是主方式票价，`access_fare`是接驳费用，`fare = main_fare + access_fare`。
+`line_transfer_count`只统计公交内部或地铁内部的线路换乘；`mode_transfer_count`统计公交接驳地铁等方式转换；兼容字段 `transfers = line_transfer_count + mode_transfer_count` 可直接提供给 Agent。`access_mode`说明接驳方式。`main_fare`是主方式票价，`access_fare`是接驳费用，`fare = main_fare + access_fare`。
 
 不可用方式保留该OD—方式行，`available=false`；OD本身的 `euclidean_distance_km` 与 `road_network_distance_km`仍保留，方式专属距离、时间、费用和换乘字段为空。旧的 `effective_distance_km` 不再写入leg或OD CSV；T6内部的 `effective_choice_distance()`只用于目的地概率评分，不属于正式交通距离字段。区级 `od_mode_options.csv` 表示该分区是否存在这种供给；具体 `leg_mode_options.csv` 才使用实际抽样道路距离和端点覆盖结果判断某条同区leg能否坐地铁。它为每条leg列出四种备选方案，但不替Agent选择方式。
 
