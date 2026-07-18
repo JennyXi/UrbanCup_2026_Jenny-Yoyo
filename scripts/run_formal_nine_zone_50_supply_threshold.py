@@ -31,6 +31,7 @@ METRICS = (
     "activity_completion_rate", "necessary_activity_completion_rate",
     "walking_mode_share", "bus_mode_share", "metro_mode_share", "ride_hailing_mode_share",
     "mean_total_travel_time", "mean_road_speed_kmh",
+    "successful_orders_per_vehicle", "vehicle_used_share",
 )
 
 
@@ -75,6 +76,8 @@ def _run_row(
 ) -> dict[str, Any]:
     waits = [float(row["pickup_wait_min"]) for row in dispatch]
     failures = Counter(row["failure_reason"] for row in dispatch if not row["succeeded"])
+    successful = [row for row in dispatch if row["succeeded"]]
+    used_vehicles = {row["vehicle_id"] for row in successful}
     return {
         **dict(summary),
         "vehicle_total": vehicle_total,
@@ -85,6 +88,8 @@ def _run_row(
         "no_vehicle_failures": failures["no_vehicle_available"],
         "wait_limit_failures": failures["vehicle_wait_limit_exceeded"],
         "non_capacity_failures": failures["non_capacity_transport_failure"],
+        "successful_orders_per_vehicle": round(len(successful) / vehicle_total, 6),
+        "vehicle_used_share": round(len(used_vehicles) / vehicle_total, 6),
         "competition_event": int(summary["ride_hailing_failed"]) > 0,
         "collapse_event": int(summary["transport_unmet"]) > 0,
     }
@@ -239,12 +244,16 @@ def main() -> None:
             paired_inputs = None
             for total in ordered_totals:
                 run_config = copy.deepcopy(base_config)
-                run_config["formal_overrides"] = {
-                    "experiment_condition": f"fleet_{total}",
-                    "ride_hailing_fleet": {
-                        "initial_vehicles_by_day_type": {"workday": pools[total]}
-                    },
-                }
+                formal_overrides = run_config.setdefault("formal_overrides", {})
+                formal_overrides["experiment_condition"] = f"fleet_{total}"
+                fleet_overrides = formal_overrides.setdefault("ride_hailing_fleet", {})
+                fleet_overrides.setdefault("initial_vehicles_by_day_type", {})[
+                    config["day_type"]
+                ] = pools[total]
+                if config.get("mode_choice_override"):
+                    formal_overrides["mode_choice"] = copy.deepcopy(
+                        config["mode_choice_override"]
+                    )
                 result = run_formal_nine_zone_50_experiment(
                     config=run_config, seed=seed,
                     weather_scenarios=tuple(config["weather_scenarios"]),

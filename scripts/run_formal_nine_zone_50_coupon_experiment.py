@@ -9,6 +9,7 @@ import json
 import statistics
 import sys
 from collections import Counter, defaultdict
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
 from typing import Any, Iterable, Mapping
 
@@ -154,10 +155,11 @@ def _system_row(
 def _group_rows(
     result: Mapping[str, Any], allocations: list[Mapping[str, Any]],
     outcomes: list[Mapping[str, Any]], policy: str, seed: int,
+    weather_scenarios: Iterable[str] = ("W0", "W2"),
 ) -> list[dict[str, Any]]:
     agents = {int(row["agent_id"]): row for row in result["inputs"]["agents"]}
     output = []
-    for weather in ("W0", "W2"):
+    for weather in weather_scenarios:
         activities = [row for row in result["activity_results"] if row["weather_scenario"] == weather]
         choices = [row for row in result["mode_choices"] if row["weather_scenario"] == weather]
         dispatch = [row for row in result["ride_hailing_dispatch"] if row["weather_scenario"] == weather]
@@ -202,10 +204,12 @@ def _group_rows(
     return output
 
 
-def _distributions(rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _distributions(
+    rows: list[Mapping[str, Any]], weather_scenarios: Iterable[str] = ("W0", "W2"),
+) -> list[dict[str, Any]]:
     output = []
     for policy in COUPON_POLICIES:
-        for weather in ("W0", "W2"):
+        for weather in weather_scenarios:
             group = [row for row in rows if row["policy"] == policy and row["weather_scenario"] == weather]
             for metric in SYSTEM_METRICS:
                 values = [float(row[metric]) for row in group]
@@ -219,10 +223,12 @@ def _distributions(rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return output
 
 
-def _group_distributions(rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _group_distributions(
+    rows: list[Mapping[str, Any]], weather_scenarios: Iterable[str] = ("W0", "W2"),
+) -> list[dict[str, Any]]:
     output = []
     for policy in COUPON_POLICIES:
-        for weather in ("W0", "W2"):
+        for weather in weather_scenarios:
             for group_name in GROUPS:
                 group = [
                     row for row in rows
@@ -242,14 +248,16 @@ def _group_distributions(rows: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return output
 
 
-def _policy_changes(distributions: list[Mapping[str, Any]]) -> list[dict[str, Any]]:
+def _policy_changes(
+    distributions: list[Mapping[str, Any]], weather_scenarios: Iterable[str] = ("W0", "W2"),
+) -> list[dict[str, Any]]:
     lookup = {
         (row["policy"], row["weather_scenario"], row["metric"]): float(row["mean"])
         for row in distributions
     }
     output = []
     for policy in COUPON_POLICIES[1:]:
-        for weather in ("W0", "W2"):
+        for weather in weather_scenarios:
             for metric in SYSTEM_METRICS:
                 baseline = lookup[("C0_no_coupon", weather, metric)]
                 current = lookup[(policy, weather, metric)]
@@ -265,146 +273,215 @@ def _policy_changes(distributions: list[Mapping[str, Any]]) -> list[dict[str, An
     return output
 
 
+def _run_seed(
+    seed: int,
+    config: Mapping[str, Any],
+    base_config: Mapping[str, Any],
+    weather_scenarios: tuple[str, ...],
+    fleet_total: int,
+) -> dict[str, Any]:
+    """Run one paired seed; safe to execute in a separate process."""
+    system_rows, group_rows, allocation_rows = [], [], []
+    outcome_rows, choice_rows, dispatch_rows, checks = [], [], [], []
+    policy_results = {}
+    policy_allocations = {}
+    paired_inputs = None
+    for policy in COUPON_POLICIES:
+        if paired_inputs is None:
+            bootstrap = run_formal_nine_zone_50_experiment(
+                config=base_config, seed=seed, weather_scenarios=("W0",),
+                day_types=("workday",),
+            )
+            paired_inputs = bootstrap["inputs"]
+        profiles = [_profile(row) for row in paired_inputs["agents"]]
+        allocations = allocate_daily_coupons(
+            profiles, policy, "workday", seed=seed, config=config,
+        )
+        allocation_map = {int(row["agent_id"]): row for row in allocations}
+        run_config = copy.deepcopy(base_config)
+        formal_overrides = run_config.setdefault("formal_overrides", {})
+        formal_overrides["experiment_condition"] = f"coupon_{policy}"
+        fleet_overrides = formal_overrides.setdefault("ride_hailing_fleet", {})
+        fleet_overrides.setdefault("initial_vehicles_by_day_type", {})[
+            config["day_type"]
+        ] = config["initial_vehicles"]
+        formal_overrides["_coupon_allocations"] = allocation_map
+        formal_overrides["_coupon_discount_multiplier"] = float(
+            config["coupon_experiment"]["discount_multiplier"]
+        )
+        if config.get("mode_choice_override"):
+            formal_overrides["mode_choice"] = copy.deepcopy(
+                config["mode_choice_override"]
+            )
+        result = run_formal_nine_zone_50_experiment(
+            config=run_config, seed=seed,
+            weather_scenarios=weather_scenarios,
+            day_types=(config["day_type"],), paired_inputs=paired_inputs,
+        )
+        policy_results[policy] = result
+        policy_allocations[policy] = allocations
+
+    baseline = {
+        (row["weather_scenario"], row["leg_id"]): row["primary_mode"]
+        for row in policy_results["C0_no_coupon"]["mode_choices"]
+    }
+    baseline_priorities = {
+        (row["weather_scenario"], row["leg_id"]): row["dispatch_priority"]
+        for row in policy_results["C0_no_coupon"]["ride_hailing_dispatch"]
+    }
+    for policy in COUPON_POLICIES:
+        result = policy_results[policy]
+        allocations = policy_allocations[policy]
+        for row in result["mode_choices"]:
+            row["policy"] = policy
+            row["coupon_induced_request"] = bool(
+                row["coupon_bound"] and row["primary_mode"] == "ride_hailing"
+                and baseline.get((row["weather_scenario"], row["leg_id"])) != "ride_hailing"
+            )
+        for row in result["ride_hailing_dispatch"]:
+            row["policy"] = policy
+        outcomes = []
+        for weather in config["weather_scenarios"]:
+            outcomes.extend(_outcomes(
+                allocations, result["mode_choices"], policy, weather, seed,
+            ))
+        for summary in result["summary_rows"]:
+            weather_outcomes = [
+                row for row in outcomes
+                if row["weather_scenario"] == summary["weather_scenario"]
+            ]
+            system_rows.append(_system_row(
+                summary, allocations, weather_outcomes, result["mode_choices"],
+                result["ride_hailing_dispatch"], policy,
+            ))
+        group_rows.extend(_group_rows(
+            result, allocations, outcomes, policy, seed, weather_scenarios,
+        ))
+        allocation_rows.extend({"seed": seed, "policy": policy, **row} for row in allocations)
+        outcome_rows.extend(outcomes)
+        choice_rows.extend({"seed": seed, **row} for row in result["mode_choices"])
+        dispatch_rows.extend({"seed": seed, **row} for row in result["ride_hailing_dispatch"])
+        by_vehicle: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
+        for dispatch_row in result["ride_hailing_dispatch"]:
+            if dispatch_row["succeeded"]:
+                by_vehicle[(dispatch_row["weather_scenario"], dispatch_row["vehicle_id"])].append(dispatch_row)
+        vehicle_nonoverlap = all(
+            all(
+                float(right["busy_start"]) + 1e-9 >= float(left["busy_until"])
+                for left, right in zip(ordered, ordered[1:])
+            )
+            for vehicle_rows in by_vehicle.values()
+            for ordered in [sorted(vehicle_rows, key=lambda row: float(row["busy_start"]))]
+        )
+        current_priorities = {
+            (row["weather_scenario"], row["leg_id"]): row["dispatch_priority"]
+            for row in result["ride_hailing_dispatch"]
+        }
+        common_priority = set(baseline_priorities) & set(current_priorities)
+        check = {
+            "seed": seed, "policy": policy,
+            "coupon_pool_limit_passed": sum(row["coupon_awarded"] for row in allocations) <= int(config["coupon_experiment"]["daily_total_coupon_pool"]),
+            "one_coupon_per_agent_day_passed": len({row["agent_id"] for row in allocations if row["coupon_awarded"]}) == sum(row["coupon_awarded"] for row in allocations),
+            "one_binding_per_agent_weather_passed": all(value <= 1 for value in Counter(
+                (row["weather_scenario"], row["agent_id"])
+                for row in result["mode_choices"] if row["coupon_bound"]
+            ).values()),
+            "vehicle_conservation_passed": all(
+                sum(row["weather_scenario"] == weather for row in result["vehicle_end_states"]) == fleet_total
+                for weather in weather_scenarios
+            ),
+            "vehicle_assignments_nonoverlapping_passed": vehicle_nonoverlap,
+            "common_dispatch_priority_passed": all(
+                baseline_priorities[key] == current_priorities[key] for key in common_priority
+            ),
+            "common_agents_activities_od_passed": all(
+                candidate["inputs"]["agents"] == result["inputs"]["agents"]
+                and candidate["inputs"]["activities"] == result["inputs"]["activities"]
+                for candidate in policy_results.values()
+            ),
+            "nondigital_unassisted_public_exclusion_passed": all(
+                not row["public_coupon_participated"]
+                for row in allocations if row["nondigital_unassisted"]
+            ),
+            "coupon_only_bound_request_can_be_induced_passed": all(
+                not row["coupon_induced_request"] or row["coupon_bound"]
+                for row in result["mode_choices"]
+            ),
+        }
+        check["passed"] = all(
+            value for key, value in check.items() if key.endswith("_passed")
+        )
+        checks.append(check)
+    return {
+        "seed": seed,
+        "system_rows": system_rows, "group_rows": group_rows,
+        "allocation_rows": allocation_rows, "outcome_rows": outcome_rows,
+        "choice_rows": choice_rows, "dispatch_rows": dispatch_rows,
+        "checks": checks,
+    }
+
+
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)
     parser.add_argument("--seed-start", type=int, default=None)
     parser.add_argument("--seed-count", type=int, default=None)
+    parser.add_argument(
+        "--workers", type=int, default=1,
+        help="Number of seed processes to run in parallel (default: 1).",
+    )
     args = parser.parse_args()
     config = _load(args.config)
     seed_start = int(config["seed_start"] if args.seed_start is None else args.seed_start)
     seed_count = int(config["seed_count"] if args.seed_count is None else args.seed_count)
     base_config = load_formal_50_config(ROOT / config["base_experiment_config"])
-    if sum(config["initial_vehicles"].values()) != 12:
-        raise ValueError("formal coupon experiment must use the selected 12-vehicle baseline")
+    fleet_total = sum(config["initial_vehicles"].values())
+    expected_fleet_total = int(config.get("expected_initial_vehicle_total", 12))
+    if fleet_total != expected_fleet_total:
+        raise ValueError("formal coupon vehicle map must sum to expected_initial_vehicle_total")
+    weather_scenarios = tuple(config["weather_scenarios"])
+    if args.workers < 1:
+        raise ValueError("--workers must be at least 1")
 
     system_rows, group_rows, allocation_rows = [], [], []
     outcome_rows, choice_rows, dispatch_rows, checks = [], [], [], []
-    for seed in range(seed_start, seed_start + seed_count):
-        policy_results = {}
-        policy_allocations = {}
-        paired_inputs = None
-        for policy in COUPON_POLICIES:
-            if paired_inputs is None:
-                bootstrap = run_formal_nine_zone_50_experiment(
-                    config=base_config, seed=seed, weather_scenarios=("W0",),
-                    day_types=("workday",),
-                )
-                paired_inputs = bootstrap["inputs"]
-            profiles = [_profile(row) for row in paired_inputs["agents"]]
-            allocations = allocate_daily_coupons(
-                profiles, policy, "workday", seed=seed, config=config,
+    seeds = list(range(seed_start, seed_start + seed_count))
+    completed: dict[int, dict[str, Any]] = {}
+    if args.workers == 1:
+        for index, seed in enumerate(seeds, start=1):
+            completed[seed] = _run_seed(
+                seed, config, base_config, weather_scenarios, fleet_total,
             )
-            allocation_map = {int(row["agent_id"]): row for row in allocations}
-            run_config = copy.deepcopy(base_config)
-            run_config["formal_overrides"] = {
-                "experiment_condition": f"coupon_{policy}",
-                "ride_hailing_fleet": {
-                    "initial_vehicles_by_day_type": {"workday": config["initial_vehicles"]}
-                },
-                "_coupon_allocations": allocation_map,
-                "_coupon_discount_multiplier": float(config["coupon_experiment"]["discount_multiplier"]),
+            print(f"Completed seed {seed} ({index}/{seed_count})", flush=True)
+    else:
+        worker_count = min(args.workers, seed_count)
+        with ProcessPoolExecutor(max_workers=worker_count) as executor:
+            futures = {
+                executor.submit(
+                    _run_seed, seed, config, base_config,
+                    weather_scenarios, fleet_total,
+                ): seed
+                for seed in seeds
             }
-            result = run_formal_nine_zone_50_experiment(
-                config=run_config, seed=seed,
-                weather_scenarios=tuple(config["weather_scenarios"]),
-                day_types=("workday",), paired_inputs=paired_inputs,
-            )
-            policy_results[policy] = result
-            policy_allocations[policy] = allocations
+            for index, future in enumerate(as_completed(futures), start=1):
+                seed = futures[future]
+                completed[seed] = future.result()
+                print(f"Completed seed {seed} ({index}/{seed_count})", flush=True)
 
-        baseline = {
-            (row["weather_scenario"], row["leg_id"]): row["primary_mode"]
-            for row in policy_results["C0_no_coupon"]["mode_choices"]
-        }
-        baseline_priorities = {
-            (row["weather_scenario"], row["leg_id"]): row["dispatch_priority"]
-            for row in policy_results["C0_no_coupon"]["ride_hailing_dispatch"]
-        }
-        for policy in COUPON_POLICIES:
-            result = policy_results[policy]
-            allocations = policy_allocations[policy]
-            for row in result["mode_choices"]:
-                row["policy"] = policy
-                row["coupon_induced_request"] = bool(
-                    row["coupon_bound"] and row["primary_mode"] == "ride_hailing"
-                    and baseline.get((row["weather_scenario"], row["leg_id"])) != "ride_hailing"
-                )
-            for row in result["ride_hailing_dispatch"]:
-                row["policy"] = policy
-            outcomes = []
-            for weather in config["weather_scenarios"]:
-                outcomes.extend(_outcomes(
-                    allocations, result["mode_choices"], policy, weather, seed,
-                ))
-            for summary in result["summary_rows"]:
-                weather_outcomes = [row for row in outcomes if row["weather_scenario"] == summary["weather_scenario"]]
-                system_rows.append(_system_row(
-                    summary, allocations, weather_outcomes, result["mode_choices"],
-                    result["ride_hailing_dispatch"], policy,
-                ))
-            group_rows.extend(_group_rows(result, allocations, outcomes, policy, seed))
-            allocation_rows.extend({"seed": seed, "policy": policy, **row} for row in allocations)
-            outcome_rows.extend(outcomes)
-            choice_rows.extend(result["mode_choices"])
-            dispatch_rows.extend(result["ride_hailing_dispatch"])
-            by_vehicle: dict[tuple[str, str], list[Mapping[str, Any]]] = defaultdict(list)
-            for dispatch_row in result["ride_hailing_dispatch"]:
-                if dispatch_row["succeeded"]:
-                    by_vehicle[(dispatch_row["weather_scenario"], dispatch_row["vehicle_id"])].append(dispatch_row)
-            vehicle_nonoverlap = all(
-                all(
-                    float(right["busy_start"]) + 1e-9 >= float(left["busy_until"])
-                    for left, right in zip(ordered, ordered[1:])
-                )
-                for vehicle_rows in by_vehicle.values()
-                for ordered in [sorted(vehicle_rows, key=lambda row: float(row["busy_start"]))]
-            )
-            current_priorities = {
-                (row["weather_scenario"], row["leg_id"]): row["dispatch_priority"]
-                for row in result["ride_hailing_dispatch"]
-            }
-            common_priority = set(baseline_priorities) & set(current_priorities)
-            check = {
-                "seed": seed, "policy": policy,
-                "coupon_pool_limit_passed": sum(row["coupon_awarded"] for row in allocations) <= int(config["coupon_experiment"]["daily_total_coupon_pool"]),
-                "one_coupon_per_agent_day_passed": len({row["agent_id"] for row in allocations if row["coupon_awarded"]}) == sum(row["coupon_awarded"] for row in allocations),
-                "one_binding_per_agent_weather_passed": all(value <= 1 for value in Counter(
-                    (row["weather_scenario"], row["agent_id"])
-                    for row in result["mode_choices"] if row["coupon_bound"]
-                ).values()),
-                "vehicle_conservation_passed": all(
-                    sum(row["weather_scenario"] == weather for row in result["vehicle_end_states"]) == 12
-                    for weather in config["weather_scenarios"]
-                ),
-                "vehicle_assignments_nonoverlapping_passed": vehicle_nonoverlap,
-                "common_dispatch_priority_passed": all(
-                    baseline_priorities[key] == current_priorities[key] for key in common_priority
-                ),
-                "common_agents_activities_od_passed": all(
-                    candidate["inputs"]["agents"] == result["inputs"]["agents"]
-                    and candidate["inputs"]["activities"] == result["inputs"]["activities"]
-                    for candidate in policy_results.values()
-                ),
-                "nondigital_unassisted_public_exclusion_passed": all(
-                    not row["public_coupon_participated"]
-                    for row in allocations if row["nondigital_unassisted"]
-                ),
-                "coupon_only_bound_request_can_be_induced_passed": all(
-                    not row["coupon_induced_request"] or row["coupon_bound"]
-                    for row in result["mode_choices"]
-                ),
-            }
-            check["passed"] = all(
-                value for key, value in check.items() if key.endswith("_passed")
-            )
-            checks.append(check)
-        print(f"Completed seed {seed} ({seed - seed_start + 1}/{seed_count})", flush=True)
+    for seed in seeds:
+        result = completed[seed]
+        system_rows.extend(result["system_rows"])
+        group_rows.extend(result["group_rows"])
+        allocation_rows.extend(result["allocation_rows"])
+        outcome_rows.extend(result["outcome_rows"])
+        choice_rows.extend(result["choice_rows"])
+        dispatch_rows.extend(result["dispatch_rows"])
+        checks.extend(result["checks"])
 
-    distributions = _distributions(system_rows)
-    group_distributions = _group_distributions(group_rows)
-    policy_changes = _policy_changes(distributions)
+    distributions = _distributions(system_rows, weather_scenarios)
+    group_distributions = _group_distributions(group_rows, weather_scenarios)
+    policy_changes = _policy_changes(distributions, weather_scenarios)
     output = args.output_dir
     output.mkdir(parents=True, exist_ok=True)
     for name, rows in {

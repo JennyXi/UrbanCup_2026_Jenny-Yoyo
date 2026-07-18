@@ -57,14 +57,14 @@ def load_formal_50_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Dict[str, A
 
 
 def validate_formal_50_config(config: Mapping[str, Any]) -> None:
-    if int(config["total_agents"]) != 50:
-        raise ValueError("formal first-stage experiment must use 50 Agents")
+    if int(config["total_agents"]) not in {50, 200}:
+        raise ValueError("formal staged experiment must use 50 or 200 Agents")
     if tuple(config["weather_scenarios"]) != WEATHER_SCENARIOS:
         raise ValueError("formal experiment weather scenarios must be W0/W1/W2")
     if tuple(config["day_types"]) != ("workday", "rest_day"):
         raise ValueError("formal experiment must contain workday and rest_day")
     if config["policy"] != "P0_no_policy":
-        raise ValueError("the first formal 50-Agent experiment is P0 only")
+        raise ValueError("the formal baseline experiment is P0 only")
     state = config["activity_state_machine"]
     if state["work_weather_cancellation_allowed"] or state["medical_weather_cancellation_allowed"]:
         raise ValueError("work and medical cannot enter ordinary weather cancellation")
@@ -228,18 +228,15 @@ def _outdoor_segments(
                 + transfer_penalty
             )
         else:
-            access = float(params[row["origin_zone"]]["metro_access_min"] or 0.0)
+            access = float(
+                row.get("origin_metro_walk_access_minutes")
+                if row.get("origin_metro_walk_access_minutes") is not None
+                else params[row["origin_zone"]]["metro_access_min"] or 0.0
+            )
             if access > 0:
                 segments.append((cursor, access))
             cursor += timedelta(minutes=access)
-        metro_wait = max(
-            0.0,
-            float(row["wait_minutes"])
-            - float(row.get("origin_feeder_wait_minutes") or 0.0)
-            - float(row.get("destination_feeder_wait_minutes") or 0.0),
-        )
-        if metro_wait > 0:
-            segments.append((cursor, metro_wait))
+        # Metro platform waiting is station time, not outdoor heat/rain exposure.
         if destination_bus:
             feeder_total = float(row.get("destination_feeder_total_time_minutes") or 0.0)
             feeder_start = attempt_start + timedelta(
@@ -252,7 +249,11 @@ def _outdoor_segments(
             if wait > 0:
                 segments.append((feeder_start + timedelta(minutes=access), wait))
         else:
-            access = float(params[row["destination_zone"]]["metro_access_min"] or 0.0)
+            access = float(
+                row.get("destination_metro_walk_access_minutes")
+                if row.get("destination_metro_walk_access_minutes") is not None
+                else params[row["destination_zone"]]["metro_access_min"] or 0.0
+            )
             if access > 0:
                 segments.append((
                     attempt_start + timedelta(
@@ -267,7 +268,7 @@ def _outdoor_segments(
         transfer = float(row["transfer_time_min"])
         if origin_access > 0:
             segments.append((attempt_start, origin_access))
-        if wait > 0:
+        if mode == "bus" and wait > 0:
             segments.append((attempt_start + timedelta(minutes=origin_access), wait))
         if destination_access > 0:
             destination_start = attempt_start + timedelta(

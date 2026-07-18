@@ -1,0 +1,49 @@
+{
+  "experiment_id": "formal_nine_zone_200_coupon_competition_a1_v1",
+  "description": "Paired C0-C3 20-percent-off coupon experiment at the confirmed 36-vehicle A1 nine-zone mechanism baseline.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "expected_initial_vehicle_total": 36,
+  "initial_vehicles": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+  "mode_choice_override": {
+    "weather_exposure_disutility": {
+      "enabled": true,
+      "utility_penalty_per_outdoor_minute": {
+        "normal": 0.0,
+        "extreme_heat": 0.015,
+        "heavy_rain": 0.012
+      },
+      "age_vulnerability_weight": {"18-39": 1.0, "40-59": 1.1, "60+": 1.3}
+    }
+  },
+  "coupon_experiment": {
+    "policies": ["C0_no_coupon", "C1_public_limited", "C2_elder_limited", "C3_mixed"],
+    "discount_multiplier": 0.80,
+    "daily_total_coupon_pool": 40,
+    "public_participation_probability": {"18-39": 0.80, "40-59": 0.65, "60+": 0.45},
+    "mixed_public_pool_share": 0.70,
+    "community_phone_coverage_rate": 0.40,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0,
+    "interpretation": "Finite daily 20-percent-off coupon mechanism assumptions, not observed Shanghai take-up or welfare estimates."
+  },
+  "scale_definition": {
+    "agents": 200,
+    "effective_initial_vehicle_pool": 36,
+    "vehicles_per_agent": 0.18,
+    "coupon_pool": 40,
+    "coupons_per_100_agents": 20,
+    "coupon_pool_scaling_from_50_agent_experiment": 4.0
+  },
+  "scope_notes": [
+    "All policies within a seed share Agents, activities, OD, weather, 36-vehicle pool, A1 choice behavior, mode-choice shocks and base dispatch priorities.",
+    "C0 has no coupon; C1 is limited all-age public claiming; C2 is limited elder-targeted distribution; C3 uses 70 percent public and 30 percent elder-reserved coupons.",
+    "A coupon binds to the first ride-hailing request; success redeems it and failure expires it for that modeled day-weather run.",
+    "C3 community or phone assistance covers only a configured fraction of otherwise unassisted elders and does not change digital_access.",
+    "The 40-coupon pool is a proportional mechanism setting, not a recommended real-world coverage rate."
+  ]
+}

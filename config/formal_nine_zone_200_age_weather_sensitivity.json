@@ -1,0 +1,39 @@
+{
+  "experiment_id": "formal_nine_zone_200_age_weather_sensitivity_v1",
+  "description": "Paired A0/A1/A2 sensitivity for age-weighted expected outdoor-exposure disutility before the fleet screen.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "fleet_total": 48,
+  "age_vulnerability_weight": {
+    "18-39": 1.0,
+    "40-59": 1.1,
+    "60+": 1.3
+  },
+  "behavior_scenarios": {
+    "A0_no_exposure_disutility": {
+      "normal": 0.0,
+      "extreme_heat": 0.0,
+      "heavy_rain": 0.0
+    },
+    "A1_moderate_exposure_disutility": {
+      "normal": 0.0,
+      "extreme_heat": 0.015,
+      "heavy_rain": 0.012
+    },
+    "A2_strong_exposure_disutility": {
+      "normal": 0.0,
+      "extreme_heat": 0.030,
+      "heavy_rain": 0.024
+    }
+  },
+  "scope_notes": [
+    "Coefficients are transparent mechanism sensitivity assumptions in utility units per expected outdoor minute, not estimated health valuations.",
+    "Fare sensitivity and value of time are unchanged. Weather exposure adds a separate physical-burden term.",
+    "The term applies only when departure is inside the configured W1/W2 behavioral weather window; W1 physiological heat dose is still integrated across the full day.",
+    "Digital access affects ride-hailing availability only and does not alter biological vulnerability.",
+    "A scenario should be selected for behavioral plausibility before testing ride-hailing fleet thresholds."
+  ]
+}

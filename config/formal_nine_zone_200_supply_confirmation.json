@@ -1,0 +1,61 @@
+{
+  "experiment_id": "formal_nine_zone_200_supply_confirmation_a1_v1",
+  "description": "Ten-seed confirmation of the provisional 36-vehicle A1 mechanism baseline against the 24-vehicle tight-supply sensitivity.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "mode_choice_override": {
+    "weather_exposure_disutility": {
+      "enabled": true,
+      "utility_penalty_per_outdoor_minute": {
+        "normal": 0.0,
+        "extreme_heat": 0.015,
+        "heavy_rain": 0.012
+      },
+      "age_vulnerability_weight": {
+        "18-39": 1.0,
+        "40-59": 1.1,
+        "60+": 1.3
+      }
+    }
+  },
+  "vehicle_pools_by_total": {
+    "36": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+    "24": {"Z1": 4, "Z2": 4, "Z3": 2, "Z4": 2, "Z5": 2, "Z6": 2, "Z7": 4, "Z8": 2, "Z9": 2}
+  },
+  "classification_rules": {
+    "stable_competition_min_seed_share": 0.50,
+    "widespread_competition_min_seed_share": 0.80,
+    "system_collapse_min_seed_share": 0.20,
+    "competition_event": "at least one ride-hailing capacity failure in the seed-weather run",
+    "collapse_event": "at least one final transport_unmet activity after fallback",
+    "candidate_rule": "highest fleet total with stable competition in at least one weather and below the collapse seed-share threshold"
+  },
+  "experimental_supply_scaling": {
+    "reference_agent_count": 200,
+    "provisional_baseline_vehicles": 36,
+    "vehicles_per_agent": 0.18,
+    "vehicles_per_100_agents": 18.0,
+    "tight_sensitivity_vehicles": 24,
+    "tight_sensitivity_vehicles_per_agent": 0.12,
+    "proportional_scale_starting_rule": "round(0.18 * formal_agent_count)",
+    "formal_scale_recalibration_required": true,
+    "formal_recalibration_dimensions": [
+      "represented residents per Agent",
+      "modeled ride-hailing orders per resident-day",
+      "modeled hours and peak concurrency",
+      "orders completed per vehicle-day",
+      "zone demand distribution",
+      "availability of cross-zone empty pickup or repositioning"
+    ],
+    "interpretation": "The 0.18 ratio is an effective conserved mechanism-pool starting point, not real vehicles per resident or a Shanghai fleet estimate."
+  },
+  "scope_notes": [
+    "The ten-seed run confirms robustness; it does not retune the A1 behavior coefficients.",
+    "All paired fleet levels share Agents, activities, OD, weather and dispatch priorities within a seed.",
+    "The 36-vehicle result is evaluated using failure magnitude, fallback and necessary completion as well as the automatic competition label.",
+    "Formal Agent Society runs must compare a proportional starting pool with reality-anchored and scale-sensitivity pools."
+  ]
+}

@@ -259,6 +259,13 @@ def _checks(
             for left, right in zip(rows, rows[1:])
         )
     order = True
+    pending_policy_order = True
+    def request_minute(row: Mapping[str, Any]) -> float:
+        moment = row["request_time"]
+        if hasattr(moment, "hour"):
+            return moment.hour * 60 + moment.minute + moment.second / 60.0
+        return float(moment)
+
     for weather in ("W0", "W2"):
         rows = [row for row in dispatch if row["weather_scenario"] == weather]
         keys = [
@@ -267,6 +274,33 @@ def _checks(
             for row in rows
         ]
         order &= keys == sorted(keys)
+        assigned: set[str] = set()
+        successful = sorted(
+            (row for row in rows if row["succeeded"]),
+            key=lambda row: int(row["dispatch_sequence"]),
+        )
+        for dispatched in successful:
+            dispatch_time = float(dispatched["dispatch_time"])
+            candidates = [
+                row for row in rows
+                if str(row["leg_id"]) not in assigned
+                and row["origin_zone"] == dispatched["origin_zone"]
+                and request_minute(row) <= dispatch_time + 1e-9
+                and request_minute(row)
+                + float(result["formal_config"]["ride_hailing_fleet"]["maximum_vehicle_wait_min"])
+                >= dispatch_time - 1e-9
+            ]
+            if policy == "P4_elder_priority":
+                expected = min(candidates, key=lambda row: (
+                    int(row["dispatch_priority_group_rank"]), row["request_time"],
+                    float(row["dispatch_priority"]), str(row["leg_id"]),
+                ))
+            else:
+                expected = min(candidates, key=lambda row: (
+                    row["request_time"], float(row["dispatch_priority"]), str(row["leg_id"]),
+                ))
+            pending_policy_order &= expected["leg_id"] == dispatched["leg_id"]
+            assigned.add(str(dispatched["leg_id"]))
     base_priority = {
         (row["weather_scenario"], row["leg_id"]): row["dispatch_priority"]
         for row in baseline["ride_hailing_dispatch"]
@@ -284,6 +318,7 @@ def _checks(
         ),
         "vehicle_assignments_nonoverlapping_passed": nonoverlap,
         "request_time_then_policy_order_passed": order,
+        "pending_queue_policy_order_passed": pending_policy_order,
         "common_base_dispatch_priority_passed": all(
             base_priority[key] == current_priority[key] for key in common
         ),

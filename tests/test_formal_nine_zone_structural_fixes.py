@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import math
 import unittest
-from datetime import timedelta
+from datetime import datetime, timedelta
 from functools import lru_cache
 
 from custom.agents.formal_nine_zone_50_experiment import (
+    _outdoor_segments,
     run_formal_nine_zone_50_experiment,
 )
+from custom.agents.formal_nine_zone_experiment import (
+    _weather_adjusted_walk_access_minutes,
+)
+from custom.transport.network import build_transport_network
 
 
 @lru_cache(maxsize=1)
@@ -119,6 +124,37 @@ class FormalNineZoneStructuralFixTests(unittest.TestCase):
         result = _paired_workday_result()
         values = {row["scheduled_bus_vehicle_trips"] for row in result["summary_rows"]}
         self.assertEqual(len(values), 1)
+
+    def test_metro_platform_wait_is_not_outdoor_but_station_walk_is(self):
+        departure = datetime(2026, 7, 7, 8, 0)
+        row = {
+            "departure_time": departure, "failed_attempt_consumed_minutes": 0.0,
+            "transport_succeeded": True, "final_attempt_departure_time": departure,
+            "final_mode": "metro", "bus_metro_transfer_count": 0,
+            "origin_zone": "Z1", "destination_zone": "Z2",
+            "access_time_min": 16.0, "wait_minutes": 5.0,
+            "in_vehicle_time_min": 20.0, "transfer_time_min": 0.0,
+            "total_travel_time_min": 41.0,
+        }
+        segments = _outdoor_segments(row, build_transport_network())
+        self.assertAlmostEqual(sum(duration for _start, duration in segments), 16.0)
+
+    def test_heavy_rain_slows_direct_walk_access_to_metro(self):
+        start = datetime(2026, 7, 7, 8, 0)
+        events = [{
+            "weather_type": "heavy_rain",
+            "start": datetime(2026, 7, 7, 7, 0),
+            "end": datetime(2026, 7, 7, 10, 0),
+        }]
+        self.assertAlmostEqual(
+            _weather_adjusted_walk_access_minutes(10.0, start, events), 12.5,
+        )
+        self.assertAlmostEqual(
+            _weather_adjusted_walk_access_minutes(
+                10.0, datetime(2026, 7, 7, 13, 0), events,
+            ),
+            10.0,
+        )
 
 
 if __name__ == "__main__":

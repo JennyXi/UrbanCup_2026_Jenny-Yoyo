@@ -97,7 +97,15 @@
   },
   "bus_system": {
     "vehicle_capacity_passengers": 50.0,
+    "capacity_constraint_enabled": false,
     "scheduled_routes_in_both_directions": true
+  },
+  "behavioral_scope_assumptions": {
+    "ride_hailing_rechoice_after_request": false,
+    "ride_hailing_request_accepted_until_maximum_wait_or_failure": true,
+    "bus_boarding_is_guaranteed": true,
+    "metro_boarding_is_guaranteed": true,
+    "interpretation": "After requesting ride-hailing, an Agent accepts the realized pickup ETA unless the configured wait limit or dispatch failure triggers fallback. Public transport crowding and denied boarding are outside this mechanism experiment."
   },
   "scope_notes": [
     "Metro is a continuous cross-zone trunk network. Only Z1/Z2/Z3/Z7 have sufficient station density for modeled intrazonal metro trips.",

@@ -28,7 +28,7 @@
       "dispatch_priority_policy": "P4_elder_priority"
     }
   },
-  "priority_scope": "Actual request time remains the first queue key. Only ride-hailing requests with the same actual request time are reordered by elder group rank, followed by the shared seed-based dispatch priority and leg_id.",
+  "priority_scope": "An assignment already made is never revoked. When a vehicle becomes idle, P0 selects the earliest still-pending request, while P4 first selects an elder among all unexpired pending requests in that origin zone, then uses request time, the shared seed-based dispatch priority and leg_id.",
   "scope_notes": [
     "P4 does not add vehicles and does not change mode-choice utility, fares, digital access, activities, weather, fallback rules or base dispatch-priority draws.",
     "Coupons are disabled and elder digital-access attributes remain at their generated baseline values.",

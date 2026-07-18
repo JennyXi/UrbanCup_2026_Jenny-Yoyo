@@ -1,0 +1,26 @@
+{
+  "experiment_id": "formal_nine_zone_200_agent_p0_smoke_v1",
+  "seed_start": 47,
+  "seed_count": 3,
+  "agents_per_seed": 200,
+  "weather_scenarios": [
+    "W0",
+    "W1",
+    "W2"
+  ],
+  "day_types": [
+    "workday"
+  ],
+  "policy": "P0_no_policy",
+  "initial_ride_hailing_vehicles": 48,
+  "all_checks_passed": true,
+  "scale_definition": {
+    "reference_agents": 50,
+    "reference_ride_hailing_vehicles": 12,
+    "scaled_agents": 200,
+    "scaled_ride_hailing_vehicles": 48,
+    "public_transport_service_scaled_with_population": false,
+    "public_transport_capacity_constraint_enabled": false,
+    "road_volume_interpretation": "representative pressure inside the experiment, not calibrated citywide traffic"
+  }
+}

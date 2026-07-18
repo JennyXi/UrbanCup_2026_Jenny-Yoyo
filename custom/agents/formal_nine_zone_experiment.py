@@ -39,7 +39,11 @@ from custom.transport.time_supply import (
     load_time_supply_configuration,
     period_supply_parameters,
 )
-from custom.transport.weather_supply import calculate_weather_adjusted_leg_mode_option
+from custom.transport.weather_supply import (
+    calculate_weather_adjusted_leg_mode_option,
+    load_weather_supply_configuration,
+    weather_supply_parameters,
+)
 
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -273,6 +277,20 @@ def _gateway_feeder_leg(
     return leg
 
 
+def _weather_adjusted_walk_access_minutes(
+    minutes: float, moment: datetime, events: Sequence[Mapping[str, Any]],
+) -> float:
+    if minutes <= 0:
+        return 0.0
+    weather = weather_supply_parameters(
+        moment, "walk", events, load_weather_supply_configuration(),
+    )
+    multiplier = float(weather["weather_speed_multiplier"])
+    if multiplier <= 0:
+        raise ValueError("walk weather speed multiplier must be positive")
+    return minutes / multiplier
+
+
 def _option(
     network: Mapping[str, Any], leg: Mapping[str, Any], mode: str,
     events: Sequence[Mapping[str, Any]], *, seed: int,
@@ -362,6 +380,22 @@ def _option(
         if not topology["available"]:
             return topology
 
+    origin_walk_access = (
+        _weather_adjusted_walk_access_minutes(
+            origin_direct_access, leg["departure_time"], events,
+        )
+        if not origin_local and origin != "Z9" else 0.0
+    )
+    destination_walk_start = topology_leg["departure_time"] + timedelta(
+        minutes=max(0.0, float(topology["final_total_time_min"]) - destination_direct_access)
+    )
+    destination_walk_access = (
+        _weather_adjusted_walk_access_minutes(
+            destination_direct_access, destination_walk_start, events,
+        )
+        if not destination_local and destination != "Z9" else 0.0
+    )
+
     destination_feeder = None
     if destination_local:
         destination_start = (
@@ -395,6 +429,8 @@ def _option(
         - (origin_direct_access if origin_local else 0.0)
         - (destination_direct_access if destination_local else 0.0)
         + local_access
+        + (origin_walk_access - origin_direct_access if not origin_local else 0.0)
+        + (destination_walk_access - destination_direct_access if not destination_local else 0.0)
     )
     wait = float(topology["period_wait_time_min"]) + local_wait
     vehicle = float(topology["final_in_vehicle_time_min"]) + local_vehicle
@@ -474,9 +510,11 @@ def _option(
         "origin_feeder_total_time_minutes": 0.0 if (origin_feeder or origin_gateway) is None else float((origin_feeder or origin_gateway)["final_total_time_min"]),
         "origin_feeder_access_minutes": 0.0 if (origin_feeder or origin_gateway) is None else float((origin_feeder or origin_gateway)["access_time_min"]),
         "origin_feeder_wait_minutes": 0.0 if (origin_feeder or origin_gateway) is None else float((origin_feeder or origin_gateway)["period_wait_time_min"]),
+        "origin_metro_walk_access_minutes": origin_walk_access,
         "destination_feeder_total_time_minutes": 0.0 if (destination_feeder or destination_gateway) is None else float((destination_feeder or destination_gateway)["final_total_time_min"]),
         "destination_feeder_access_minutes": 0.0 if (destination_feeder or destination_gateway) is None else float((destination_feeder or destination_gateway)["access_time_min"]),
         "destination_feeder_wait_minutes": 0.0 if (destination_feeder or destination_gateway) is None else float((destination_feeder or destination_gateway)["period_wait_time_min"]),
+        "destination_metro_walk_access_minutes": destination_walk_access,
         "feeder_bus_mean_scenario_vc": mean(feeder_vcs) if feeder_vcs else None,
     })
     return result
@@ -557,6 +595,29 @@ def _available_to_agent(
     return True
 
 
+def _expected_outdoor_exposure_minutes(
+    mode: str, option: Mapping[str, Any],
+) -> float:
+    """Transparent choice-stage forecast; physiological dose remains an outcome metric."""
+    if mode == "walk":
+        return max(0.0, float(option["final_total_time_min"]))
+    if mode == "bus":
+        return max(
+            0.0,
+            float(option.get("access_time_min") or 0.0)
+            + float(option.get("period_wait_time_min") or 0.0),
+        )
+    if mode == "metro":
+        return max(
+            0.0,
+            float(option.get("access_time_min") or 0.0)
+            + float(option.get("feeder_bus_wait_minutes") or 0.0),
+        )
+    if mode == "ride_hailing":
+        return max(0.0, float(option.get("period_wait_time_min") or 0.0))
+    raise ValueError(f"unsupported mode for exposure forecast: {mode}")
+
+
 def _score_options(
     leg: Mapping[str, Any], agent: Mapping[str, Any], options: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]], config: Mapping[str, Any], seed: int,
@@ -591,6 +652,20 @@ def _score_options(
         utility += float(choice["age_mode_constant"][agent["age_group"]][mode])
         weather_type = _weather_at_departure(schedule["planned_departure_time"], events)
         utility += float(choice["weather_preference"][weather_type][mode])
+        exposure_config = choice.get("weather_exposure_disutility", {})
+        expected_outdoor = _expected_outdoor_exposure_minutes(mode, option)
+        exposure_rate = float(
+            exposure_config.get("utility_penalty_per_outdoor_minute", {}).get(
+                weather_type, 0.0,
+            )
+        ) if exposure_config.get("enabled", False) else 0.0
+        exposure_age_weight = float(
+            exposure_config.get("age_vulnerability_weight", {}).get(
+                agent["age_group"], 1.0,
+            )
+        )
+        exposure_disutility = expected_outdoor * exposure_rate * exposure_age_weight
+        utility -= exposure_disutility
         utility += float(choice["random_scale"]) * _stable_gumbel(
             seed, agent["agent_id"], leg["leg_id"], mode,
         )
@@ -601,6 +676,9 @@ def _score_options(
             "coupon_applied_to_choice": coupon_applied,
             "coupon_discount_multiplier": multiplier if coupon_applied else 1.0,
             "coupon_subsidy_yuan": fare_before_coupon - fare,
+            "expected_outdoor_exposure_minutes_at_choice": round(expected_outdoor, 6),
+            "weather_exposure_age_weight": round(exposure_age_weight, 6),
+            "weather_exposure_disutility": round(exposure_disutility, 6),
             "utility": round(utility, 6),
         })
     return sorted(rows, key=lambda row: (-row["utility"], ENABLED_MODES.index(row["mode"])))
@@ -629,33 +707,168 @@ def _new_fleet(config: Mapping[str, Any], day_type: str) -> _RideHailingFleet:
     )
 
 
+def _dispatch_selected_ride_requests(
+    selected: Sequence[Mapping[str, Any]], agents: Mapping[Any, Mapping[str, Any]],
+    config: Mapping[str, Any], day_type: str, seed: int,
+) -> tuple[Dict[str, Dict[str, Any]], _RideHailingFleet]:
+    """Dispatch a pending queue when vehicles become idle; never revoke an assignment."""
+    fleet = _new_fleet(config, day_type)
+    requests = []
+    for row in selected:
+        if row.get("chosen_mode") != "ride_hailing" or row.get("chosen_option") is None:
+            continue
+        leg = row["leg"]
+        option = row["chosen_option"]
+        request_time = _clock_minutes(leg["departure_time"])
+        maximum_wait = float(config["ride_hailing_fleet"]["maximum_vehicle_wait_min"])
+        requests.append({
+            "leg_id": str(leg["leg_id"]),
+            "request_time": request_time,
+            "deadline": request_time + maximum_wait,
+            "origin_zone": str(leg["origin_zone"]),
+            "destination_zone": str(leg["destination_zone"]),
+            "base_pickup_wait_min": float(option["period_wait_time_min"]),
+            "in_vehicle_time_min": float(option["final_in_vehicle_time_min"]),
+            "group_rank": _dispatch_group_rank(config, agents[leg["agent_id"]], leg),
+            "base_priority": _dispatch_priority(seed, leg["leg_id"]),
+        })
+    requests.sort(key=lambda row: (row["request_time"], row["base_priority"], row["leg_id"]))
+    if not requests:
+        return {}, fleet
+
+    policy = str(
+        config["ride_hailing_fleet"].get(
+            "dispatch_priority_policy", "P0_first_come",
+        )
+    )
+
+    def pending_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+        if policy == "P4_elder_priority":
+            return (
+                int(row["group_rank"]), float(row["request_time"]),
+                float(row["base_priority"]), str(row["leg_id"]),
+            )
+        return (
+            float(row["request_time"]), float(row["base_priority"]),
+            str(row["leg_id"]),
+        )
+
+    pending: list[Dict[str, Any]] = []
+    results: Dict[str, Dict[str, Any]] = {}
+    index = 0
+    dispatch_sequence = 0
+    current = float(requests[0]["request_time"])
+    while index < len(requests) or pending:
+        fleet.release_arrivals(current)
+        while index < len(requests) and float(requests[index]["request_time"]) <= current + 1e-12:
+            requests[index]["idle_vehicles_at_request"] = len(
+                fleet.idle_vehicle_ids(requests[index]["origin_zone"], current)
+            )
+            pending.append(requests[index])
+            index += 1
+
+        dispatched = True
+        while dispatched:
+            dispatched = False
+            for zone in sorted(fleet.initial_counts):
+                candidates = [row for row in pending if row["origin_zone"] == zone]
+                idle_ids = fleet.idle_vehicle_ids(zone, current)
+                while candidates and idle_ids:
+                    request = min(candidates, key=pending_key)
+                    vehicle_id = idle_ids.pop(0)
+                    vehicle = fleet.vehicles[vehicle_id]
+                    previous_busy_until = float(vehicle["busy_until"])
+                    queue_wait = max(0.0, current - float(request["request_time"]))
+                    pickup_wait = queue_wait + float(request["base_pickup_wait_min"])
+                    pending_queue_size = len(candidates)
+                    dispatch_sequence += 1
+                    busy_start = current
+                    boarding_time = current + float(request["base_pickup_wait_min"])
+                    busy_until = boarding_time + float(request["in_vehicle_time_min"])
+                    vehicle.update({
+                        "current_zone": zone,
+                        "status": "busy",
+                        "busy_until": busy_until,
+                        "destination_zone": request["destination_zone"],
+                    })
+                    assignment = {
+                        "vehicle_id": vehicle_id,
+                        "origin_zone": zone,
+                        "destination_zone": request["destination_zone"],
+                        "busy_start": busy_start,
+                        "busy_until": busy_until,
+                        "previous_busy_until": previous_busy_until,
+                    }
+                    fleet.successful_assignments.append(assignment)
+                    results[request["leg_id"]] = {
+                        "succeeded": True,
+                        "failure_reason": "",
+                        "request_time": request["request_time"],
+                        "dispatch_time": current,
+                        "pickup_wait_min": pickup_wait,
+                        "queue_wait_min": queue_wait,
+                        "pending_queue_size_at_dispatch": pending_queue_size,
+                        "dispatch_sequence": dispatch_sequence,
+                        "vehicle_id": vehicle_id,
+                        "idle_vehicles_at_request": int(request["idle_vehicles_at_request"]),
+                        **assignment,
+                        "idle_vehicles_after_dispatch": sum(
+                            other["status"] == "idle" and other["current_zone"] == zone
+                            for other in fleet.vehicles.values()
+                        ),
+                    }
+                    pending.remove(request)
+                    candidates.remove(request)
+                    dispatched = True
+
+        expired = [row for row in pending if float(row["deadline"]) <= current + 1e-12]
+        for request in expired:
+            results[request["leg_id"]] = {
+                "succeeded": False,
+                "failure_reason": "vehicle_wait_limit_exceeded",
+                "request_time": request["request_time"],
+                "dispatch_time": None,
+                "pickup_wait_min": float(request["deadline"]) - float(request["request_time"]),
+                "queue_wait_min": float(request["deadline"]) - float(request["request_time"]),
+                "pending_queue_size_at_dispatch": None,
+                "dispatch_sequence": None,
+                "vehicle_id": "",
+                "idle_vehicles_at_request": 0,
+            }
+            pending.remove(request)
+
+        if index >= len(requests) and not pending:
+            break
+        event_times = []
+        if index < len(requests):
+            event_times.append(float(requests[index]["request_time"]))
+        if pending:
+            event_times.extend(float(row["deadline"]) for row in pending)
+            event_times.extend(
+                float(vehicle["busy_until"])
+                for vehicle in fleet.vehicles.values()
+                if vehicle["status"] == "busy"
+                and any(
+                    row["origin_zone"] == vehicle["destination_zone"]
+                    for row in pending
+                )
+            )
+        future = [value for value in event_times if value > current + 1e-12]
+        if not future:
+            raise AssertionError("ride-hailing pending queue made no chronological progress")
+        current = min(future)
+    return results, fleet
+
+
 def _preview_successful_rides(
     selected: Sequence[Mapping[str, Any]], agents: Mapping[Any, Mapping[str, Any]],
     config: Mapping[str, Any], day_type: str, seed: int,
 ) -> list[Mapping[str, Any]]:
-    fleet = _new_fleet(config, day_type)
     requests = [row for row in selected if row["chosen_mode"] == "ride_hailing"]
-    requests.sort(key=lambda row: (
-        row["leg"]["departure_time"],
-        _dispatch_group_rank(config, agents[row["leg"]["agent_id"]], row["leg"]),
-        _dispatch_priority(seed, row["leg"]["leg_id"]),
-        row["leg"]["leg_id"],
-    ))
-    successful = []
-    for row in requests:
-        option = row["chosen_option"]
-        result = fleet.request(
-            request_time=_clock_minutes(row["leg"]["departure_time"]),
-            origin_zone=row["leg"]["origin_zone"],
-            destination_zone=row["leg"]["destination_zone"],
-            base_pickup_wait_min=float(option["period_wait_time_min"]),
-            in_vehicle_time_min=float(option["final_in_vehicle_time_min"]),
-            maximum_vehicle_wait_min=float(config["ride_hailing_fleet"]["maximum_vehicle_wait_min"]),
-            non_capacity_success=True,
-        )
-        if result["succeeded"]:
-            successful.append(row)
-    return successful
+    dispatch, _fleet = _dispatch_selected_ride_requests(
+        requests, agents, config, day_type, seed,
+    )
+    return [row for row in requests if dispatch[row["leg"]["leg_id"]]["succeeded"]]
 
 
 def _road_flow_by_bin(
@@ -880,7 +1093,9 @@ def _simulate_final_choices(
     network: Mapping[str, Any], events: Sequence[Mapping[str, Any]], config: Mapping[str, Any],
     flow_by_bin: Mapping[datetime, float], day_type: str, seed: int,
 ) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]], list[Dict[str, Any]]]:
-    fleet = _new_fleet(config, day_type)
+    dispatch_by_leg, fleet = _dispatch_selected_ride_requests(
+        selected, agents, config, day_type, seed,
+    )
     ordered = sorted(selected, key=lambda row: (
         row["leg"]["departure_time"],
         _dispatch_group_rank(config, agents[row["leg"]["agent_id"]], row["leg"])
@@ -909,14 +1124,7 @@ def _simulate_final_choices(
                 config, agents[leg["agent_id"]], leg,
             )
             base_dispatch_priority = _dispatch_priority(seed, leg["leg_id"])
-            dispatch = fleet.request(
-                request_time=_clock_minutes(leg["departure_time"]),
-                origin_zone=leg["origin_zone"], destination_zone=leg["destination_zone"],
-                base_pickup_wait_min=float(option["period_wait_time_min"]),
-                in_vehicle_time_min=float(option["final_in_vehicle_time_min"]),
-                maximum_vehicle_wait_min=float(config["ride_hailing_fleet"]["maximum_vehicle_wait_min"]),
-                non_capacity_success=True,
-            )
+            dispatch = dispatch_by_leg[str(leg["leg_id"])]
             primary_failed = not dispatch["succeeded"]
             failure_reason = dispatch["failure_reason"]
             consumed = float(dispatch["pickup_wait_min"]) if primary_failed else 0.0
@@ -1038,9 +1246,11 @@ def _simulate_final_choices(
             "origin_feeder_total_time_minutes": 0.0 if final_option is None else round(float(final_option.get("origin_feeder_total_time_minutes") or 0.0), 3),
             "origin_feeder_access_minutes": 0.0 if final_option is None else round(float(final_option.get("origin_feeder_access_minutes") or 0.0), 3),
             "origin_feeder_wait_minutes": 0.0 if final_option is None else round(float(final_option.get("origin_feeder_wait_minutes") or 0.0), 3),
+            "origin_metro_walk_access_minutes": 0.0 if final_option is None else round(float(final_option.get("origin_metro_walk_access_minutes") or 0.0), 3),
             "destination_feeder_total_time_minutes": 0.0 if final_option is None else round(float(final_option.get("destination_feeder_total_time_minutes") or 0.0), 3),
             "destination_feeder_access_minutes": 0.0 if final_option is None else round(float(final_option.get("destination_feeder_access_minutes") or 0.0), 3),
             "destination_feeder_wait_minutes": 0.0 if final_option is None else round(float(final_option.get("destination_feeder_wait_minutes") or 0.0), 3),
+            "destination_metro_walk_access_minutes": 0.0 if final_option is None else round(float(final_option.get("destination_metro_walk_access_minutes") or 0.0), 3),
             "final_attempt_departure_time": leg["departure_time"] + timedelta(minutes=consumed),
             "primary_mode": mode, "primary_failed": primary_failed,
             "primary_failure_reason": failure_reason,
@@ -1078,6 +1288,16 @@ def _simulate_final_choices(
             "final_speed_kmh": None if not succeeded else round(float(final_option["final_speed_kmh"]), 3),
             "scenario_vc": None if not succeeded else final_option.get("scenario_vc"),
             "weather_type_at_departure": _weather_at_departure(leg["departure_time"], events),
+            "expected_outdoor_exposure_minutes_at_choice": (
+                None if final_option is None else
+                final_option.get("expected_outdoor_exposure_minutes_at_choice")
+            ),
+            "weather_exposure_age_weight": (
+                None if final_option is None else final_option.get("weather_exposure_age_weight")
+            ),
+            "weather_exposure_disutility": (
+                None if final_option is None else final_option.get("weather_exposure_disutility")
+            ),
         })
     end_states = fleet.states(24 * 60)
     if len(end_states) != fleet.initial_total:

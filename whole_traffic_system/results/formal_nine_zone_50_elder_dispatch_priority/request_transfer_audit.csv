@@ -22,13 +22,14 @@
 48,W0,34-2026-07-07-L03,34,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 48,W0,6-2026-07-07-L01,6,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 48,W2,1-2026-07-07-L01,1,18-39,18-39,True,True,True,False,False,0.0,False,False,True
-48,W2,17-2026-07-07-L03,17,18-39,18-39,True,False,False,False,False,0.0,False,False,True
+48,W2,17-2026-07-07-L03,17,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 48,W2,19-2026-07-07-L01,19,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 48,W2,23-2026-07-07-L01,23,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 48,W2,26-2026-07-07-L01,26,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 48,W2,31-2026-07-07-L02,31,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 48,W2,6-2026-07-07-L01,6,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 48,W2,8-2026-07-07-L01,8,18-39,18-39,True,True,True,False,False,0.0,False,False,True
+48,W2,8-2026-07-07-L02,8,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 48,W2,9-2026-07-07-L01,9,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 49,W0,12-2026-07-07-L01,12,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 49,W0,20-2026-07-07-L03,20,18-39,18-39,True,True,True,False,False,0.0,False,False,True
@@ -60,6 +61,7 @@
 50,W0,6-2026-07-07-L02,6,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 50,W0,7-2026-07-07-L01,7,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 50,W2,10-2026-07-07-L02,10,18-39,18-39,True,True,True,False,False,0.0,False,False,True
+50,W2,16-2026-07-07-L02,16,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 50,W2,18-2026-07-07-L02,18,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 50,W2,19-2026-07-07-L03,19,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 50,W2,26-2026-07-07-L01,26,40-59,40-59,True,True,True,False,False,0.0,False,False,True
@@ -80,6 +82,7 @@
 51,W2,15-2026-07-07-L02,15,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 51,W2,18-2026-07-07-L01,18,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 51,W2,18-2026-07-07-L02,18,18-39,18-39,True,True,True,False,False,0.0,False,False,True
+51,W2,2-2026-07-07-L01,2,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 51,W2,20-2026-07-07-L01,20,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 51,W2,20-2026-07-07-L02,20,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 51,W2,20-2026-07-07-L03,20,18-39,18-39,True,True,True,False,False,0.0,False,False,True
@@ -161,6 +164,7 @@
 54,W2,9-2026-07-07-L02,9,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 55,W0,20-2026-07-07-L02,20,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 55,W0,34-2026-07-07-L01,34,40-59,40-59,True,True,True,False,False,0.0,False,False,True
+55,W2,10-2026-07-07-L01,10,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 55,W2,13-2026-07-07-L02,13,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 55,W2,16-2026-07-07-L03,16,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 55,W2,17-2026-07-07-L01,17,18-39,18-39,True,True,True,False,False,0.0,False,False,True
@@ -183,6 +187,7 @@
 56,W2,20-2026-07-07-L02,20,18-39,18-39,True,True,True,False,False,0.0,False,False,True
 56,W2,21-2026-07-07-L01,21,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 56,W2,30-2026-07-07-L01,30,40-59,40-59,True,True,True,False,False,0.0,False,False,True
+56,W2,30-2026-07-07-L02,30,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 56,W2,34-2026-07-07-L01,34,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 56,W2,35-2026-07-07-L01,35,40-59,40-59,True,True,True,False,False,0.0,False,False,True
 56,W2,4-2026-07-07-L02,4,18-39,18-39,True,True,True,False,False,0.0,False,False,True
