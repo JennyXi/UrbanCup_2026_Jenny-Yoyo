@@ -1,0 +1,16 @@
+﻿policy,group,seed_count,ride_hailing_requests,successful_ride_hailing_requests,failed_ride_hailing_requests,mean_ride_hailing_wait_minutes,transport_unmet,necessary_activity_completion_rate
+R0_first_come,18-39,3,56.611111,51.277778,5.333333,8.568076,0.722222,0.996256
+R0_first_come,40-59,3,42.611111,38.833333,3.777778,8.797946,1.055556,0.987568
+R0_first_come,60+_digital,3,3.611111,3.333333,0.277778,7.642188,0.222222,0.986883
+R0_first_come,60+_nondigital_assisted,3,2.388889,2.111111,0.277778,8.047778,0.166667,0.986111
+R0_first_come,60+_nondigital_unassisted,3,0.0,0.0,0.0,0.0,0.388889,1.0
+R1_elder_medical_priority,18-39,3,56.611111,51.277778,5.333333,8.568076,0.722222,0.996256
+R1_elder_medical_priority,40-59,3,42.611111,38.833333,3.777778,8.797946,1.055556,0.987568
+R1_elder_medical_priority,60+_digital,3,3.611111,3.333333,0.277778,7.642188,0.222222,0.986883
+R1_elder_medical_priority,60+_nondigital_assisted,3,2.388889,2.111111,0.277778,8.047778,0.166667,0.986111
+R1_elder_medical_priority,60+_nondigital_unassisted,3,0.0,0.0,0.0,0.0,0.388889,1.0
+R2_all_elder_priority,18-39,3,56.5,50.722222,5.777778,8.601373,0.833333,0.982367
+R2_all_elder_priority,40-59,3,42.555556,38.5,4.055556,8.861849,1.111111,0.987568
+R2_all_elder_priority,60+_digital,3,3.611111,3.444444,0.166667,7.297762,0.111111,0.986883
+R2_all_elder_priority,60+_nondigital_assisted,3,2.388889,2.166667,0.222222,7.954444,0.111111,0.986111
+R2_all_elder_priority,60+_nondigital_unassisted,3,0.0,0.0,0.0,0.0,0.388889,1.0

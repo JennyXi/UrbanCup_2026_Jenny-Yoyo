@@ -1,0 +1,14 @@
+{
+  "experiment_id": "formal_nine_zone_200_age_weather_sensitivity_v1",
+  "seed_start": 47,
+  "seed_count": 3,
+  "agents": 200,
+  "fleet_total": 48,
+  "weather_scenarios": [
+    "W0",
+    "W1",
+    "W2"
+  ],
+  "all_pairing_checks_passed": true,
+  "interpretation": "mechanism sensitivity, not calibrated health valuation"
+}

@@ -1,0 +1,16 @@
+{
+  "experiment_id": "two_zone_50_agent_metro_v1",
+  "description": "Paired M0/M1/M2 experiment testing optimistic versus realistic access to one weather-stable S1-S2 metro line.",
+  "total_agents": 50,
+  "seed_start": 3001,
+  "default_seed_count": 3,
+  "scenarios": ["M0_no_metro", "M1_optimistic_metro", "M2_realistic_access"],
+  "metro_transport_config": "config/simple_agent_model_with_metro.json",
+  "realistic_metro_zone_service_parameters": {
+    "S1": {"metro_coverage_rate": 0.55, "metro_access_min": 8.0},
+    "S2": {"metro_coverage_rate": 0.40, "metro_access_min": 12.0}
+  },
+  "metro_success_probability": {"W0": 1.0, "W1": 1.0, "W2": 1.0},
+  "metro_failed_attempt_charge_fraction": 0.0,
+  "interpretation": "Mechanism experiment only. A/B map to S1/S2. M1 is an optimistic upper bound; M2 makes metro walking access longer and enforces stable agent-level service coverage. Values are not observed Shanghai parameters."
+}

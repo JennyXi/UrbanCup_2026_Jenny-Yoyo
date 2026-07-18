@@ -1,0 +1,7 @@
+﻿vehicle_total,weather_scenario,competition_seed_share,collapse_seed_share,classification,mechanism_screen_not_calibration
+36,W0,0.0,0.0,loose_supply,True
+36,W1,0.0,0.0,loose_supply,True
+36,W2,0.6,0.1,moderate_competition,True
+24,W0,0.1,0.0,loose_supply,True
+24,W1,0.1,0.0,loose_supply,True
+24,W2,1.0,0.3,system_collapse_risk,True

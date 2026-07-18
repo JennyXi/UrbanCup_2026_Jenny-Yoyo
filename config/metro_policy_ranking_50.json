@@ -1,0 +1,14 @@
+{
+  "experiment_id": "metro_policy_ranking_50_agents",
+  "description": "Paired M0 versus realistic-access M2 test of coupon, elder digital-access, and elder dispatch-priority policy rankings.",
+  "total_agents": 50,
+  "seed_start": 5101,
+  "default_seed_count": 30,
+  "metro_scenarios": ["M0_no_metro", "M2_realistic_access"],
+  "policy_families": {
+    "coupon": ["C0_no_coupon", "C1_public_limited", "C2_elder_limited", "C3_mixed"],
+    "digital_access": ["D0_baseline", "D1_targeted_digital_training_75pct", "D2_family_assistance_90pct", "D3_universal_elder_digital_access"],
+    "elder_dispatch_priority": ["R0_first_come", "R1_elder_medical_priority", "R2_all_elder_priority"]
+  },
+  "interpretation": "Mechanism experiment only. M2 uses stable agent-level metro coverage and longer station access. Policy ranks are not Shanghai forecasts."
+}

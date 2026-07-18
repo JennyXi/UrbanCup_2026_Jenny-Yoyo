@@ -1,0 +1,51 @@
+{
+  "experiment_id": "formal_nine_zone_50_agent_stress_test_v1",
+  "description": "Same-seed W0/W2 workday stress test with half the P0 ride-hailing fleet and concentrated work/medical departures.",
+  "formal_transport_config": "config/formal_nine_zone_agent_experiment.json",
+  "symmetric_behavior_config": "config/symmetric_weather_experiment.json",
+  "emergence_heat_config": "config/emergence_experiment.json",
+  "total_agents": 50,
+  "seed": 47,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_types": ["workday", "rest_day"],
+  "policy": "P0_no_policy",
+  "formal_overrides": {
+    "experiment_condition": "stress_test",
+    "ride_hailing_fleet": {
+      "initial_vehicles_by_day_type": {
+        "workday": {"Z1": 2, "Z2": 1, "Z3": 1, "Z4": 0, "Z5": 0, "Z6": 1, "Z7": 2, "Z8": 0, "Z9": 1},
+        "rest_day": {"Z1": 1, "Z2": 1, "Z3": 1, "Z4": 1, "Z5": 0, "Z6": 1, "Z7": 1, "Z8": 0, "Z9": 1}
+      }
+    },
+    "departure_time_concentration": {
+      "enabled": true,
+      "compression_factor": 0.20,
+      "center_time_by_purpose": {
+        "work": "08:00",
+        "medical": "09:00"
+      }
+    }
+  },
+  "activity_state_machine": {
+    "work_weather_cancellation_allowed": false,
+    "medical_weather_cancellation_allowed": false,
+    "optional_cancellation_requires_departure_in_weather_window": true,
+    "remote_work_probability": {"normal": 0.00, "extreme_heat": 0.02, "heavy_rain": 0.05},
+    "remote_work_is_activity_level_single_draw": true,
+    "schedule_shift_enabled": false
+  },
+  "outdoor_exposure": {
+    "walk": "entire final walking attempt",
+    "bus": "origin access walk plus wait plus destination access walk",
+    "metro": "origin access or bus feeder plus platform wait plus destination access or bus feeder",
+    "ride_hailing": "pickup wait",
+    "failed_ride_hailing": "consumed wait before fallback",
+    "w1_heat_method": "utci_degree_minutes_above_threshold",
+    "w2_rain_method": "outdoor minutes overlapping active heavy-rain windows"
+  },
+  "scope_notes": [
+    "Stress-test scenario assumption; not a Shanghai estimate or policy.",
+    "The workday fleet is exactly 8 vehicles versus 16 in P0.",
+    "Only departure concentration and initial ride-hailing fleet differ from the paired P0 baseline."
+  ]
+}

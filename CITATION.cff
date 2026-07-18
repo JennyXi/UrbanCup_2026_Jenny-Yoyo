@@ -1,0 +1,17 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it and record the branch, commit SHA, configuration, and seeds."
+title: "UrbanCup 2026: Mobility equity under extreme weather"
+type: software
+authors:
+  - name: JennyXi
+  - name: Yoyo
+repository-code: "https://github.com/JennyXi/UrbanCup_2026_Jenny-Yoyo"
+url: "https://github.com/JennyXi/UrbanCup_2026_Jenny-Yoyo"
+version: 0.1.0
+date-released: 2026-07-18
+keywords:
+  - agent-based simulation
+  - urban mobility
+  - mobility equity
+  - extreme weather
+  - ride hailing

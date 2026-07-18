@@ -1,0 +1,19 @@
+{
+  "experiment_id": "elder_dispatch_priority_200_agents",
+  "description": "Same-time ride-hailing dispatch priority under a fixed conserved fleet.",
+  "total_agents": 200,
+  "seed_start": 3001,
+  "default_seed_count": 3,
+  "policies": [
+    "R0_first_come",
+    "R1_elder_medical_priority",
+    "R2_all_elder_priority"
+  ],
+  "initial_daily_vehicles_by_day_type": {
+    "workday": {"S1": 32, "S2": 20},
+    "rest_day": {"S1": 28, "S2": 16}
+  },
+  "coupon_policy": "C0_no_coupon",
+  "priority_scope": "Only ride-hailing requests with the same actual request time are reordered. Actual request time remains the first queue key, followed by policy group rank, shared base dispatch priority, and leg_id.",
+  "interpretation": "Mechanism redistribution experiment, not a calibrated platform dispatch rule or Shanghai policy forecast."
+}

@@ -1,0 +1,63 @@
+{
+  "model_id": "simple_two_zone_three_mode_v3",
+  "description": "Two-zone experiment retaining the main model's central-versus-transit-weaker spatial contrast.",
+  "zones": [
+    {"zone_id": "S1", "name": "central_employment_core", "x_km": 0, "y_km": 0, "road_factor": 1.00, "intrazonal_distance_km": 1.8},
+    {"zone_id": "S2", "name": "outer_mixed_residential", "x_km": 4.5, "y_km": 0, "road_factor": 1.08, "intrazonal_distance_km": 2.5}
+  ],
+  "bus_line": {"line_id": "B1", "zones": ["S1", "S2"]},
+  "zone_service_parameters": {
+    "S1": {"bus_coverage_rate": 0.90, "bus_access_min": 4.0, "bus_wait_min": 6.0},
+    "S2": {"bus_coverage_rate": 0.55, "bus_access_min": 9.0, "bus_wait_min": 12.0}
+  },
+  "modes": {
+    "walk": {"speed_kmh": 4.8, "maximum_distance_km": 6.0, "base_fare": 0.0, "per_km": 0.0},
+    "bus": {"speed_kmh": 18.0, "maximum_distance_km": 999, "base_fare": 2.0, "per_km": 0.0},
+    "ride_hailing": {
+      "speed_kmh": 32.0,
+      "maximum_distance_km": 999,
+      "minimum_fare": 14.0,
+      "distance_rate_per_km": 2.3,
+      "time_rate_per_min": 0.5,
+      "long_distance_threshold_km": 20.0,
+      "long_distance_rate_per_km": 0.8,
+      "wait_min": 6.0,
+      "access_min": 1.0
+    }
+  },
+  "ride_hailing_demand_feedback": {
+    "additional_wait_min_per_initial_request": 0.12,
+    "maximum_additional_wait_min": 12.0,
+    "iterations": 1
+  },
+  "activity_cancellation": {
+    "scenario_level": "base",
+    "simulation_day": "Tuesday",
+    "work_outbound": {"departure": "07:30", "arrival": "08:00"},
+    "non_work_outbound": {"departure": "12:00", "arrival": "12:30"},
+    "w2_windows": [
+      ["Tuesday", "07:00", "10:00"],
+      ["Thursday", "16:00", "19:00"],
+      ["Saturday", "11:00", "15:00"]
+    ],
+    "mobility_constraint_by_age": {"18-39": "none", "40-59": "none", "60+": "mild"},
+    "schedule_flexibility_by_work_status": {
+      "regular_worker": "low",
+      "flexible_non_worker": "high",
+      "part_time_worker": "medium",
+      "retired": "high"
+    }
+  },
+  "weather": {
+    "normal": {"speed_multiplier": {"walk": 1.0, "bus": 1.0, "ride_hailing": 1.0}, "wait_multiplier": {"walk": 1.0, "bus": 1.0, "ride_hailing": 1.0}, "dynamic_price_multiplier": 1.00, "utility_penalty": {"walk": 0.0, "bus": 0.0, "ride_hailing": 0.0}},
+    "extreme_heat": {"speed_multiplier": {"walk": 0.95, "bus": 1.0, "ride_hailing": 1.0}, "wait_multiplier": {"walk": 1.0, "bus": 1.10, "ride_hailing": 1.15}, "dynamic_price_multiplier": 1.05, "utility_penalty": {"walk": -0.75, "bus": -0.25, "ride_hailing": 0.15}},
+    "heavy_rain": {"speed_multiplier": {"walk": 0.80, "bus": 0.80, "ride_hailing": 0.80}, "wait_multiplier": {"walk": 1.0, "bus": 1.35, "ride_hailing": 1.60}, "dynamic_price_multiplier": 1.15, "utility_penalty": {"walk": -1.50, "bus": -0.60, "ride_hailing": 0.25}}
+  },
+  "choice_weights": {"generalized_cost": 0.12, "random_scale": 0.6},
+  "age_mode_constant": {
+    "18-39": {"walk": 1.0, "bus": 0.0, "ride_hailing": 0.3},
+    "40-59": {"walk": 0.0, "bus": 0.5, "ride_hailing": 0.5},
+    "60+": {"walk": -1.5, "bus": 1.0, "ride_hailing": -0.5}
+  },
+  "provenance": "MVP assumptions for sensitivity testing. Ride-hailing fare uses a simplified Shanghai ordinary express-car baseline informed by historical public pricing structure; it is not a 2026 Didi official unified tariff."
+}

@@ -1,0 +1,55 @@
+{
+  "experiment_id": "formal_nine_zone_50_elder_digital_access_v1",
+  "description": "Paired elder digital-access and assisted-booking mechanisms at the 12-vehicle formal nine-zone baseline.",
+  "base_experiment_config": "config/formal_nine_zone_50_experiment.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": ["W0", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 2, "Z2": 2, "Z3": 1, "Z4": 1, "Z5": 1, "Z6": 1, "Z7": 2, "Z8": 1, "Z9": 1},
+  "elder_digital_access_experiment": {
+    "policies": {
+      "D0_baseline": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false,
+        "community_phone_coverage_rate": 0.0
+      },
+      "D1_targeted_digital_training_75pct": {
+        "elder_digital_access_target": 0.75,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": true,
+        "community_phone_coverage_rate": 0.0
+      },
+      "D2_family_assistance_90pct": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": 0.90,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false,
+        "community_phone_coverage_rate": 0.0
+      },
+      "D3_universal_elder_digital_access": {
+        "elder_digital_access_target": 1.0,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": true,
+        "prioritize_unassisted_for_training": true,
+        "community_phone_coverage_rate": 0.0
+      },
+      "D4_limited_community_phone_25pct": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false,
+        "community_phone_coverage_rate": 0.25
+      }
+    },
+    "interpretation": "Scenario assumptions for mechanism testing, not observed Shanghai intervention coverage. D4 supplies booking access without changing digital identity."
+  },
+  "scope_notes": [
+    "Coupons are disabled and ride-hailing fare preferences are unchanged.",
+    "Only elder access attributes or the configured D4 proxy channel differ across policies.",
+    "Agents, activities, OD, weather, fleet, mode-choice shocks and base dispatch priorities are paired within seed."
+  ]
+}

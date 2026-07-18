@@ -1,0 +1,6 @@
+{
+  "candidate_vehicle_total": 36,
+  "candidate_found": true,
+  "candidate_rule": "highest fleet total with stable competition in at least one weather and below the collapse seed-share threshold",
+  "not_a_calibrated_real_world_fleet": true
+}

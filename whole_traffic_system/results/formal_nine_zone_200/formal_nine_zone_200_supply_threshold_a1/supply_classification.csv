@@ -1,0 +1,16 @@
+﻿vehicle_total,weather_scenario,competition_seed_share,collapse_seed_share,classification,mechanism_screen_not_calibration
+48,W0,0.0,0.0,loose_supply,True
+48,W1,0.0,0.0,loose_supply,True
+48,W2,0.0,0.0,loose_supply,True
+36,W0,0.0,0.0,loose_supply,True
+36,W1,0.0,0.0,loose_supply,True
+36,W2,0.666667,0.0,moderate_competition,True
+24,W0,0.0,0.0,loose_supply,True
+24,W1,0.0,0.0,loose_supply,True
+24,W2,1.0,0.0,tight_competition,True
+18,W0,0.666667,0.0,moderate_competition,True
+18,W1,0.666667,0.0,moderate_competition,True
+18,W2,1.0,0.0,tight_competition,True
+12,W0,1.0,0.0,tight_competition,True
+12,W1,1.0,0.0,tight_competition,True
+12,W2,1.0,0.0,tight_competition,True
