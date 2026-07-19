@@ -24,8 +24,9 @@ from reportlab.platypus import (
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DATA_DIR = ROOT / "outputs" / "city_mobility_1000_api_w2_seed47"
-OUTPUT = ROOT / "output" / "pdf" / "city_mobility_1000_run_report_zh.pdf"
+DATA_DIR = ROOT / "outputs" / "city_mobility_1000_api_w2_seed47_main_elder_v2"
+PREVIOUS_DATA_DIR = ROOT / "outputs" / "city_mobility_1000_api_w2_seed47"
+OUTPUT = ROOT / "output" / "pdf" / "city_mobility_1000_main_elder_v2_report_zh.pdf"
 
 NAVY = colors.HexColor("#17365D")
 TEAL = colors.HexColor("#0F6B78")
@@ -90,10 +91,8 @@ def main() -> None:
     summary = json.loads((DATA_DIR / "summary.json").read_text(encoding="utf-8"))
     validation = json.loads((DATA_DIR / "validation.json").read_text(encoding="utf-8"))
     security = json.loads((DATA_DIR / "security_scan.json").read_text(encoding="utf-8"))
-    baseline = json.loads(
-        (ROOT / "outputs" / "city_mobility_200_api_w2_seed47" / "summary.json").read_text(
-            encoding="utf-8"
-        )
+    previous = json.loads(
+        (PREVIOUS_DATA_DIR / "summary.json").read_text(encoding="utf-8")
     )
 
     pdfmetrics.registerFont(TTFont("MSYH", r"C:\Windows\Fonts\msyh.ttc"))
@@ -197,15 +196,15 @@ def main() -> None:
         rightMargin=16 * mm,
         topMargin=14 * mm,
         bottomMargin=14 * mm,
-        title="1000人城市出行多Agent真实API实验运行报告",
+        title="1000人城市出行多Agent真实API实验主线老年算法更新版运行报告",
         author="Urban Cup 2026",
         subject="Seed 47, W2, workday, real API",
     )
     story = []
-    story.append(Paragraph("1000人城市出行多Agent真实API实验", s["title"]))
+    story.append(Paragraph("1000人城市出行多Agent真实API实验 - 老年算法更新版", s["title"]))
     story.append(
         Paragraph(
-            "Seed 47 · W2暴雨工作日 · deepseek-v4-flash · 2026-07-19",
+            f"Seed 47 · W2暴雨工作日 · {summary['model']} · A1主线老年行为",
             s["subtitle"],
         )
     )
@@ -233,12 +232,12 @@ def main() -> None:
     story.append(status)
     story += section("一、真实API与运行规模", s)
     kpis = [
-        ("1000", "Agent总数"),
-        ("1996/1996", "出行API成功"),
-        ("622/622", "公共品贡献API成功"),
-        ("0", "API尝试失败"),
-        ("1,210,566", "总tokens"),
-        ("1,404秒", "总运行耗时"),
+        (f"{summary['agents']:,}", "Agent总数"),
+        (f"{summary['api_successful_travel_decisions']}/{summary['travel_decisions']}", "出行API成功"),
+        (f"{summary['coupon_agent']['api_contribution_decisions'] - summary['coupon_agent']['api_decision_failures']}/{summary['coupon_agent']['api_contribution_decisions']}", "公共品贡献API成功"),
+        (f"{summary['api_attempt_failures']}", "API尝试失败"),
+        (f"{summary['usage']['total_tokens']:,}", "总tokens"),
+        (f"{summary['elapsed_seconds']:.0f}秒", "总运行耗时"),
     ]
     kpi_table = Table(
         [[para(v, s["kpi"]) for v, _ in kpis], [para(l, s["kpilabel"]) for _, l in kpis]],
@@ -260,7 +259,7 @@ def main() -> None:
     story.append(
         Paragraph(
             "每一次出行腿均真实调用API；错误路径不使用本地最高概率补位。成功响应即时写入检查点，"
-            "调用尝试、HTTP状态、token、耗时和响应哈希均逐条审计。本次共2618次API尝试，全部首轮成功。",
+            f"调用尝试、HTTP状态、token、耗时和响应哈希均逐条审计。本次共{summary['api_attempts_total']}次API尝试，失败{summary['api_attempt_failures']}次。",
             s["body"],
         )
     )
@@ -269,20 +268,20 @@ def main() -> None:
     modes = summary["final_successful_mode_counts"]
     mode_total = sum(modes.values())
     mode_data = [
-        ["方式", "次数", "占比", "200人基线占比"],
-        ["步行", modes["walk"], pct(modes["walk"] / mode_total), pct(baseline["final_successful_mode_counts"]["walk"] / baseline["travel_decisions"])],
-        ["公交", modes["bus"], pct(modes["bus"] / mode_total), pct(baseline["final_successful_mode_counts"]["bus"] / baseline["travel_decisions"])],
-        ["地铁", modes["metro"], pct(modes["metro"] / mode_total), pct(baseline["final_successful_mode_counts"]["metro"] / baseline["travel_decisions"])],
-        ["网约车", modes["ride_hailing"], pct(modes["ride_hailing"] / mode_total), pct(baseline["final_successful_mode_counts"]["ride_hailing"] / baseline["travel_decisions"])],
+        ["方式", "次数", "占比", "旧1000 A0占比"],
+        ["步行", modes["walk"], pct(modes["walk"] / mode_total), pct(previous["final_successful_mode_counts"]["walk"] / previous["travel_decisions"])],
+        ["公交", modes["bus"], pct(modes["bus"] / mode_total), pct(previous["final_successful_mode_counts"]["bus"] / previous["travel_decisions"])],
+        ["地铁", modes["metro"], pct(modes["metro"] / mode_total), pct(previous["final_successful_mode_counts"]["metro"] / previous["travel_decisions"])],
+        ["网约车", modes["ride_hailing"], pct(modes["ride_hailing"] / mode_total), pct(previous["final_successful_mode_counts"]["ride_hailing"] / previous["travel_decisions"])],
     ]
     link_data = [
-        ["联动指标", "1000人结果", "200人基线"],
-        ["网约车交通事件", summary["ride_hailing_traffic_events"], baseline["ride_hailing_traffic_events"]],
-        ["受影响决策", summary["affected_decisions"], baseline["affected_decisions"]],
-        ["联动覆盖率", pct(summary["linkage_coverage_rate"]), pct(baseline["affected_decisions"] / baseline["travel_decisions"])],
-        ["条件联动率", pct(summary["conditional_linkage_rate"]), "未单列"],
-        ["影响边", f"{summary['influence_edges']:,}", baseline["influence_edges"]],
-        ["最大绝对概率变化", f"{summary['maximum_absolute_probability_change']:.4f}", f"{baseline['maximum_absolute_probability_change']:.4f}"],
+        ["联动指标", "A1更新版", "旧1000 A0"],
+        ["网约车交通事件", summary["ride_hailing_traffic_events"], previous["ride_hailing_traffic_events"]],
+        ["受影响决策", summary["affected_decisions"], previous["affected_decisions"]],
+        ["联动覆盖率", pct(summary["linkage_coverage_rate"]), pct(previous["linkage_coverage_rate"])],
+        ["条件联动率", pct(summary["conditional_linkage_rate"]), pct(previous["conditional_linkage_rate"])],
+        ["影响边", f"{summary['influence_edges']:,}", f"{previous['influence_edges']:,}"],
+        ["最大绝对概率变化", f"{summary['maximum_absolute_probability_change']:.4f}", f"{previous['maximum_absolute_probability_change']:.4f}"],
     ]
     mt = Table(mode_data, colWidths=[18 * mm, 18 * mm, 22 * mm, 30 * mm])
     mt.setStyle(base_table_style())
@@ -295,20 +294,21 @@ def main() -> None:
     story.append(
         Paragraph(
             "同一30分钟时间窗内，网约车选择即时增加6 PCU/小时的内生流量；后续Agent重新计算四种方式概率。"
-            "本次1706个决策存在前序影响源，其中1683个概率实际改变，形成13,652条严格按时间先后排列的影响边。",
+            f"本次{summary['decisions_with_prior_influencers']}个决策存在前序影响源，其中{summary['affected_decisions']}个概率实际改变，"
+            f"形成{summary['influence_edges']:,}条严格按时间先后排列的影响边。",
             s["body"],
         )
     )
 
-    story += section("三、与200人基线的可比性", s)
+    story += section("三、A1主线老年算法与可比性", s)
     comp = Table(
         [
-            ["维度", "200人", "1000人", "处理"],
-            ["年龄天气版本", "A0", "A0", "未静默加入A1 W2年龄暴露倍率"],
-            ["年龄结构", "40%/33%/27%", "400/330/270", "同比例"],
-            ["车队", "48辆", "240辆", "0.24辆/Agent"],
-            ["优惠券", "40张", "200张", "20张/100 Agent"],
-            ["交通代表权重", "30/Agent", "6/Agent", "均代表6000次聚合出行"],
+            ["维度", "旧1000 A0", "本次A1", "处理"],
+            ["60+网约车常数", "-0.5", "0.3", "采用main稳定候选"],
+            ["W2年龄暴露权重", "未加载", "60+=1.6", "明确改变口径"],
+            ["医疗需要暴露权重", "未加载", "1.0/1.2/1.5", "仅老年选择阶段"],
+            ["必要出行费用敏感", "1.0", "0.9", "仅W1/W2 work/medical"],
+            ["公交-地铁换乘负担", "0", "3分钟/次", "只改变感知时间"],
         ],
         colWidths=[31 * mm, 31 * mm, 34 * mm, 80 * mm],
     )
@@ -319,7 +319,7 @@ def main() -> None:
     story.append(Paragraph("全年龄结果、优惠券与活动完成", s["title"]))
     story.append(
         Paragraph(
-            "以下均为本次1000人、Seed 47、W2工作日的单次机制实验结果。",
+            "以下均为本次1000人、Seed 47、W2工作日、A1主线老年行为的单次机制实验结果。",
             s["subtitle"],
         )
     )
@@ -348,8 +348,10 @@ def main() -> None:
     story.append(Spacer(1, 1.4 * mm))
     story.append(
         Paragraph(
-            "60+继续保留步行偏好常数-1.5、较低时间价值和实际接驳/换乘耗时；结果表现为公交占78.8%、"
-            "地铁17.7%、网约车3.5%，无步行选择。中年组平均时间最高（67.6分钟），主要来自更多公交/地铁组合。",
+            f"60+继续保留步行偏好常数-1.5、较低时间价值和数字接入约束，同时采用网约车常数0.3、W2暴露权重1.6、"
+            f"必要出行费用敏感系数0.9和每次换乘3分钟感知负担；本次公交占{pct(summary['age_results']['60+']['final_successful_mode_counts']['bus'] / summary['age_results']['60+']['travel_decisions'])}、"
+            f"地铁占{pct(summary['age_results']['60+']['final_successful_mode_counts']['metro'] / summary['age_results']['60+']['travel_decisions'])}、"
+            f"网约车占{pct(summary['age_results']['60+']['final_successful_mode_counts']['ride_hailing'] / summary['age_results']['60+']['travel_decisions'])}。",
             s["body"],
         )
     )
@@ -368,8 +370,9 @@ def main() -> None:
     story.append(Spacer(1, 1.3 * mm))
     story.append(
         Paragraph(
-            "数字鸿沟主要体现在网约车访问：47名无数字且无家庭协助老人共79条出行腿，网约车为0；"
-            "家庭代叫组为5/134，数字自助组为9/188。由于模型设定公交/地铁不受容量限制，三组必要活动完成率仍较高，"
+            f"数字鸿沟主要体现在网约车访问：{elder['nondigital_unassisted']['agents']}名无数字且无家庭协助老人共{elder['nondigital_unassisted']['travel_legs']}条出行腿，"
+            f"网约车为{elder['nondigital_unassisted']['ride_hailing_legs']}；家庭代叫组为{elder['family_proxy']['ride_hailing_legs']}/{elder['family_proxy']['travel_legs']}，"
+            f"数字自助组为{elder['digital_self']['ride_hailing_legs']}/{elder['digital_self']['travel_legs']}。由于模型设定公交/地铁不受容量限制，三组必要活动完成率仍较高，"
             "不能把网约车可达性差异直接解释为活动损失。",
             s["body"],
         )
@@ -414,7 +417,7 @@ def main() -> None:
     limitations = [
         "这是九区机制实验，不是经观测数据标定的上海交通预测；单一Seed不能提供统计置信区间。",
         "公交和地铁容量不受限，网约车车队按200人基线同比例扩为240辆，因此本次派单失败为0。",
-        "为严格对齐200人API基线，主实验保留A0口径，未补入后续A1版W2年龄天气暴露倍率。",
+        "本次明确采用main提交7d21a4f的A1老年行为，因此不能与200人API或旧1000人A0结果视为严格同口径重复；报告单列A0对照。",
         "API响应具有模型随机性；检查点可避免中断后重复消耗，但幂等去重仍取决于服务商支持。",
     ]
     story.append(

@@ -16,12 +16,19 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CityMobility1000APITest(unittest.TestCase):
-    def test_config_is_explicitly_1000_and_a0_comparable(self) -> None:
+    def test_config_is_explicitly_1000_and_uses_main_elder_v2(self) -> None:
         path = ROOT / "config" / "city_mobility_1000_api.json"
         config = load_formal_50_config(path)
         self.assertEqual(config["total_agents"], 1000)
-        self.assertFalse(
+        self.assertTrue(
             config["comparability"]["age_weather_exposure_multiplier_loaded"]
+        )
+        self.assertEqual(
+            config["comparability"]["age_weather_exposure_version"],
+            "A1_main_stable_elder_behavior_7d21a4f",
+        )
+        self.assertFalse(
+            config["comparability"]["strictly_comparable_to_200_age_behavior"]
         )
         self.assertEqual(config["scale_definition"]["ride_hailing_vehicles"], 240)
         self.assertEqual(config["coupon_experiment"]["daily_total_coupon_pool"], 200)

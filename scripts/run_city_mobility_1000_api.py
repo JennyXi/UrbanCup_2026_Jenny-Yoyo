@@ -1,7 +1,7 @@
 """Run the 1000-Agent real-API interdependent city-mobility experiment.
 
 This is the production-scale successor to ``run_city_mobility_200_api.py``.
-It deliberately keeps the 200-Agent W2 A0 behavioral definition, while adding
+Version 2 deliberately adopts the stable main-branch elderly behavior, while adding
 strict no-fallback API semantics, attempt-level auditing, rate limiting, and
 durable per-decision checkpoints.  A failed API decision never becomes a local
 mode choice: the run stops and can be resumed from the last committed success.
@@ -65,7 +65,7 @@ from scripts.run_city_mobility_200_api import (  # noqa: E402
 
 DEFAULT_CONFIG = ROOT / "config" / "city_mobility_1000_api.json"
 DEFAULT_COUPLING = ROOT / "config" / "interdependent_agent_decisions.json"
-DEFAULT_OUTPUT = ROOT / "outputs" / "city_mobility_1000_api_w2_seed47"
+DEFAULT_OUTPUT = ROOT / "outputs" / "city_mobility_1000_api_w2_seed47_main_elder_v2"
 BASELINE_OUTPUT = ROOT / "outputs" / "city_mobility_200_api_w2_seed47"
 AGE_GROUPS = ("18-39", "40-59", "60+")
 TEXT_SUFFIXES = {".csv", ".json", ".jsonl", ".log", ".txt", ".yaml", ".yml"}
@@ -696,10 +696,41 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     config = json.loads(args.experiment_config.read_text(encoding="utf-8-sig"))
     if int(config["total_agents"]) != 1000:
         raise ValueError("production config must define exactly 1000 Agents")
-    if config["comparability"]["age_weather_exposure_multiplier_loaded"]:
-        raise ValueError("primary run must preserve the 200-Agent A0 exposure definition")
+    if not config["comparability"]["age_weather_exposure_multiplier_loaded"]:
+        raise ValueError("version 2 must load the main-branch elderly exposure definition")
 
     experiment, formal = _build_formal_config(args.experiment_config, {}, 1.0)
+    elder_choice = formal["mode_choice"]
+    expected_elder_parameters = {
+        "ride_hailing_constant": 0.3,
+        "w2_exposure_weight": 1.6,
+        "necessary_fare_multiplier": 0.9,
+        "transfer_burden_minutes": 3.0,
+    }
+    actual_elder_parameters = {
+        "ride_hailing_constant": float(
+            elder_choice["age_mode_constant"]["60+"]["ride_hailing"]
+        ),
+        "w2_exposure_weight": float(
+            elder_choice["weather_exposure_disutility"][
+                "age_vulnerability_weight"
+            ]["60+"]
+        ),
+        "necessary_fare_multiplier": float(
+            elder_choice["conditional_fare_sensitivity"][
+                "elder_exposed_necessary_multiplier"
+            ]
+        ),
+        "transfer_burden_minutes": float(
+            elder_choice["age_transfer_burden"]["minutes_per_transfer_by_age"][
+                "60+"
+            ]
+        ),
+    }
+    if actual_elder_parameters != expected_elder_parameters:
+        raise ValueError(
+            f"main elderly parameter mismatch: {actual_elder_parameters!r}"
+        )
     coupling = load_interdependent_decision_config(args.coupling_config)
     coupling = json.loads(json.dumps(coupling))
     coupling["shared_traffic_state"]["represented_trips_per_agent"] = float(
@@ -1019,6 +1050,30 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                         "chosen_probability": round(
                             float(probabilities.get(chosen_mode, 0.0)), precision
                         ),
+                        "chosen_systematic_utility": chosen_option.get(
+                            "systematic_utility"
+                        ),
+                        "chosen_weather_exposure_age_weight": chosen_option.get(
+                            "weather_exposure_age_weight"
+                        ),
+                        "chosen_weather_exposure_medical_need_weight": chosen_option.get(
+                            "weather_exposure_medical_need_weight"
+                        ),
+                        "chosen_weather_exposure_disutility": chosen_option.get(
+                            "weather_exposure_disutility"
+                        ),
+                        "chosen_fare_sensitivity_multiplier": chosen_option.get(
+                            "fare_sensitivity_multiplier"
+                        ),
+                        "chosen_age_transfer_burden_minutes": chosen_option.get(
+                            "age_transfer_burden_minutes"
+                        ),
+                        "chosen_perceived_time_minutes": chosen_option.get(
+                            "perceived_time_minutes"
+                        ),
+                        "chosen_perceived_fare_cost_yuan": chosen_option.get(
+                            "perceived_fare_cost_yuan"
+                        ),
                         "llm_reason": api_result["reason"],
                         "api_decision_succeeded": bool(api_result["api_succeeded"]),
                         "api_call_attempted": not args.dry_run,
@@ -1196,7 +1251,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         summary = {
             "status": "DRY_RUN" if args.dry_run else "PARTIAL_TEST" if partial else "PASS",
             "experiment": "1000-Agent real-API interdependent urban mobility",
-            "experiment_version": "city_mobility_1000_api_w2_seed47_v1",
+            "experiment_version": experiment["experiment_id"],
             "seed": seed,
             "weather_scenario": weather_scenario,
             "day_type": day_type,
@@ -1307,18 +1362,33 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             "age_results": age_results,
             "elder_digital_gap_results": elder_digital,
             "age_parameter_version": {
-                "version": "A0_strict_200_api_baseline",
-                "w2_age_weather_exposure_multiplier_loaded": False,
+                "version": config["comparability"]["age_weather_exposure_version"],
+                "source_main_commit": config["comparability"]["source_main_commit"],
+                "strictly_comparable_to_200_age_behavior": config["comparability"][
+                    "strictly_comparable_to_200_age_behavior"
+                ],
+                "w2_age_weather_exposure_multiplier_loaded": True,
                 "age_mode_constant": formal["mode_choice"]["age_mode_constant"],
                 "value_of_time_yuan_per_hour": formal["mode_choice"][
                     "value_of_time_yuan_per_hour"
+                ],
+                "weather_exposure_disutility": formal["mode_choice"][
+                    "weather_exposure_disutility"
+                ],
+                "conditional_fare_sensitivity": formal["mode_choice"][
+                    "conditional_fare_sensitivity"
+                ],
+                "age_transfer_burden": formal["mode_choice"][
+                    "age_transfer_burden"
                 ],
                 "ride_hailing_access_rule": (
                     "digital_access OR family_assistance OR coupon community/family proxy"
                 ),
                 "elder_inconvenience_note": (
-                    "60+ retains walk=-1.5 age constant, lower value of time, "
-                    "and network access/transfer time; no later A1 exposure multiplier is added"
+                    "60+ retains walk=-1.5 and digital access constraints while adopting "
+                    "ride_hailing=0.3, W2 exposure weight=1.6, medical-need exposure "
+                    "weights, necessary-trip fare multiplier=0.9, and 3 perceived "
+                    "minutes per bus-metro transfer"
                 ),
             },
             "comparability": config["comparability"],

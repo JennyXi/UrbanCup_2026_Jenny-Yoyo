@@ -1,0 +1,38 @@
+{
+  "experiment_id": "city_mobility_1000_api_w2_seed47_main_elder_v2",
+  "started_at_utc": "2026-07-19T11:38:31.831234+00:00",
+  "session_id": "01c1e0f07eb5414e",
+  "seed": 47,
+  "weather_scenario": "W2",
+  "day_type": "workday",
+  "agents": 1000,
+  "model": "deepseek-v4-flash",
+  "api_base": "https://api.deepseek.com",
+  "api_key_present": true,
+  "api_key_persisted": false,
+  "concurrency": 16,
+  "requests_per_minute": 120.0,
+  "max_attempts": 5,
+  "checkpoint_resume_enabled": true,
+  "comparability": {
+    "baseline_script": "scripts/run_city_mobility_200_api.py",
+    "baseline_output": "outputs/city_mobility_200_api_w2_seed47",
+    "previous_1000_output": "outputs/city_mobility_1000_api_w2_seed47",
+    "age_weather_exposure_version": "A1_main_stable_elder_behavior_7d21a4f",
+    "age_weather_exposure_multiplier_loaded": true,
+    "strictly_comparable_to_200_age_behavior": false,
+    "source_main_commit": "7d21a4f81cd8a30b5376dc6751671a49e8e84aa5",
+    "age_weather_exposure_note": "This rerun intentionally adopts the main-branch stable elderly behavior. Relative to the 200-Agent API and first 1000-Agent A0 runs, it changes the 60+ ride-hailing constant from -0.5 to 0.3, loads W2 age exposure weight 1.6, adds medical-need exposure weights, applies a 0.9 conditional fare-sensitivity multiplier to exposed necessary trips, and adds 3 perceived minutes per bus-metro transfer. Results are versioned as A1 and must not be treated as strict A0 replications.",
+    "population_age_shares": {
+      "18-39": 0.4,
+      "40-59": 0.33,
+      "60+": 0.27
+    },
+    "elder_digital_access_rate": 0.483,
+    "elder_smartphone_access_rate": 0.873,
+    "elder_family_assistance_rate": 0.68,
+    "fleet_scaling": "48/200 to 240/1000; constant 0.24 vehicles per Agent",
+    "coupon_scaling": "40/200 to 200/1000; constant 20 coupons per 100 Agents",
+    "traffic_representation": "200*30 and 1000*6 both represent 6000 trips; scaling increases Agent resolution without silently multiplying aggregate represented demand"
+  }
+}

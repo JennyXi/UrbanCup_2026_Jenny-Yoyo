@@ -1,0 +1,32 @@
+﻿check,passed,actual,expected
+summary_status,True,"""PASS""","""PASS"""
+agent_count,True,1000,1000
+age_group_counts,True,"{""18-39"": 400, ""40-59"": 330, ""60+"": 270}","{""18-39"": 400, ""40-59"": 330, ""60+"": 270}"
+travel_decision_count,True,1996,1996
+unique_travel_decisions,True,1996,1996
+travel_api_attempted_all,True,1996,1996
+travel_api_succeeded_all,True,1996,1996
+travel_api_response_hashes,True,1996,1996
+api_attempt_count,True,"{""total"": 2618, ""coupon"": 622, ""travel"": 1996}","{""total"": 2618, ""coupon"": 622, ""travel"": 1996}"
+api_attempt_failures,True,0,0
+coupon_api_succeeded_all,True,622,622
+ride_hailing_events_match_choices,True,"{""events"": 488, ""choices"": 488}",488
+traffic_event_publication_exact,True,488,488
+influence_edges_chronological,True,18045,18045
+influence_edge_count,True,18045,18045
+affected_decision_count,True,1746,1746
+coupon_allocation_count,True,1000,1000
+coupon_pool_bound,True,200,200
+public_multiplier_creates_no_coupons,True,0,0
+coupon_binding_only_ride_hailing,True,71,71
+coupon_redemption_matches_binding,True,71,71
+ride_hailing_dispatch_success,True,"{""requests"": 488, ""failures"": 0}","{""requests"": 488, ""failures"": 0}"
+activity_completion_rate,True,0.967949,0.967949
+necessary_activity_completion_rate,True,0.958277,0.958277
+a1_main_elder_version_recorded,True,"""A1_main_stable_elder_behavior_7d21a4f""","""A1_main_stable_elder_behavior_7d21a4f"""
+main_elder_parameter_values,True,"{""ride_hailing_constant"": 0.3, ""w2_exposure_weight"": 1.6, ""fare_multiplier"": 0.9, ""transfer_burden"": 3.0}","{""ride_hailing_constant"": 0.3, ""w2_exposure_weight"": 1.6, ""fare_multiplier"": 0.9, ""transfer_burden"": 3.0}"
+elder_exposure_weight_audited,True,401,401
+elder_conditional_fare_sensitivity_audited,True,"[0.9, 1.0]","""contains 0.9"""
+elder_digital_segments,True,"{""digital_self"": 130, ""family_proxy"": 93, ""nondigital_unassisted"": 47}","{""digital_self"": 130, ""family_proxy"": 93, ""nondigital_unassisted"": 47}"
+unassisted_elder_ride_hailing_barrier,True,0,0
+api_key_not_marked_persisted,True,"{""present_during_run"": true, ""persisted"": false}","{""present_during_run"": true, ""persisted"": false}"

@@ -1,0 +1,269 @@
+{
+  "status": "PASS",
+  "experiment": "1000-Agent real-API interdependent urban mobility",
+  "experiment_version": "city_mobility_1000_api_w2_seed47_main_elder_v2",
+  "seed": 47,
+  "weather_scenario": "W2",
+  "day_type": "workday",
+  "agents": 1000,
+  "age_group_counts": {
+    "18-39": 400,
+    "40-59": 330,
+    "60+": 270
+  },
+  "agents_with_travel": 904,
+  "agents_without_workday_travel": 96,
+  "travel_decisions": 1996,
+  "api_travel_decisions": 1996,
+  "api_successful_travel_decisions": 1996,
+  "api_travel_coverage_rate": 1.0,
+  "api_decision_failures": 0,
+  "model": "deepseek-v4-flash",
+  "api_base": "https://api.deepseek.com",
+  "api_key_present": true,
+  "api_key_persisted": false,
+  "api_attempts_total": 2618,
+  "api_attempt_failures": 0,
+  "usage": {
+    "successful_calls": 2618,
+    "input_tokens": 1124320,
+    "output_tokens": 86326,
+    "total_tokens": 1210646,
+    "elapsed_api_ms": 3062989.566
+  },
+  "checkpoint": {
+    "travel_successes": 1996,
+    "coupon_successes": 622,
+    "resume_enabled": true,
+    "responses_reused_from_checkpoint": 0
+  },
+  "chosen_mode_counts": {
+    "walk": 11,
+    "bus": 591,
+    "metro": 906,
+    "ride_hailing": 488
+  },
+  "final_successful_mode_counts": {
+    "walk": 11,
+    "bus": 591,
+    "metro": 906,
+    "ride_hailing": 488
+  },
+  "ride_hailing_traffic_events": 488,
+  "decisions_with_prior_influencers": 1769,
+  "affected_decisions": 1746,
+  "linkage_coverage_rate": 0.874749,
+  "conditional_linkage_rate": 0.986998,
+  "maximum_absolute_probability_change": 0.283650837,
+  "influence_edges": 18045,
+  "represented_trips_per_agent": 6.0,
+  "aggregate_represented_trips": 6000.0,
+  "coupon_agent": {
+    "controller": "PublicGoodsCouponAPIAgent",
+    "official_parent_agent_class": "agentsociety2.contrib.agent.PublicGoodsAgent",
+    "adapter_agent_class": "integrations.agentsociety.coupon_public_goods_agent.CouponPublicGoodsAgent",
+    "allocation_logic": "version-controlled CouponPublicGoodsAgent-compatible allocator",
+    "agents": 1000,
+    "participants": 622,
+    "api_contribution_decisions": 622,
+    "api_decision_failures": 0,
+    "configured_coupon_pool": 200,
+    "awarded": 200,
+    "coupons_created_by_multiplier": 0,
+    "linked_decisions": 622,
+    "partial_test": false
+  },
+  "coupon_funnel": {
+    "reached": 977,
+    "participated": 622,
+    "awarded": 200,
+    "available_at_first_travel_choice": 172,
+    "bound_to_ride_hailing": 71,
+    "redeemed": 71
+  },
+  "coupon_binding_rule": "awarded coupon is offered on the first trip decision only and affects only ride-hailing fare/choice; redemption requires successful dispatch",
+  "ride_hailing_requests": 488,
+  "successful_ride_hailing_requests": 488,
+  "failed_ride_hailing_requests": 0,
+  "transport_success_rate": 1.0,
+  "activity_completion_rate": 0.967949,
+  "necessary_activity_completion_rate": 0.958277,
+  "mean_total_travel_time": 61.534,
+  "initial_ride_hailing_vehicles": 240,
+  "age_results": {
+    "18-39": {
+      "agents": 400,
+      "travel_decisions": 904,
+      "agents_with_travel": 394,
+      "final_successful_mode_counts": {
+        "walk": 10,
+        "bus": 69,
+        "metro": 489,
+        "ride_hailing": 336
+      },
+      "transport_success_rate": 1.0,
+      "mean_total_travel_time": 58.45024,
+      "mean_access_time": 12.633606,
+      "mean_transfer_time": 2.543939,
+      "necessary_activity_completion_rate": 0.958791,
+      "activity_completion_rate": 0.966667
+    },
+    "40-59": {
+      "agents": 330,
+      "travel_decisions": 691,
+      "agents_with_travel": 328,
+      "final_successful_mode_counts": {
+        "walk": 0,
+        "bus": 201,
+        "metro": 365,
+        "ride_hailing": 125
+      },
+      "transport_success_rate": 1.0,
+      "mean_total_travel_time": 66.147802,
+      "mean_access_time": 14.344751,
+      "mean_transfer_time": 2.395825,
+      "necessary_activity_completion_rate": 0.951768,
+      "activity_completion_rate": 0.958678
+    },
+    "60+": {
+      "agents": 270,
+      "travel_decisions": 401,
+      "agents_with_travel": 182,
+      "final_successful_mode_counts": {
+        "walk": 1,
+        "bus": 321,
+        "metro": 52,
+        "ride_hailing": 27
+      },
+      "transport_success_rate": 1.0,
+      "mean_total_travel_time": 60.536364,
+      "mean_access_time": 10.925741,
+      "mean_transfer_time": 0.758868,
+      "necessary_activity_completion_rate": 0.985294,
+      "activity_completion_rate": 0.986301
+    }
+  },
+  "elder_digital_gap_results": {
+    "digital_self": {
+      "agents": 130,
+      "travel_legs": 188,
+      "ride_hailing_legs": 18,
+      "ride_hailing_share": 0.095745,
+      "transport_success_rate": 1.0,
+      "necessary_activity_completion_rate": 0.966667,
+      "mean_total_travel_time": 59.453383
+    },
+    "family_proxy": {
+      "agents": 93,
+      "travel_legs": 134,
+      "ride_hailing_legs": 9,
+      "ride_hailing_share": 0.067164,
+      "transport_success_rate": 1.0,
+      "necessary_activity_completion_rate": 1.0,
+      "mean_total_travel_time": 58.70744
+    },
+    "nondigital_unassisted": {
+      "agents": 47,
+      "travel_legs": 79,
+      "ride_hailing_legs": 0,
+      "ride_hailing_share": 0.0,
+      "transport_success_rate": 1.0,
+      "necessary_activity_completion_rate": 1.0,
+      "mean_total_travel_time": 66.21581
+    }
+  },
+  "age_parameter_version": {
+    "version": "A1_main_stable_elder_behavior_7d21a4f",
+    "source_main_commit": "7d21a4f81cd8a30b5376dc6751671a49e8e84aa5",
+    "strictly_comparable_to_200_age_behavior": false,
+    "w2_age_weather_exposure_multiplier_loaded": true,
+    "age_mode_constant": {
+      "18-39": {
+        "walk": 1.0,
+        "bus": 0.0,
+        "metro": 0.0,
+        "ride_hailing": 0.3
+      },
+      "40-59": {
+        "walk": 0.0,
+        "bus": 0.5,
+        "metro": 0.0,
+        "ride_hailing": 0.5
+      },
+      "60+": {
+        "walk": -1.5,
+        "bus": 1.0,
+        "metro": 0.0,
+        "ride_hailing": 0.3
+      }
+    },
+    "value_of_time_yuan_per_hour": {
+      "18-39": 45.0,
+      "40-59": 38.0,
+      "60+": 25.0
+    },
+    "weather_exposure_disutility": {
+      "enabled": true,
+      "utility_penalty_per_outdoor_minute": {
+        "normal": 0.0,
+        "extreme_heat": 0.025,
+        "heavy_rain": 0.035
+      },
+      "age_vulnerability_weight": {
+        "18-39": 1.0,
+        "40-59": 1.2,
+        "60+": 1.6
+      },
+      "medical_need_level_weight": {
+        "low": 1.0,
+        "standard": 1.2,
+        "high": 1.5
+      }
+    },
+    "conditional_fare_sensitivity": {
+      "enabled": true,
+      "necessary_purposes": [
+        "work",
+        "medical"
+      ],
+      "weather_types": [
+        "extreme_heat",
+        "heavy_rain"
+      ],
+      "elder_exposed_necessary_multiplier": 0.9
+    },
+    "age_transfer_burden": {
+      "enabled": true,
+      "minutes_per_transfer_by_age": {
+        "18-39": 0.0,
+        "40-59": 0.0,
+        "60+": 3.0
+      }
+    },
+    "ride_hailing_access_rule": "digital_access OR family_assistance OR coupon community/family proxy",
+    "elder_inconvenience_note": "60+ retains walk=-1.5 and digital access constraints while adopting ride_hailing=0.3, W2 exposure weight=1.6, medical-need exposure weights, necessary-trip fare multiplier=0.9, and 3 perceived minutes per bus-metro transfer"
+  },
+  "comparability": {
+    "baseline_script": "scripts/run_city_mobility_200_api.py",
+    "baseline_output": "outputs/city_mobility_200_api_w2_seed47",
+    "previous_1000_output": "outputs/city_mobility_1000_api_w2_seed47",
+    "age_weather_exposure_version": "A1_main_stable_elder_behavior_7d21a4f",
+    "age_weather_exposure_multiplier_loaded": true,
+    "strictly_comparable_to_200_age_behavior": false,
+    "source_main_commit": "7d21a4f81cd8a30b5376dc6751671a49e8e84aa5",
+    "age_weather_exposure_note": "This rerun intentionally adopts the main-branch stable elderly behavior. Relative to the 200-Agent API and first 1000-Agent A0 runs, it changes the 60+ ride-hailing constant from -0.5 to 0.3, loads W2 age exposure weight 1.6, adds medical-need exposure weights, applies a 0.9 conditional fare-sensitivity multiplier to exposed necessary trips, and adds 3 perceived minutes per bus-metro transfer. Results are versioned as A1 and must not be treated as strict A0 replications.",
+    "population_age_shares": {
+      "18-39": 0.4,
+      "40-59": 0.33,
+      "60+": 0.27
+    },
+    "elder_digital_access_rate": 0.483,
+    "elder_smartphone_access_rate": 0.873,
+    "elder_family_assistance_rate": 0.68,
+    "fleet_scaling": "48/200 to 240/1000; constant 0.24 vehicles per Agent",
+    "coupon_scaling": "40/200 to 200/1000; constant 20 coupons per 100 Agents",
+    "traffic_representation": "200*30 and 1000*6 both represent 6000 trips; scaling increases Agent resolution without silently multiplying aggregate represented demand"
+  },
+  "elapsed_seconds": 1397.372,
+  "completed_at_utc": "2026-07-19T12:01:45.054401+00:00"
+}

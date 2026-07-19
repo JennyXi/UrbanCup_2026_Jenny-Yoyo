@@ -1,0 +1,245 @@
+{
+  "status": "PASS",
+  "checks_passed": 31,
+  "checks_total": 31,
+  "checks": [
+    {
+      "check": "summary_status",
+      "passed": true,
+      "actual": "PASS",
+      "expected": "PASS"
+    },
+    {
+      "check": "agent_count",
+      "passed": true,
+      "actual": 1000,
+      "expected": 1000
+    },
+    {
+      "check": "age_group_counts",
+      "passed": true,
+      "actual": {
+        "18-39": 400,
+        "40-59": 330,
+        "60+": 270
+      },
+      "expected": {
+        "18-39": 400,
+        "40-59": 330,
+        "60+": 270
+      }
+    },
+    {
+      "check": "travel_decision_count",
+      "passed": true,
+      "actual": 1996,
+      "expected": 1996
+    },
+    {
+      "check": "unique_travel_decisions",
+      "passed": true,
+      "actual": 1996,
+      "expected": 1996
+    },
+    {
+      "check": "travel_api_attempted_all",
+      "passed": true,
+      "actual": 1996,
+      "expected": 1996
+    },
+    {
+      "check": "travel_api_succeeded_all",
+      "passed": true,
+      "actual": 1996,
+      "expected": 1996
+    },
+    {
+      "check": "travel_api_response_hashes",
+      "passed": true,
+      "actual": 1996,
+      "expected": 1996
+    },
+    {
+      "check": "api_attempt_count",
+      "passed": true,
+      "actual": {
+        "total": 2618,
+        "coupon": 622,
+        "travel": 1996
+      },
+      "expected": {
+        "total": 2618,
+        "coupon": 622,
+        "travel": 1996
+      }
+    },
+    {
+      "check": "api_attempt_failures",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "check": "coupon_api_succeeded_all",
+      "passed": true,
+      "actual": 622,
+      "expected": 622
+    },
+    {
+      "check": "ride_hailing_events_match_choices",
+      "passed": true,
+      "actual": {
+        "events": 488,
+        "choices": 488
+      },
+      "expected": 488
+    },
+    {
+      "check": "traffic_event_publication_exact",
+      "passed": true,
+      "actual": 488,
+      "expected": 488
+    },
+    {
+      "check": "influence_edges_chronological",
+      "passed": true,
+      "actual": 18045,
+      "expected": 18045
+    },
+    {
+      "check": "influence_edge_count",
+      "passed": true,
+      "actual": 18045,
+      "expected": 18045
+    },
+    {
+      "check": "affected_decision_count",
+      "passed": true,
+      "actual": 1746,
+      "expected": 1746
+    },
+    {
+      "check": "coupon_allocation_count",
+      "passed": true,
+      "actual": 1000,
+      "expected": 1000
+    },
+    {
+      "check": "coupon_pool_bound",
+      "passed": true,
+      "actual": 200,
+      "expected": 200
+    },
+    {
+      "check": "public_multiplier_creates_no_coupons",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "check": "coupon_binding_only_ride_hailing",
+      "passed": true,
+      "actual": 71,
+      "expected": 71
+    },
+    {
+      "check": "coupon_redemption_matches_binding",
+      "passed": true,
+      "actual": 71,
+      "expected": 71
+    },
+    {
+      "check": "ride_hailing_dispatch_success",
+      "passed": true,
+      "actual": {
+        "requests": 488,
+        "failures": 0
+      },
+      "expected": {
+        "requests": 488,
+        "failures": 0
+      }
+    },
+    {
+      "check": "activity_completion_rate",
+      "passed": true,
+      "actual": 0.967949,
+      "expected": 0.967949
+    },
+    {
+      "check": "necessary_activity_completion_rate",
+      "passed": true,
+      "actual": 0.958277,
+      "expected": 0.958277
+    },
+    {
+      "check": "a1_main_elder_version_recorded",
+      "passed": true,
+      "actual": "A1_main_stable_elder_behavior_7d21a4f",
+      "expected": "A1_main_stable_elder_behavior_7d21a4f"
+    },
+    {
+      "check": "main_elder_parameter_values",
+      "passed": true,
+      "actual": {
+        "ride_hailing_constant": 0.3,
+        "w2_exposure_weight": 1.6,
+        "fare_multiplier": 0.9,
+        "transfer_burden": 3.0
+      },
+      "expected": {
+        "ride_hailing_constant": 0.3,
+        "w2_exposure_weight": 1.6,
+        "fare_multiplier": 0.9,
+        "transfer_burden": 3.0
+      }
+    },
+    {
+      "check": "elder_exposure_weight_audited",
+      "passed": true,
+      "actual": 401,
+      "expected": 401
+    },
+    {
+      "check": "elder_conditional_fare_sensitivity_audited",
+      "passed": true,
+      "actual": [
+        0.9,
+        1.0
+      ],
+      "expected": "contains 0.9"
+    },
+    {
+      "check": "elder_digital_segments",
+      "passed": true,
+      "actual": {
+        "digital_self": 130,
+        "family_proxy": 93,
+        "nondigital_unassisted": 47
+      },
+      "expected": {
+        "digital_self": 130,
+        "family_proxy": 93,
+        "nondigital_unassisted": 47
+      }
+    },
+    {
+      "check": "unassisted_elder_ride_hailing_barrier",
+      "passed": true,
+      "actual": 0,
+      "expected": 0
+    },
+    {
+      "check": "api_key_not_marked_persisted",
+      "passed": true,
+      "actual": {
+        "present_during_run": true,
+        "persisted": false
+      },
+      "expected": {
+        "present_during_run": true,
+        "persisted": false
+      }
+    }
+  ]
+}

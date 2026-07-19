@@ -25,7 +25,7 @@ def main() -> None:
         "output_dir",
         type=Path,
         nargs="?",
-        default=Path("outputs/city_mobility_1000_api_w2_seed47"),
+        default=Path("outputs/city_mobility_1000_api_w2_seed47_main_elder_v2"),
     )
     args = parser.parse_args()
     root = args.output_dir.resolve()
@@ -114,7 +114,7 @@ def main() -> None:
         "ride_hailing_events_match_choices",
         len(events) == len(ride_decisions) == summary["ride_hailing_traffic_events"],
         {"events": len(events), "choices": len(ride_decisions)},
-        396,
+        summary["ride_hailing_traffic_events"],
     )
     check(
         "traffic_event_publication_exact",
@@ -124,13 +124,13 @@ def main() -> None:
             for row in decisions
         ),
         sum(truth(row["published_traffic_event"]) for row in decisions),
-        396,
+        len(ride_decisions),
     )
     chronological_edges = all(
         int(row["source_decision_sequence"]) < int(row["target_decision_sequence"])
         for row in edges
     )
-    check("influence_edges_chronological", chronological_edges, len(edges), 13652)
+    check("influence_edges_chronological", chronological_edges, len(edges), len(edges))
     check(
         "influence_edge_count",
         len(edges) == summary["influence_edges"],
@@ -138,7 +138,12 @@ def main() -> None:
         summary["influence_edges"],
     )
     affected = sum(truth(row["affected_by_prior_agents"]) for row in decisions)
-    check("affected_decision_count", affected == 1683, affected, 1683)
+    check(
+        "affected_decision_count",
+        affected == summary["affected_decisions"],
+        affected,
+        summary["affected_decisions"],
+    )
 
     check("coupon_allocation_count", len(coupons) == 1000, len(coupons), 1000)
     awarded = sum(truth(row["coupon_awarded"]) for row in coupons)
@@ -152,27 +157,29 @@ def main() -> None:
     bound = [row for row in decisions if truth(row["coupon_bound_to_ride_hailing"])]
     check(
         "coupon_binding_only_ride_hailing",
-        len(bound) == 54
+        len(bound) == summary["coupon_funnel"]["bound_to_ride_hailing"]
         and all(
             row["chosen_mode"] == "ride_hailing"
             and truth(row["coupon_available_at_choice"])
             for row in bound
         ),
         len(bound),
-        54,
+        summary["coupon_funnel"]["bound_to_ride_hailing"],
     )
     redeemed = [row for row in choices if truth(row["coupon_redeemed"])]
     check(
         "coupon_redemption_matches_binding",
-        len(redeemed) == 54 and all(truth(row["coupon_bound"]) for row in redeemed),
+        len(redeemed) == summary["coupon_funnel"]["redeemed"]
+        and all(truth(row["coupon_bound"]) for row in redeemed),
         len(redeemed),
-        54,
+        summary["coupon_funnel"]["redeemed"],
     )
     check(
         "ride_hailing_dispatch_success",
-        len(dispatch) == 396 and all(truth(row["succeeded"]) for row in dispatch),
+        len(dispatch) == summary["ride_hailing_requests"]
+        and all(truth(row["succeeded"]) for row in dispatch),
         {"requests": len(dispatch), "failures": sum(not truth(row["succeeded"]) for row in dispatch)},
-        {"requests": 396, "failures": 0},
+        {"requests": summary["ride_hailing_requests"], "failures": 0},
     )
 
     necessary = [row for row in activities if truth(row["is_mandatory"])]
@@ -195,13 +202,88 @@ def main() -> None:
         summary["necessary_activity_completion_rate"],
     )
     check(
-        "a0_age_weather_comparability",
-        summary["age_parameter_version"]["version"] == "A0_strict_200_api_baseline"
-        and not summary["age_parameter_version"][
+        "a1_main_elder_version_recorded",
+        summary["age_parameter_version"]["version"]
+        == "A1_main_stable_elder_behavior_7d21a4f"
+        and summary["age_parameter_version"][
             "w2_age_weather_exposure_multiplier_loaded"
+        ]
+        and not summary["age_parameter_version"][
+            "strictly_comparable_to_200_age_behavior"
         ],
         summary["age_parameter_version"]["version"],
-        "A0_strict_200_api_baseline",
+        "A1_main_stable_elder_behavior_7d21a4f",
+    )
+    age_parameters = summary["age_parameter_version"]
+    check(
+        "main_elder_parameter_values",
+        float(age_parameters["age_mode_constant"]["60+"]["ride_hailing"]) == 0.3
+        and float(
+            age_parameters["weather_exposure_disutility"][
+                "age_vulnerability_weight"
+            ]["60+"]
+        )
+        == 1.6
+        and float(
+            age_parameters["conditional_fare_sensitivity"][
+                "elder_exposed_necessary_multiplier"
+            ]
+        )
+        == 0.9
+        and float(
+            age_parameters["age_transfer_burden"]["minutes_per_transfer_by_age"][
+                "60+"
+            ]
+        )
+        == 3.0,
+        {
+            "ride_hailing_constant": age_parameters["age_mode_constant"]["60+"][
+                "ride_hailing"
+            ],
+            "w2_exposure_weight": age_parameters["weather_exposure_disutility"][
+                "age_vulnerability_weight"
+            ]["60+"],
+            "fare_multiplier": age_parameters["conditional_fare_sensitivity"][
+                "elder_exposed_necessary_multiplier"
+            ],
+            "transfer_burden": age_parameters["age_transfer_burden"][
+                "minutes_per_transfer_by_age"
+            ]["60+"],
+        },
+        {
+            "ride_hailing_constant": 0.3,
+            "w2_exposure_weight": 1.6,
+            "fare_multiplier": 0.9,
+            "transfer_burden": 3.0,
+        },
+    )
+    elder_decisions = [row for row in decisions if row["age_group"] == "60+"]
+    check(
+        "elder_exposure_weight_audited",
+        bool(elder_decisions)
+        and all(
+            abs(float(row["chosen_weather_exposure_age_weight"]) - 1.6) < 1e-9
+            for row in elder_decisions
+        ),
+        sum(
+            abs(float(row["chosen_weather_exposure_age_weight"]) - 1.6) < 1e-9
+            for row in elder_decisions
+        ),
+        len(elder_decisions),
+    )
+    check(
+        "elder_conditional_fare_sensitivity_audited",
+        any(
+            abs(float(row["chosen_fare_sensitivity_multiplier"]) - 0.9) < 1e-9
+            for row in elder_decisions
+        ),
+        sorted(
+            {
+                float(row["chosen_fare_sensitivity_multiplier"])
+                for row in elder_decisions
+            }
+        ),
+        "contains 0.9",
     )
     elder = [row for row in agents if row["age_group"] == "60+"]
     elder_segments = Counter(

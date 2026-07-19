@@ -1,6 +1,6 @@
 {
-  "experiment_id": "city_mobility_1000_api_w2_seed47_v1",
-  "description": "1000-Agent real-API urban-mobility experiment using the 200-Agent W2 A0 baseline definitions, proportional fleet/coupon scaling, and aggregate-demand-preserving traffic representation.",
+  "experiment_id": "city_mobility_1000_api_w2_seed47_main_elder_v2",
+  "description": "1000-Agent real-API urban-mobility experiment using the main-branch stable elderly behavior selected in commit 7d21a4f, proportional fleet/coupon scaling, and aggregate-demand-preserving traffic representation.",
   "formal_transport_config": "config/formal_nine_zone_agent_experiment.json",
   "symmetric_behavior_config": "config/symmetric_weather_experiment.json",
   "emergence_heat_config": "config/emergence_experiment.json",
@@ -64,9 +64,12 @@
   "comparability": {
     "baseline_script": "scripts/run_city_mobility_200_api.py",
     "baseline_output": "outputs/city_mobility_200_api_w2_seed47",
-    "age_weather_exposure_version": "A0_strict_200_api_baseline",
-    "age_weather_exposure_multiplier_loaded": false,
-    "age_weather_exposure_note": "The 200-Agent API baseline did not load the later A1 W2 age-vulnerability exposure multiplier. This 1000-Agent primary run deliberately keeps that term disabled for strict comparability.",
+    "previous_1000_output": "outputs/city_mobility_1000_api_w2_seed47",
+    "age_weather_exposure_version": "A1_main_stable_elder_behavior_7d21a4f",
+    "age_weather_exposure_multiplier_loaded": true,
+    "strictly_comparable_to_200_age_behavior": false,
+    "source_main_commit": "7d21a4f81cd8a30b5376dc6751671a49e8e84aa5",
+    "age_weather_exposure_note": "This rerun intentionally adopts the main-branch stable elderly behavior. Relative to the 200-Agent API and first 1000-Agent A0 runs, it changes the 60+ ride-hailing constant from -0.5 to 0.3, loads W2 age exposure weight 1.6, adds medical-need exposure weights, applies a 0.9 conditional fare-sensitivity multiplier to exposed necessary trips, and adds 3 perceived minutes per bus-metro transfer. Results are versioned as A1 and must not be treated as strict A0 replications.",
     "population_age_shares": {"18-39": 0.4, "40-59": 0.33, "60+": 0.27},
     "elder_digital_access_rate": 0.483,
     "elder_smartphone_access_rate": 0.873,
@@ -87,7 +90,7 @@
     "aggregate_represented_trips": 6000.0
   },
   "scope_notes": [
-    "Bus and metro timetables, mode-choice parameters, activity rules, weather windows, coupon binding rule, and Seed 47 remain aligned with the 200-Agent API baseline.",
+    "Bus and metro timetables, non-elder mode-choice parameters, activity rules, weather windows, coupon binding rule, and Seed 47 remain aligned with the 200-Agent API baseline; the elderly behavior block is intentionally upgraded to main commit 7d21a4f.",
     "Bus and metro boarding remain guaranteed; ride-hailing uses a finite proportionally scaled vehicle pool.",
     "This is a mechanism experiment, not a calibrated Shanghai traffic forecast."
   ]
