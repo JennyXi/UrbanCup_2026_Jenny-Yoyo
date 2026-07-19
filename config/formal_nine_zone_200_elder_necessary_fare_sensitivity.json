@@ -1,0 +1,34 @@
+{
+  "experiment_id": "formal_nine_zone_200_elder_necessary_fare_sensitivity_v1",
+  "description": "Paired screen of reduced fare sensitivity for elderly exposed necessary trips only.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+  "write_option_audit": true,
+  "sensitivity_parameter": "elder_exposed_necessary_fare_sensitivity",
+  "fixed_elder_ride_hailing_mode_constant": 0.3,
+  "fixed_elder_weather_exposure_choice_weight": 1.6,
+  "fixed_medical_need_level_weight": {"low": 1.0, "standard": 1.2, "high": 1.5},
+  "weather_exposure_disutility": {
+    "enabled": true,
+    "utility_penalty_per_outdoor_minute": {
+      "normal": 0.0,
+      "extreme_heat": 0.015,
+      "heavy_rain": 0.012
+    },
+    "age_vulnerability_weight": {"18-39": 1.0, "40-59": 1.1, "60+": 1.6}
+  },
+  "preference_scenarios": {
+    "F0_current_1_0": 1.0,
+    "F1_moderate_0_9": 0.9,
+    "F2_lower_0_8": 0.8
+  },
+  "scope_notes": [
+    "The multiplier applies only to 60+ work/medical choices whose departure is in W1/W2 behavioral weather.",
+    "Actual fare, subsidy and vehicle revenue are unchanged; this is willingness-to-pay sensitivity, not a coupon.",
+    "W0, non-necessary elderly trips and all non-elderly choices must remain unchanged."
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "experiment_id": "formal_nine_zone_200_elder_medical_need_exposure_sensitivity_v1",
+  "description": "Paired 200-Agent screen of medical-need differentiation in elderly weather-exposure mode choice.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+  "sensitivity_parameter": "elder_medical_need_exposure_weight",
+  "fixed_elder_ride_hailing_mode_constant": 0.1,
+  "fixed_elder_weather_exposure_choice_weight": 1.6,
+  "weather_exposure_disutility": {
+    "enabled": true,
+    "utility_penalty_per_outdoor_minute": {
+      "normal": 0.0,
+      "extreme_heat": 0.015,
+      "heavy_rain": 0.012
+    },
+    "age_vulnerability_weight": {"18-39": 1.0, "40-59": 1.1, "60+": 1.6}
+  },
+  "behavior_scenarios": {
+    "M0_no_medical_differentiation": {"low": 1.0, "standard": 1.0, "high": 1.0},
+    "M1_proposed": {"low": 1.0, "standard": 1.2, "high": 1.5},
+    "M2_upper": {"low": 1.0, "standard": 1.4, "high": 1.8}
+  },
+  "scope_notes": [
+    "medical_need_level already exists in the population and continues to determine medical-activity frequency.",
+    "This experiment additionally lets it multiply choice-stage weather outdoor-exposure disutility only.",
+    "It does not change physiological heat dose, weather cancellation, activity destinations, fares, digital availability or dispatch priority.",
+    "W0 must remain behaviorally identical because its weather-exposure utility penalty is zero."
+  ]
+}

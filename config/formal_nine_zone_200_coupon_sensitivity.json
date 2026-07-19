@@ -1,0 +1,72 @@
+{
+  "experiment_id": "formal_nine_zone_200_coupon_intensity_sensitivity_v1",
+  "description": "Paired 200-Agent discount-intensity sensitivity around the formal uncapped 20-percent-off coupon policy.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+  "allocation_policy": "C3_mixed",
+  "mode_choice_override": {
+    "weather_exposure_disutility": {
+      "enabled": true,
+      "utility_penalty_per_outdoor_minute": {
+        "normal": 0.0,
+        "extreme_heat": 0.015,
+        "heavy_rain": 0.012
+      },
+      "age_vulnerability_weight": {"18-39": 1.0, "40-59": 1.1, "60+": 1.3}
+    }
+  },
+  "distance_fare_analysis": {
+    "short_max_km": 5.0,
+    "medium_max_km": 10.0,
+    "classification": "short <= 5 km; medium > 5 and <= 10 km; long > 10 km",
+    "scope_note": "Reporting bands only; they do not change destinations or mode utility."
+  },
+  "coupon_experiment": {
+    "policies": ["C0_no_coupon", "C1_public_limited", "C2_elder_limited", "C3_mixed"],
+    "discount_multiplier": 0.80,
+    "daily_total_coupon_pool": 40,
+    "public_participation_probability": {"18-39": 0.80, "40-59": 0.65, "60+": 0.45},
+    "mixed_public_pool_share": 0.70,
+    "community_phone_coverage_rate": 0.40,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0
+  },
+  "experiment_sets": {
+    "intensity": {
+      "description": "Hold C3 recipients fixed and compare no coupon, 10, 20 and 30 percent discounts.",
+      "scenarios": {
+        "K0_no_coupon": {"coupon_enabled": false, "pricing_type": "percentage", "discount_multiplier": 1.00},
+        "K90_nine_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.90},
+        "K80_eight_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.80},
+        "K70_seven_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.70}
+      }
+    },
+    "high_value_format": {
+      "description": "Hold C3 recipients fixed and compare uncapped 20-percent-off, flat 10-yuan and 50-minus-10 coupon formats.",
+      "scenarios": {
+        "H0_no_coupon": {"coupon_enabled": false, "pricing_type": "percentage", "discount_multiplier": 1.00},
+        "H80_eight_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.80},
+        "H10_flat_ten": {"coupon_enabled": true, "pricing_type": "flat_amount", "discount_amount_yuan": 10.0},
+        "H50_10_threshold": {"coupon_enabled": true, "pricing_type": "threshold_flat", "minimum_original_fare_yuan": 50.0, "discount_amount_yuan": 10.0}
+      }
+    }
+  },
+  "scale_definition": {
+    "agents": 200,
+    "effective_initial_vehicle_pool": 36,
+    "coupon_pool": 40,
+    "coupons_per_100_agents": 20,
+    "interpretation": "Mechanism sensitivity at the confirmed A1 scale, not a direct representation of a city of millions."
+  },
+  "scope_notes": [
+    "Within each seed, all discount scenarios share Agents, activities, OD, weather, C3 recipients, vehicle pool, mode-choice shocks and dispatch priorities.",
+    "Only the discount multiplier changes; destinations and planned activities remain fixed.",
+    "This is the minimum 200-Agent bridge sensitivity for the formal uncapped 20-percent-off main parameter.",
+    "The high-value-format set is the 200-Agent bridge check for the coupon-format findings first screened with 50 Agents."
+  ]
+}

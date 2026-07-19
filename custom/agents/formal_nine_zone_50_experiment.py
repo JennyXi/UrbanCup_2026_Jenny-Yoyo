@@ -441,6 +441,7 @@ def run_formal_nine_zone_50_experiment(
     all_states: list[Dict[str, Any]] = []
     all_activity_results: list[Dict[str, Any]] = []
     all_choices: list[Dict[str, Any]] = []
+    all_option_audit: list[Dict[str, Any]] = []
     all_dispatch: list[Dict[str, Any]] = []
     all_vehicle_states: list[Dict[str, Any]] = []
     summaries: list[Dict[str, Any]] = []
@@ -480,12 +481,14 @@ def run_formal_nine_zone_50_experiment(
             all_states.extend(states)
             all_activity_results.extend(activity_results)
             all_choices.extend(choices)
+            all_option_audit.extend(transport.get("choice_option_audit", ()))
             all_dispatch.extend(transport["ride_hailing_dispatch"])
             all_vehicle_states.extend(transport["vehicle_end_states"])
             summaries.append(summary)
     return {
         "config": experiment, "formal_config": formal, "inputs": inputs,
         "activity_states": all_states, "activity_results": all_activity_results,
-        "mode_choices": all_choices, "ride_hailing_dispatch": all_dispatch,
+        "mode_choices": all_choices, "choice_option_audit": all_option_audit,
+        "ride_hailing_dispatch": all_dispatch,
         "vehicle_end_states": all_vehicle_states, "summary_rows": summaries,
     }

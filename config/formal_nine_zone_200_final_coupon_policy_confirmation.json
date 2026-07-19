@@ -1,0 +1,87 @@
+{
+  "experiment_id": "formal_nine_zone_200_final_coupon_policy_confirmation",
+  "description": "Paired C0-C3 policy confirmation after freezing the elderly behavior candidate parameters.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "expected_initial_vehicle_total": 36,
+  "initial_vehicles": {
+    "Z1": 6,
+    "Z2": 6,
+    "Z3": 3,
+    "Z4": 3,
+    "Z5": 3,
+    "Z6": 3,
+    "Z7": 6,
+    "Z8": 3,
+    "Z9": 3
+  },
+  "mode_choice_override": {
+    "age_mode_constant": {
+      "60+": {
+        "ride_hailing": 0.3
+      }
+    },
+    "weather_exposure_disutility": {
+      "enabled": true,
+      "utility_penalty_per_outdoor_minute": {
+        "normal": 0.0,
+        "extreme_heat": 0.025,
+        "heavy_rain": 0.035
+      },
+      "age_vulnerability_weight": {
+        "18-39": 1.0,
+        "40-59": 1.2,
+        "60+": 1.6
+      },
+      "medical_need_level_weight": {
+        "low": 1.0,
+        "standard": 1.2,
+        "high": 1.5
+      }
+    },
+    "conditional_fare_sensitivity": {
+      "enabled": true,
+      "necessary_purposes": ["work", "medical"],
+      "weather_types": ["extreme_heat", "heavy_rain"],
+      "elder_exposed_necessary_multiplier": 0.9
+    },
+    "age_transfer_burden": {
+      "enabled": true,
+      "minutes_per_transfer_by_age": {
+        "18-39": 0.0,
+        "40-59": 0.0,
+        "60+": 3.0
+      }
+    }
+  },
+  "coupon_experiment": {
+    "policies": [
+      "C0_no_coupon",
+      "C1_public_limited",
+      "C2_elder_limited",
+      "C3_mixed"
+    ],
+    "discount_multiplier": 0.8,
+    "daily_total_coupon_pool": 40,
+    "public_participation_probability": {
+      "18-39": 0.8,
+      "40-59": 0.65,
+      "60+": 0.45
+    },
+    "mixed_public_pool_share": 0.7,
+    "community_phone_coverage_rate": 0.4,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0,
+    "interpretation": "Finite daily 20-percent-off coupon mechanism assumptions, not observed Shanghai take-up or welfare estimates."
+  },
+  "scope_notes": [
+    "All policies within a seed share Agents, activities, OD, weather, vehicle pool, mode-choice shocks and base dispatch priorities.",
+    "C0 has no coupon; C1 is limited all-age public claiming; C2 is elder-targeted; C3 uses 70 percent public and 30 percent elder-reserved coupons.",
+    "The elderly behavior coefficients are fixed scenario assumptions carried forward from the paired sensitivity screens, not observed Shanghai estimates.",
+    "This is the final 200-Agent mechanism confirmation before transferring selected mechanisms to the large-scale formal model."
+  ]
+}

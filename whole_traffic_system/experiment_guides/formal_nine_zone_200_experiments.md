@@ -70,28 +70,30 @@ Z6=3, Z7=6, Z8=3, Z9=3
 
 每人每天最多获得1张、最多核销1次。券在第一次网约车请求时绑定，成功后核销，失败后当日失效。C3的社区/电话触达覆盖率为40%，仅用于机制测试。
 
+最终政策确认固定使用以下老年行为候选参数：老年网约车方式常数0.3、恶劣天气户外暴露权重1.6、W1/W2必要出行费用敏感度0.9，以及每次公交—地铁换乘3分钟等价时间负担。这些数值来自200-Agent配对敏感性筛选，只是机制情景假设，不是上海实测系数。
+
 运行命令：
 
 ```cmd
-python -B -X utf8 -m scripts.run_formal_nine_zone_200_coupon_experiment --seed-start 47 --seed-count 10 --workers 4 --output-dir outputs\formal_nine_zone_200_coupon_10seeds
+python -B -X utf8 -m scripts.run_formal_nine_zone_200_coupon_experiment --config config\formal_nine_zone_200_final_coupon_policy_confirmation.json --seed-start 47 --seed-count 10 --workers 3 --output-dir outputs\formal_nine_zone_200_final_coupon_policy_confirmation_10
 ```
 
 W2十个seed的均值：
 
-| 政策 | 网约车请求 | 成功 | 失败/fallback | 核销 | 券诱发请求 | 网约车份额 | 必要活动完成率 |
+| 政策 | 网约车请求 | 成功 | 失败/fallback | 核销 | 券诱发请求 | 道路车辆量 | 必要活动完成率 |
 |---|---:|---:|---:|---:|---:|---:|---:|
-| C0 | 56.4 | 55.2 | 1.2 | 0.0 | 0.0 | 14.78% | 96.81% |
-| C1 | 64.8 | 63.0 | 1.8 | 16.3 | 8.4 | 16.87% | 96.94% |
-| C2 | 57.4 | 56.2 | 1.2 | 1.3 | 1.0 | 15.04% | 96.81% |
-| C3 | 62.8 | 61.5 | 1.3 | 11.7 | 6.4 | 16.47% | 96.87% |
+| C0 | 64.8 | 63.2 | 1.6 | 0.0 | 0.0 | 1082.1 | 96.94% |
+| C1 | 74.8 | 72.1 | 2.7 | 18.6 | 10.0 | 1091.0 | 96.94% |
+| C2 | 67.8 | 66.0 | 1.8 | 5.0 | 3.0 | 1084.9 | 96.87% |
+| C3 | 72.8 | 69.8 | 3.0 | 14.2 | 8.0 | 1088.7 | 96.94% |
 
-C1和C3在10/10 seeds中增加网约车请求。C1在W2的3/10 seeds中增加派单失败；逐订单审计发现，10 seeds合计有4个未用券、且在C0中成功的请求在C1中失败，构成轻微资源挤出。fallback几乎完全吸收新增失败，因此最终transport_unmet和必要活动完成率没有实质变化。
+C1和C3稳定增加网约车请求、道路车辆量、等待和派单失败，构成“补贴—新增需求—有限车辆竞争”的队列外部性。fallback吸收了大部分新增失败，因此最终transport_unmet和必要活动完成率没有实质变化。
 
-C2每天定向发出40张老年券，但W2平均只核销1.3张。该结果说明名义发券不等于实际使用；不过它同时受到当前老年人网约车请求率很低的行为设定影响，不能外推为现实老人需求。
+C2每天定向发出40张老年券，W2平均核销5.0张；数字老人请求由1.9增至3.5，非数字但有家庭协助者由0.7增至2.1。定向券的系统挤出小于公共券，但仍存在“名义覆盖高、实际核销有限”的断层，不能外推为现实老人需求。
 
-W1中C1、C2、C3相对C0的总热风险分别约下降0.47%、0.28%和0.36%。优惠券能通过减少接驳和候车暴露产生小幅热风险改善，但不是强热健康政策。
+W1中C1、C2、C3相对C0的总热风险均小幅下降，C3降幅约0.83%。优惠券能通过减少接驳和候车暴露产生小幅热风险改善，但不是强热健康政策。
 
-归档：`results/formal_nine_zone_200/formal_nine_zone_200_coupon_10seeds`
+归档：`results/formal_nine_zone_200/formal_nine_zone_200_final_coupon_policy_confirmation_10`
 
 ## 3. 稳定的机制结论
 
@@ -127,4 +129,4 @@ Agent代表居民权重
 - `ride_hailing_dispatch.csv`：逐订单车辆、等待、成功与失败；
 - `consistency_checks.csv`：车辆守恒和政策配对检查，40/40通过。
 
-`mean_road_speed_kmh`是成功道路legs的组成均值，可能随OD与方式构成变化，不能单独解释为全城拥堵改善。正式拥堵结论应使用固定道路、方向和时间段的V/C与速度进行比较。
+`mean_experienced_road_leg_speed_kmh`是成功道路legs的组成均值，可能随OD与方式构成变化，不能单独解释为全城拥堵改善。旧字段`mean_road_speed_kmh`仅作为兼容alias保留。当前政策拥堵方向主要依据`road_vehicle_volume`与V/C；正式模型应比较固定道路、方向和时间段的V/C与速度。
