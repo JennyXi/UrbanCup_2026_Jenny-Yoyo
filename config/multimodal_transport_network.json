@@ -20,7 +20,7 @@
       ]
     },
     "metro": {
-      "intrazonal_service_zones": ["Z1", "Z2", "Z3", "Z4", "Z5", "Z6", "Z7", "Z8"],
+      "intrazonal_service_zones": ["Z1", "Z2", "Z3", "Z7"],
       "feeder_access": {
         "Z9": {
           "gateway_zone": "Z6",
@@ -40,11 +40,11 @@
     "Z1": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
     "Z2": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
     "Z3": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
-    "Z4": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
-    "Z5": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
-    "Z6": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z4": {"road": true, "bus": true, "metro": false, "ride_hailing": true},
+    "Z5": {"road": true, "bus": true, "metro": false, "ride_hailing": true},
+    "Z6": {"road": true, "bus": true, "metro": false, "ride_hailing": true},
     "Z7": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
-    "Z8": {"road": true, "bus": true, "metro": true, "ride_hailing": true},
+    "Z8": {"road": true, "bus": true, "metro": false, "ride_hailing": true},
     "Z9": {"road": true, "bus": true, "metro": false, "ride_hailing": true}
   },
   "intrazonal_distance_sampling": {
@@ -68,14 +68,47 @@
       "Z1": 0.75,
       "Z2": 0.60,
       "Z3": 0.60,
-      "Z4": 0.35,
-      "Z5": 0.30,
-      "Z6": 0.35,
+      "Z4": 0.00,
+      "Z5": 0.00,
+      "Z6": 0.00,
       "Z7": 0.50,
-      "Z8": 0.25,
+      "Z8": 0.00,
       "Z9": 0.00
     },
     "provenance": "model_assumption_inspired_by_shanghai_planning_scale_not_observed_coverage"
+  },
+  "metro_accessibility": {
+    "coverage_probability": {
+      "Z1": 0.75,
+      "Z2": 0.60,
+      "Z3": 0.60,
+      "Z4": 0.45,
+      "Z5": 0.45,
+      "Z6": 0.40,
+      "Z7": 0.50,
+      "Z8": 0.35,
+      "Z9": 0.25
+    },
+    "stable_draw_keys": ["seed", "agent_id", "zone", "purpose"],
+    "requires_accessible_origin_and_destination": true,
+    "bus_feeder": {
+      "enabled": true,
+      "transfer_penalty_min_per_feeder": 5.0,
+      "distance_km_by_zone": {
+        "Z1": 1.5,
+        "Z2": 1.5,
+        "Z3": 1.5,
+        "Z4": 2.5,
+        "Z5": 2.5,
+        "Z6": 2.5,
+        "Z7": 1.5,
+        "Z8": 2.5,
+        "Z9": null
+      },
+      "z9_uses_existing_gateway_feeder": true,
+      "interpretation": "A simplified local scheduled-bus connection to the metro station when direct walking access fails."
+    },
+    "provenance": "scenario assumption for zone-level station accessibility, not observed Shanghai coverage"
   },
   "modes": {
     "walk": {
@@ -112,15 +145,15 @@
     }
   },
   "zone_service_parameters": {
-    "Z1": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
-    "Z2": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
-    "Z3": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
-    "Z4": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
-    "Z5": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
-    "Z6": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
-    "Z7": {"bus_access_min": 6.0, "bus_wait_min": 7.0, "metro_access_min": 5.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
-    "Z8": {"bus_access_min": 9.0, "bus_wait_min": 10.0, "metro_access_min": 8.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
-    "Z9": {"bus_access_min": 14.0, "bus_wait_min": 18.0, "metro_access_min": null, "metro_wait_min": null, "ride_hailing_wait_min": 12.0}
+    "Z1": {"bus_access_min": 4.0, "bus_wait_min": 7.0, "metro_access_min": 8.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z2": {"bus_access_min": 4.0, "bus_wait_min": 7.0, "metro_access_min": 8.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z3": {"bus_access_min": 4.0, "bus_wait_min": 7.0, "metro_access_min": 8.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z4": {"bus_access_min": 6.0, "bus_wait_min": 10.0, "metro_access_min": 12.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z5": {"bus_access_min": 6.0, "bus_wait_min": 10.0, "metro_access_min": 12.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z6": {"bus_access_min": 6.0, "bus_wait_min": 10.0, "metro_access_min": 12.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z7": {"bus_access_min": 4.0, "bus_wait_min": 7.0, "metro_access_min": 8.0, "metro_wait_min": 5.0, "ride_hailing_wait_min": 6.0},
+    "Z8": {"bus_access_min": 6.0, "bus_wait_min": 10.0, "metro_access_min": 12.0, "metro_wait_min": 6.0, "ride_hailing_wait_min": 8.0},
+    "Z9": {"bus_access_min": 8.0, "bus_wait_min": 18.0, "metro_access_min": null, "metro_wait_min": null, "ride_hailing_wait_min": 12.0}
   },
   "evidence_references": {
     "yoyo_database_review": {

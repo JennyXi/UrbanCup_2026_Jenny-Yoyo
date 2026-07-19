@@ -36,6 +36,8 @@ OUTPUT_FIELDS = (
     "fare",
     "line_transfer_count",
     "mode_transfer_count",
+    "metro_origin_accessible",
+    "metro_destination_accessible",
 )
 
 
@@ -163,6 +165,30 @@ def _validate_configuration(config: Mapping[str, Any], zones: Sequence[Mapping[s
         raise ValueError("metro_coverage_rate must contain Z1-Z9 values between 0 and 1")
     if {zone_id for zone_id, rate in coverage.items() if rate > 0} != metro_intrazonal:
         raise ValueError("metro coverage and intrazonal service zones are inconsistent")
+    accessibility = config.get("metro_accessibility", {})
+    accessibility_rates = accessibility.get("coverage_probability", {})
+    if set(accessibility_rates) != zone_ids or any(
+        isinstance(value, bool) or not isinstance(value, (int, float)) or not 0 <= value <= 1
+        for value in accessibility_rates.values()
+    ):
+        raise ValueError("metro accessibility probability must contain Z1-Z9 values between 0 and 1")
+    if accessibility.get("stable_draw_keys") != ["seed", "agent_id", "zone", "purpose"]:
+        raise ValueError("metro accessibility stable draw keys changed")
+    if accessibility.get("requires_accessible_origin_and_destination") is not True:
+        raise ValueError("metro accessibility must require both trip endpoints")
+    feeder = accessibility.get("bus_feeder", {})
+    feeder_distances = feeder.get("distance_km_by_zone", {})
+    if feeder.get("enabled") is not True or set(feeder_distances) != zone_ids:
+        raise ValueError("metro bus feeder must be enabled and cover Z1-Z9")
+    if any(
+        value is not None and (isinstance(value, bool) or float(value) <= 0)
+        for value in feeder_distances.values()
+    ):
+        raise ValueError("metro bus feeder distances must be positive or null")
+    if feeder_distances["Z9"] is not None or feeder.get("z9_uses_existing_gateway_feeder") is not True:
+        raise ValueError("Z9 must retain its existing gateway bus feeder")
+    if float(feeder.get("transfer_penalty_min_per_feeder", -1)) < 0:
+        raise ValueError("metro bus feeder transfer penalty must be non-negative")
     if float(metro_rules.get("minimum_trip_mean_multiplier", 0)) <= 0 or float(metro_rules.get("minimum_trip_distance_km", 0)) <= 0:
         raise ValueError("intrazonal metro distance thresholds must be positive")
     for mode in MODES:
@@ -274,6 +300,34 @@ def intrazonal_metro_is_covered(
     )
 
 
+def metro_endpoint_is_accessible(
+    network: Mapping[str, Any], *, seed: Any, agent_id: Any, zone_id: str, purpose: str,
+) -> bool:
+    """Stable Agent-zone-purpose station accessibility, independent of scenario labels."""
+    rate = float(
+        network["config"]["metro_accessibility"]["coverage_probability"][zone_id]
+    )
+    return _stable_fraction(seed, agent_id, zone_id, purpose, "metro_accessibility") < rate
+
+
+def metro_leg_accessibility(
+    network: Mapping[str, Any], leg: Mapping[str, Any], *, seed: Any,
+) -> Dict[str, bool]:
+    """Return the two endpoint accessibility draws required by a concrete metro leg."""
+    agent_id = leg["agent_id"]
+    purpose = str(leg["purpose"])
+    origin = str(leg["origin_zone"])
+    destination = str(leg["destination_zone"])
+    return {
+        "metro_origin_accessible": metro_endpoint_is_accessible(
+            network, seed=seed, agent_id=agent_id, zone_id=origin, purpose=purpose,
+        ),
+        "metro_destination_accessible": metro_endpoint_is_accessible(
+            network, seed=seed, agent_id=agent_id, zone_id=destination, purpose=purpose,
+        ),
+    }
+
+
 def _shortest_service_path(
     adjacency: Mapping[str, Sequence[Tuple[str, str, float]]],
     origin: str,
@@ -332,6 +386,8 @@ def _unavailable(
         "fare": None,
         "line_transfer_count": None,
         "mode_transfer_count": None,
+        "metro_origin_accessible": None,
+        "metro_destination_accessible": None,
     }
 
 
@@ -375,6 +431,8 @@ def _available(
         "fare": round(main_fare + access_fare, 2),
         "line_transfer_count": line_transfer_count,
         "mode_transfer_count": mode_transfer_count,
+        "metro_origin_accessible": None,
+        "metro_destination_accessible": None,
     }
 
 
@@ -543,13 +601,32 @@ def calculate_leg_mode_option(
     origin = leg["origin_zone"]
     destination = leg["destination_zone"]
     same_zone = origin == destination
-    return calculate_od_option(
+    result = calculate_od_option(
         network, origin, destination, mode,
         intrazonal_distance_km=float(leg["road_network_distance_km"]) if same_zone else None,
         trip_key=leg["leg_id"],
-        enforce_intrazonal_metro_coverage=same_zone and mode == "metro",
+        enforce_intrazonal_metro_coverage=False,
         seed=seed,
     )
+    if mode != "metro":
+        return result
+    if "agent_id" not in leg or "purpose" not in leg:
+        # T7/T8 topology and supply probes intentionally have no Agent context.
+        # Formal Agent experiments always provide both fields and therefore
+        # always enforce the two endpoint accessibility draws below.
+        return result
+    accessibility = metro_leg_accessibility(network, leg, seed=seed)
+    if (
+        result["available"] and not all(accessibility.values())
+        and not bool(leg.get("allow_bus_metro_feeder"))
+    ):
+        result = _unavailable(
+            origin, destination, mode,
+            float(result["euclidean_distance_km"]),
+            float(result["road_network_distance_km"]),
+        )
+    result.update(accessibility)
+    return result
 
 
 def build_all_od_options(network: Optional[Mapping[str, Any]] = None) -> List[Dict[str, Any]]:
