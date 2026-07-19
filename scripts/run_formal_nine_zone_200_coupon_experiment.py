@@ -1,4 +1,4 @@
-"""Run the 200-Agent C0-C3 A1 coupon experiment at the 36-vehicle baseline."""
+"""Run the 200-Agent C0-C4 A1 coupon experiment at the 36-vehicle baseline."""
 
 from pathlib import Path
 

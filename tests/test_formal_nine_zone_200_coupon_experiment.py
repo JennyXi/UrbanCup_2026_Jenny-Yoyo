@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 
-from custom.agents.coupon_experiment import COUPON_POLICIES
+from custom.agents.coupon_experiment import COUPON_POLICIES_WITH_PUBLIC_GOODS
 
 
 CONFIG = Path(__file__).resolve().parents[1] / "config" / "formal_nine_zone_200_coupon_experiment.json"
@@ -16,7 +16,10 @@ class FormalNineZone200CouponExperimentTest(unittest.TestCase):
         self.assertEqual(sum(config["initial_vehicles"].values()), 36)
         self.assertEqual(config["expected_initial_vehicle_total"], 36)
         self.assertEqual(config["coupon_experiment"]["daily_total_coupon_pool"], 40)
-        self.assertEqual(tuple(config["coupon_experiment"]["policies"]), COUPON_POLICIES)
+        self.assertEqual(
+            tuple(config["coupon_experiment"]["policies"]),
+            COUPON_POLICIES_WITH_PUBLIC_GOODS,
+        )
         self.assertEqual(config["weather_scenarios"], ["W0", "W1", "W2"])
         rates = config["mode_choice_override"]["weather_exposure_disutility"][
             "utility_penalty_per_outdoor_minute"

@@ -37,9 +37,13 @@ Agent可选择：
 
 - [`custom/agents/formal_nine_zone_experiment.py`](../custom/agents/formal_nine_zone_experiment.py)
 - [`custom/agents/formal_nine_zone_50_experiment.py`](../custom/agents/formal_nine_zone_50_experiment.py)
+- [`custom/agents/interdependent_decision_system.py`](../custom/agents/interdependent_decision_system.py)
 - [`custom/transport/network.py`](../custom/transport/network.py)
 - [`config/formal_nine_zone_agent_experiment.json`](../config/formal_nine_zone_agent_experiment.json)
 - [`config/formal_nine_zone_50_experiment.json`](../config/formal_nine_zone_50_experiment.json)
+
+逐 Agent 的顺序道路反馈、方式概率反事实与 A→B 影响边见
+[`Agent 决策关联与顺序共享状态系统`](../docs/interdependent_agent_decisions/README.md)。
 
 ## 3. 实验顺序
 

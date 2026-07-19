@@ -622,7 +622,7 @@ def _score_options(
     leg: Mapping[str, Any], agent: Mapping[str, Any], options: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]], config: Mapping[str, Any], seed: int,
     *, excluded_modes: Iterable[str] = (), coupon_available: bool = False,
-    coupon_proxy_access: bool = False,
+    coupon_proxy_access: bool = False, include_random_shock: bool = True,
 ) -> list[Dict[str, Any]]:
     choice = config["mode_choice"]
     excluded = set(excluded_modes)
@@ -648,10 +648,14 @@ def _score_options(
             float(schedule["expected_arrival_delay_min"])
             * float(config["activity_time_linkage"]["lateness_penalty_yuan_per_min"])
         )
-        utility = -float(choice["generalized_cost_weight"]) * (time_cost + fare + lateness_cost)
-        utility += float(choice["age_mode_constant"][agent["age_group"]][mode])
+        systematic_utility = -float(choice["generalized_cost_weight"]) * (
+            time_cost + fare + lateness_cost
+        )
+        systematic_utility += float(
+            choice["age_mode_constant"][agent["age_group"]][mode]
+        )
         weather_type = _weather_at_departure(schedule["planned_departure_time"], events)
-        utility += float(choice["weather_preference"][weather_type][mode])
+        systematic_utility += float(choice["weather_preference"][weather_type][mode])
         exposure_config = choice.get("weather_exposure_disutility", {})
         expected_outdoor = _expected_outdoor_exposure_minutes(mode, option)
         exposure_rate = float(
@@ -665,10 +669,13 @@ def _score_options(
             )
         )
         exposure_disutility = expected_outdoor * exposure_rate * exposure_age_weight
-        utility -= exposure_disutility
-        utility += float(choice["random_scale"]) * _stable_gumbel(
-            seed, agent["agent_id"], leg["leg_id"], mode,
+        systematic_utility -= exposure_disutility
+        random_utility = (
+            float(choice["random_scale"])
+            * _stable_gumbel(seed, agent["agent_id"], leg["leg_id"], mode)
+            if include_random_shock else 0.0
         )
+        utility = systematic_utility + random_utility
         rows.append({
             **dict(option), **schedule,
             "fare": fare,
@@ -679,6 +686,8 @@ def _score_options(
             "expected_outdoor_exposure_minutes_at_choice": round(expected_outdoor, 6),
             "weather_exposure_age_weight": round(exposure_age_weight, 6),
             "weather_exposure_disutility": round(exposure_disutility, 6),
+            "systematic_utility": round(systematic_utility, 6),
+            "random_utility": round(random_utility, 6),
             "utility": round(utility, 6),
         })
     return sorted(rows, key=lambda row: (-row["utility"], ENABLED_MODES.index(row["mode"])))

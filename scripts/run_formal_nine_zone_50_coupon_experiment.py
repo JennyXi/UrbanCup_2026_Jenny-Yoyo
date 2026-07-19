@@ -1,4 +1,4 @@
-"""Run paired C0-C3 coupons in the formal nine-zone 50-Agent model."""
+"""Run paired C0-C4 coupons in the formal nine-zone 50-Agent model."""
 
 from __future__ import annotations
 
@@ -18,12 +18,16 @@ sys.path.insert(0, str(ROOT))
 
 from custom.agents.agent_population import AgentProfile  # noqa: E402
 from custom.agents.coupon_experiment import (  # noqa: E402
-    COUPON_POLICIES,
+    COUPON_POLICIES_WITH_PUBLIC_GOODS as COUPON_POLICIES,
     allocate_daily_coupons,
 )
 from custom.agents.formal_nine_zone_50_experiment import (  # noqa: E402
     load_formal_50_config,
     run_formal_nine_zone_50_experiment,
+)
+from custom.agents.public_goods_coupon import (  # noqa: E402
+    OFFICIAL_PUBLIC_GOODS_AGENT,
+    PUBLIC_GOODS_POLICY,
 )
 
 DEFAULT_CONFIG_PATH = ROOT / "config" / "formal_nine_zone_50_coupon_experiment.json"
@@ -35,6 +39,9 @@ GROUPS = (
 SYSTEM_METRICS = (
     "coupon_reached", "coupon_participated", "coupon_awarded", "coupon_redeemed",
     "coupon_induced_requests", "coupon_subsidy_yuan",
+    "public_goods_linked_agents", "public_goods_total_contribution_tokens",
+    "public_goods_mean_cooperation_score", "public_goods_mean_awarded_need_score",
+    "public_goods_coupons_created_by_multiplier",
     "ride_hailing_requests", "successful_ride_hailing_requests", "ride_hailing_failed",
     "mean_ride_hailing_wait_minutes_per_request", "fallback_attempts", "fallback_succeeded",
     "transport_unmet", "mandatory_activity_incomplete", "activity_completion_rate",
@@ -129,6 +136,14 @@ def _system_row(
     weather = summary["weather_scenario"]
     scenario_choices = [row for row in choices if row["weather_scenario"] == weather]
     scenario_dispatch = [row for row in dispatch if row["weather_scenario"] == weather]
+    awarded_public_goods = [
+        row for row in allocations
+        if row["coupon_awarded"] and row["coupon_policy"] == PUBLIC_GOODS_POLICY
+    ]
+    participating_public_goods = [
+        row for row in allocations
+        if row["coupon_participated"] and row["coupon_policy"] == PUBLIC_GOODS_POLICY
+    ]
     return {
         **dict(summary), "policy": policy,
         "coupon_reached": sum(bool(row["coupon_reached"]) for row in allocations),
@@ -140,6 +155,22 @@ def _system_row(
         ),
         "coupon_induced_requests": sum(bool(row["coupon_induced_request"]) for row in scenario_choices),
         "coupon_subsidy_yuan": round(sum(float(row["coupon_subsidy_yuan"]) for row in outcomes), 2),
+        "public_goods_linked_agents": sum(
+            bool(row["pg_linked_decision"]) for row in allocations
+        ),
+        "public_goods_total_contribution_tokens": sum(
+            int(row["pg_total_contribution"]) for row in allocations
+        ),
+        "public_goods_mean_cooperation_score": round(
+            _mean(float(row["pg_cooperation_score"]) for row in participating_public_goods),
+            6,
+        ),
+        "public_goods_mean_awarded_need_score": round(
+            _mean(float(row["pg_need_score"]) for row in awarded_public_goods), 6
+        ),
+        "public_goods_coupons_created_by_multiplier": sum(
+            int(row["pg_coupons_created_by_multiplier"]) for row in allocations
+        ),
         "mean_ride_hailing_wait_minutes_per_request": _mean(
             float(row["pickup_wait_min"]) for row in scenario_dispatch
         ),
@@ -378,6 +409,24 @@ def _run_seed(
             for row in result["ride_hailing_dispatch"]
         }
         common_priority = set(baseline_priorities) & set(current_priorities)
+        public_goods_rows = (
+            allocations if policy == PUBLIC_GOODS_POLICY else []
+        )
+        public_goods_participants = sum(
+            bool(row["coupon_participated"]) for row in public_goods_rows
+        )
+        public_goods_awards = sum(
+            bool(row["coupon_awarded"]) for row in public_goods_rows
+        )
+        expected_public_goods_awards = min(
+            int(config["coupon_experiment"]["daily_total_coupon_pool"]),
+            public_goods_participants,
+        )
+        public_goods_awarded_ranks = sorted(
+            int(row["coupon_allocation_rank"])
+            for row in public_goods_rows
+            if row["coupon_awarded"]
+        )
         check = {
             "seed": seed, "policy": policy,
             "coupon_pool_limit_passed": sum(row["coupon_awarded"] for row in allocations) <= int(config["coupon_experiment"]["daily_total_coupon_pool"]),
@@ -401,11 +450,52 @@ def _run_seed(
             ),
             "nondigital_unassisted_public_exclusion_passed": all(
                 not row["public_coupon_participated"]
+                or (
+                    policy == PUBLIC_GOODS_POLICY
+                    and row["community_phone_covered"]
+                    and row["coupon_access_channel"] == "community_phone"
+                )
                 for row in allocations if row["nondigital_unassisted"]
             ),
             "coupon_only_bound_request_can_be_induced_passed": all(
                 not row["coupon_induced_request"] or row["coupon_bound"]
                 for row in result["mode_choices"]
+            ),
+            "public_goods_coupon_conservation_passed": (
+                policy != PUBLIC_GOODS_POLICY
+                or (
+                    public_goods_awards == expected_public_goods_awards
+                    and all(
+                        int(row["pg_coupons_created_by_multiplier"]) == 0
+                        and int(row["pg_physical_coupon_pool"])
+                        == int(config["coupon_experiment"]["daily_total_coupon_pool"])
+                        for row in public_goods_rows
+                    )
+                )
+            ),
+            "public_goods_linked_decisions_passed": (
+                policy != PUBLIC_GOODS_POLICY
+                or public_goods_participants <= 1
+                or all(
+                    row["pg_linked_decision"]
+                    and int(row["pg_peer_feedback_source_count"])
+                    == public_goods_participants - 1
+                    for row in public_goods_rows
+                    if row["coupon_participated"]
+                )
+            ),
+            "public_goods_official_parent_passed": (
+                policy != PUBLIC_GOODS_POLICY
+                or all(
+                    row["pg_official_parent_agent_class"]
+                    == OFFICIAL_PUBLIC_GOODS_AGENT
+                    for row in public_goods_rows
+                )
+            ),
+            "public_goods_priority_rank_passed": (
+                policy != PUBLIC_GOODS_POLICY
+                or public_goods_awarded_ranks
+                == list(range(1, public_goods_awards + 1))
             ),
         }
         check["passed"] = all(
@@ -422,6 +512,8 @@ def _run_seed(
 
 
 def main() -> None:
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG_PATH)
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT_DIR)

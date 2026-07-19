@@ -1,0 +1,43 @@
+{
+  "schema_version": "1.0",
+  "experiment_id": "sequential_interdependent_agent_decisions_v1",
+  "description": "Agents choose chronologically, read one shared road state, and immediately publish endogenous ride-hailing traffic for later Agents.",
+  "formal_config_path": "formal_nine_zone_agent_experiment.json",
+  "weather_scenario": "W0",
+  "day_type": "workday",
+  "choice_model": {
+    "type": "multinomial_logit",
+    "utility_temperature": 1.0,
+    "stable_draw_namespace": "interdependent-mode-choice",
+    "probability_precision": 9
+  },
+  "decision_order": {
+    "primary": "departure_time",
+    "same_time_tie_breaker": "stable_seeded_hash",
+    "publish_after_each_decision": true
+  },
+  "shared_traffic_state": {
+    "key_fields": ["corridor_id", "direction", "time_bin"],
+    "corridor_id": "nine_zone_representative",
+    "direction": "all",
+    "time_bin_minutes": 30,
+    "include_scheduled_bus_base_flow": true,
+    "endogenous_update_modes": ["ride_hailing"],
+    "ride_hailing_vehicle_pcu": 1.0,
+    "represented_trips_per_agent": 120.0,
+    "directional_divisor": 2.0,
+    "flow_unit": "PCU/hour/direction",
+    "interpretation": "Each simulated Agent represents 120 similar trips in this mechanism demonstration. Only a chosen ride-hailing trip adds an endogenous vehicle; scheduled buses are exogenous base flow."
+  },
+  "audit": {
+    "compute_no_prior_agent_counterfactual": true,
+    "probability_change_tolerance": 1e-9,
+    "record_influence_edges": true
+  },
+  "scope_notes": [
+    "This is a mechanism and sensitivity experiment, not a calibrated Shanghai traffic forecast.",
+    "A decision affects later decisions only when corridor, direction, and time bin match.",
+    "The chronological update is intentionally order-sensitive; the stable tie-breaker makes it reproducible.",
+    "The existing formal batch-feedback baseline is preserved for comparison."
+  ]
+}

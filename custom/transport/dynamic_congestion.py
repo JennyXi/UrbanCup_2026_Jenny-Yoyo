@@ -164,8 +164,10 @@ def validate_dynamic_congestion_configuration(config: Mapping[str, Any]) -> None
         or shared.get("bus_and_ride_hailing_must_share_state") is not True
         or shared.get("requires_preaggregated_all_motorized_excess_pcu") is not True
         or shared.get("separate_mode_flow_inputs_allowed") is not False
-        or shared.get("global_state_registry_implemented") is not False
-        or shared.get("global_state_registry_owner") != "future_model_runner"
+        or shared.get("global_state_registry_implemented") is not True
+        or shared.get("global_state_registry_owner")
+        != "custom.agents.interdependent_decision_system.SharedTrafficStateRegistry"
+        or shared.get("formal_batch_baseline_uses_registry") is not False
     ):
         raise ValueError("Shared road state key must be corridor_id + direction + time_bin")
     if any(config.get("boundaries", {}).values()):

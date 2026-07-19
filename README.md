@@ -6,7 +6,7 @@
 
 本项目构建一个以上海人口结构和空间趋势为参考的九区合成城市，研究极端高温、强降雨、数字接入和网约车补贴如何共同影响不同年龄与数字能力人群的出行机会。
 
-项目已经从人口与活动计划扩展为可运行的综合交通机制实验：Agent 会在步行、公交、地铁、公交—地铁接驳和网约车之间选择；网约车实行车辆级空间—时间守恒、派单等待与一次 fallback；C0–C3 优惠券、老年数字接入和派单优先政策均有配对实验与审计输出。
+项目已经从人口与活动计划扩展为可运行的综合交通机制实验：Agent 会在步行、公交、地铁、公交—地铁接驳和网约车之间选择；网约车实行车辆级空间—时间守恒、派单等待与一次 fallback；C0–C4 优惠券（含官网 PublicGoodsAgent 适配）、老年数字接入和派单优先政策均有配对实验与审计输出。
 
 > 本项目是机制模拟，不是上海交通预测。九区边界、交通供给和行为系数均为透明、可审计的合成参数。
 
@@ -148,6 +148,8 @@ python -m pytest -q
 
 ## 结果索引
 
+- [Agent 决策关联与顺序共享状态系统](docs/interdependent_agent_decisions/README.md)
+- [PublicGoodsAgent 公共品博弈分券机制](docs/public_goods_coupon_agent/README.md)
 - [竞赛结果卡](docs/results/COMPETITION_RESULTS.md)
 - [九区综合系统与主要发现](whole_traffic_system/README.md)
 - [200-Agent机制与优惠券实验](whole_traffic_system/experiment_guides/formal_nine_zone_200_experiments.md)

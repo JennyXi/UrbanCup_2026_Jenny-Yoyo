@@ -7,6 +7,11 @@ import math
 from typing import Any, Dict, Iterable, Mapping
 
 from custom.agents.agent_population import AgentProfile
+from custom.agents.public_goods_coupon import (
+    PUBLIC_GOODS_POLICY,
+    allocate_public_goods_coupons,
+    validate_public_goods_coupon_config,
+)
 
 
 COUPON_POLICIES = (
@@ -15,6 +20,32 @@ COUPON_POLICIES = (
     "C2_elder_limited",
     "C3_mixed",
 )
+COUPON_POLICIES_WITH_PUBLIC_GOODS = (
+    *COUPON_POLICIES,
+    PUBLIC_GOODS_POLICY,
+)
+
+PUBLIC_GOODS_AUDIT_DEFAULTS = {
+    "pg_official_parent_agent_class": "",
+    "pg_adapter_agent_class": "",
+    "pg_num_rounds": 0,
+    "pg_initial_endowment": 0,
+    "pg_public_pool_multiplier": 0.0,
+    "pg_round_contributions": "",
+    "pg_final_contribution": 0,
+    "pg_total_contribution": 0,
+    "pg_cumulative_payoff": 0.0,
+    "pg_need_score": 0.0,
+    "pg_cooperation_score": 0.0,
+    "pg_priority_score": 0.0,
+    "pg_peer_feedback_source_count": 0,
+    "pg_peer_signal_round_2": None,
+    "pg_peer_signal_round_3": None,
+    "pg_linked_decision": False,
+    "pg_physical_coupon_pool": 0,
+    "pg_coupons_created_by_multiplier": 0,
+    "pg_allocation_reason": "not_applicable",
+}
 
 
 def _coupon_uniform(seed: int, agent_id: int, day_type: str, stage: str) -> float:
@@ -36,7 +67,8 @@ def _access_channel(profile: AgentProfile, *, community_covered: bool = False) -
 
 def validate_coupon_config(config: Mapping[str, Any]) -> None:
     coupon = config["coupon_experiment"]
-    if tuple(coupon["policies"]) != COUPON_POLICIES:
+    policies = tuple(coupon["policies"])
+    if policies not in {COUPON_POLICIES, COUPON_POLICIES_WITH_PUBLIC_GOODS}:
         raise ValueError("unexpected coupon policy order")
     multiplier = float(coupon["discount_multiplier"])
     if not 0.0 < multiplier < 1.0:
@@ -57,6 +89,8 @@ def validate_coupon_config(config: Mapping[str, Any]) -> None:
         raise ValueError("coupon experiment permits exactly one redemption per agent-day")
     if float(coupon["main_experiment_ride_hailing_noncapacity_success_probability"]) != 1.0:
         raise ValueError("main coupon experiment must disable ride-hailing non-capacity failures")
+    if PUBLIC_GOODS_POLICY in policies:
+        validate_public_goods_coupon_config(config)
 
 
 def allocate_daily_coupons(
@@ -65,8 +99,12 @@ def allocate_daily_coupons(
 ) -> list[Dict[str, Any]]:
     """Allocate a finite pool once per representative day, before weather runs."""
     validate_coupon_config(config)
-    if policy not in COUPON_POLICIES:
+    if policy not in COUPON_POLICIES_WITH_PUBLIC_GOODS:
         raise ValueError(f"unknown coupon policy: {policy}")
+    if policy == PUBLIC_GOODS_POLICY:
+        return allocate_public_goods_coupons(
+            profiles, day_type, seed=seed, config=config,
+        )
     coupon = config["coupon_experiment"]
     profiles = sorted(profiles, key=lambda row: row.agent_id)
     total_pool = int(coupon["daily_total_coupon_pool"])
@@ -117,6 +155,7 @@ def allocate_daily_coupons(
             "elder_reserve_rank": _coupon_uniform(seed, profile.agent_id, day_type, "elder-reserve-rank"),
             "community_phone_covered": community_covered,
             "community_phone_coverage_draw": community_draw,
+            **PUBLIC_GOODS_AUDIT_DEFAULTS,
         }
 
     if policy in {"C1_public_limited", "C3_mixed"}:
@@ -189,12 +228,12 @@ def allocation_map(rows: Iterable[Mapping[str, Any]]) -> Dict[tuple[int, str], D
 
 
 def community_assisted_booking(allocation: Mapping[str, Any] | None) -> bool:
-    """Whether a C3 elder-reserve coupon includes one community proxy booking."""
+    """Whether a C3/C4 award includes one community proxy booking."""
     return bool(
         allocation
-        and allocation.get("coupon_policy") == "C3_mixed"
+        and allocation.get("coupon_policy") in {"C3_mixed", PUBLIC_GOODS_POLICY}
         and allocation.get("coupon_awarded")
-        and allocation.get("coupon_pool_type") == "elder_reserved"
+        and allocation.get("coupon_pool_type") in {"elder_reserved", "public_goods"}
         and allocation.get("coupon_access_channel") == "community_phone"
         and allocation.get("nondigital_unassisted")
     )

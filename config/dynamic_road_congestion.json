@@ -71,8 +71,9 @@
     "bus_and_ride_hailing_must_share_state": true,
     "requires_preaggregated_all_motorized_excess_pcu": true,
     "separate_mode_flow_inputs_allowed": false,
-    "global_state_registry_implemented": false,
-    "global_state_registry_owner": "future_model_runner"
+    "global_state_registry_implemented": true,
+    "global_state_registry_owner": "custom.agents.interdependent_decision_system.SharedTrafficStateRegistry",
+    "formal_batch_baseline_uses_registry": false
   },
   "calculation_order": [
     "weather_capacity = corridor_capacity * weather_capacity_multiplier",
