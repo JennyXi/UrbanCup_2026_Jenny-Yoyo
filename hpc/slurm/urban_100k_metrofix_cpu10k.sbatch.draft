@@ -1,0 +1,77 @@
+#!/usr/bin/env bash
+# PREPARED ONLY: manual submission by the user is required.
+# Generates 10,000 deterministic contexts with explicit transfer fields.
+# No GPU, no LLM, no API key, no model weights, and no paid calls.
+# The historical Phase 1/2 source and output directories remain untouched.
+#SBATCH --job-name=urban100k-metrofix10k
+#SBATCH --account=jl13323
+#SBATCH --partition=parallel
+#SBATCH --qos=normal
+#SBATCH --nodes=1
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem=32G
+#SBATCH --time=04:00:00
+#SBATCH --output=slurm-metrofix10k-%j.out
+#SBATCH --error=slurm-metrofix10k-%j.err
+#SBATCH --export=NONE
+
+set -euo pipefail
+umask 077
+ulimit -c 0
+
+export SCRATCH="/scratch/$USER"
+export LITELLM_LOCAL_MODEL_COST_MAP="True"
+SOURCE_ROOT="/scratch/tz2882/agentsociety_source/urban100k_metrofix_20260718_01"
+PROJECT_ROOT="$SOURCE_ROOT/AgentSociety-local"
+export URBAN_CUP_REFERENCE_ROOT="$SOURCE_ROOT/UrbanCup_2026_Jenny-Yoyo-reference"
+ENV_ROOT="/scratch/tz2882/agentsociety_env/agentsociety281_py313_20260718_03"
+RUN_ROOT="/scratch/tz2882/agentsociety_urban100k/urban100k_cpu10k_metrofix_20260718_01"
+EXPECTED_CODE_SHA256="28fb6efa243f9a492214c44cc092112003a3ccb28f028f208d4ef9bd62bfb035"
+
+test -d "$PROJECT_ROOT"
+test -d "$URBAN_CUP_REFERENCE_ROOT/custom"
+test -d "$URBAN_CUP_REFERENCE_ROOT/config"
+test -f "$PROJECT_ROOT/hpc/scripts/audit_metrofix_contexts.py"
+test -f "$ENV_ROOT/bin/activate"
+test -f "$ENV_ROOT/URBAN100K_ENV_READY"
+test ! -e "$RUN_ROOT"
+
+module purge
+module load miniconda3/25.5.1
+source "$ENV_ROOT/bin/activate"
+cd "$PROJECT_ROOT"
+
+python - "$EXPECTED_CODE_SHA256" <<'PY'
+import pathlib
+import sys
+
+sys.path.insert(0, str(pathlib.Path("experiments").resolve()))
+from urban_100k_partitioned import source_sha256
+
+expected = sys.argv[1]
+actual = source_sha256()
+print(f"CURRENT_SOURCE_SHA256={actual}")
+if actual != expected:
+    raise SystemExit(
+        f"Refusing to generate contexts: expected source {expected}, got {actual}"
+    )
+print("METROFIX_SOURCE_AUDIT=PASS")
+PY
+
+SECONDS=0
+python experiments/urban_100k_partitioned.py prepare-contexts \
+  --output-root "$RUN_ROOT" \
+  --population-size 100000 \
+  --partition-size 1000 \
+  --max-agents 10000
+printf 'WALL_SECONDS=%s\n' "$SECONDS"
+
+python hpc/scripts/audit_metrofix_contexts.py \
+  --output-root "$RUN_ROOT" \
+  --expected-code-sha256 "$EXPECTED_CODE_SHA256" \
+  --expected-agents 10000 \
+  --partition-size 1000
+
+printf 'METROFIX_10K_OUTPUT=%s\n' "$RUN_ROOT"
+du -sh "$RUN_ROOT"
