@@ -1,0 +1,77 @@
+{
+  "experiment_id": "formal_nine_zone_50_coupon_pricing_v1",
+  "description": "Paired 3-seed coupon intensity and pricing-form audit at the 12-vehicle nine-zone baseline.",
+  "base_experiment_config": "config/formal_nine_zone_50_experiment.json",
+  "seed_start": 47,
+  "seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 2, "Z2": 2, "Z3": 1, "Z4": 1, "Z5": 1, "Z6": 1, "Z7": 2, "Z8": 1, "Z9": 1},
+  "allocation_policy": "C3_mixed",
+  "distance_fare_analysis": {
+    "short_max_km": 5.0,
+    "medium_max_km": 10.0,
+    "classification": "short <= 5 km; medium > 5 and <= 10 km; long > 10 km",
+    "scope_note": "Bands are transparent experiment reporting bins, not calibrated policy thresholds."
+  },
+  "coupon_experiment": {
+    "policies": ["C0_no_coupon", "C1_public_limited", "C2_elder_limited", "C3_mixed"],
+    "discount_multiplier": 0.80,
+    "daily_total_coupon_pool": 10,
+    "public_participation_probability": {"18-39": 0.80, "40-59": 0.65, "60+": 0.45},
+    "mixed_public_pool_share": 0.70,
+    "community_phone_coverage_rate": 0.40,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0
+  },
+  "experiment_sets": {
+    "intensity": {
+      "description": "Hold C3 recipients fixed and compare no coupon, 10, 20 and 30 percent discounts.",
+      "scenarios": {
+        "K0_no_coupon": {"coupon_enabled": false, "pricing_type": "percentage", "discount_multiplier": 1.00},
+        "K90_nine_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.90},
+        "K80_eight_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.80},
+        "K70_seven_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.70}
+      }
+    },
+    "format": {
+      "description": "Hold C3 recipients fixed and compare 20 percent off, 5 yuan off and 30 yuan threshold with 5 yuan off.",
+      "scenarios": {
+        "K0_no_coupon": {"coupon_enabled": false, "pricing_type": "percentage", "discount_multiplier": 1.00},
+        "K80_eight_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.80},
+        "K5_flat_five": {"coupon_enabled": true, "pricing_type": "flat_amount", "discount_amount_yuan": 5.0},
+        "K30_5_threshold": {"coupon_enabled": true, "pricing_type": "threshold_flat", "minimum_original_fare_yuan": 30.0, "discount_amount_yuan": 5.0}
+      }
+    },
+    "equal_budget": {
+      "description": "Hold C3 recipients and a 50 yuan maximum daily subsidy liability fixed across pricing forms.",
+      "maximum_daily_subsidy_budget_yuan": 50.0,
+      "maximum_discount_amount_yuan_per_coupon": 5.0,
+      "scenarios": {
+        "B0_no_coupon": {"coupon_enabled": false, "pricing_type": "percentage", "discount_multiplier": 1.00},
+        "B80_cap5": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.80, "maximum_discount_amount_yuan": 5.0},
+        "B5_flat_five": {"coupon_enabled": true, "pricing_type": "flat_amount", "discount_amount_yuan": 5.0, "maximum_discount_amount_yuan": 5.0},
+        "B30_5_threshold": {"coupon_enabled": true, "pricing_type": "threshold_flat", "minimum_original_fare_yuan": 30.0, "discount_amount_yuan": 5.0, "maximum_discount_amount_yuan": 5.0}
+      }
+    },
+    "high_value_format": {
+      "description": "Compare uncapped 20 percent discount with a stronger flat 10 yuan coupon and a 50-minus-10 high-fare threshold coupon.",
+      "scenarios": {
+        "H0_no_coupon": {"coupon_enabled": false, "pricing_type": "percentage", "discount_multiplier": 1.00},
+        "H80_eight_tenths": {"coupon_enabled": true, "pricing_type": "percentage", "discount_multiplier": 0.80},
+        "H10_flat_ten": {"coupon_enabled": true, "pricing_type": "flat_amount", "discount_amount_yuan": 10.0},
+        "H50_10_threshold": {"coupon_enabled": true, "pricing_type": "threshold_flat", "minimum_original_fare_yuan": 50.0, "discount_amount_yuan": 10.0}
+      }
+    }
+  },
+  "scope_notes": [
+    "All non-baseline scenarios within a seed use exactly the same C3 coupon recipients.",
+    "K30_5 eligibility is evaluated on original pre-coupon fare; an ineligible request does not bind, redeem or consume the daily coupon.",
+    "Coupon count is held fixed, but total subsidy is not budget-equal across pricing forms and must be reported separately.",
+    "Pricing-form results must be reported by request distance, original fare, absolute discount and intrazonal/interzonal scope; they must not be attributed to the threshold alone.",
+    "The equal-budget set fixes maximum fiscal liability rather than forcing equal realized spending: 10 awarded coupons times a 5 yuan cap equals at most 50 yuan per day.",
+    "The high-value-format set is an additional sensitivity analysis: 50-minus-10 equals a 20 percent discount only at a 50 yuan original fare, while remaining unavailable below 50 and capped at 10 above 50.",
+    "This is a mechanism audit, not a calibrated Shanghai coupon programme."
+  ]
+}

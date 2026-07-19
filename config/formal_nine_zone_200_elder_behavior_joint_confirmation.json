@@ -1,0 +1,58 @@
+{
+  "experiment_id": "formal_nine_zone_200_elder_behavior_joint_confirmation",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "day_type": "workday",
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "initial_vehicles": {
+    "Z1": 6,
+    "Z2": 6,
+    "Z3": 3,
+    "Z4": 3,
+    "Z5": 3,
+    "Z6": 3,
+    "Z7": 6,
+    "Z8": 3,
+    "Z9": 3
+  },
+  "sensitivity_parameter": "elder_transfer_burden_minutes",
+  "fixed_elder_ride_hailing_mode_constant": 0.3,
+  "fixed_elder_weather_exposure_choice_weight": 1.6,
+  "fixed_medical_need_level_weight": {
+    "low": 1.0,
+    "standard": 1.2,
+    "high": 1.5
+  },
+  "fixed_elder_exposed_necessary_fare_sensitivity": 0.9,
+  "weather_exposure_disutility": {
+    "enabled": true,
+    "utility_penalty_per_outdoor_minute": {
+      "normal": 0.0,
+      "extreme_heat": 0.025,
+      "heavy_rain": 0.035
+    },
+    "age_vulnerability_weight": {
+      "18-39": 1.0,
+      "40-59": 1.2,
+      "60+": 1.6
+    },
+    "medical_need_level_weight": {
+      "low": 1.0,
+      "standard": 1.2,
+      "high": 1.5
+    }
+  },
+  "behavior_scenarios": {
+    "J_final_candidate": 3.0
+  },
+  "write_option_audit": true,
+  "interpretation_scope": {
+    "purpose": "joint stability confirmation, not parameter calibration",
+    "elder_ride_hailing_mode_constant": 0.3,
+    "elder_weather_exposure_choice_weight": 1.6,
+    "elder_exposed_necessary_fare_sensitivity": 0.9,
+    "elder_transfer_burden_minutes_per_transfer": 3.0,
+    "not_a_reality_prediction": true
+  }
+}

@@ -1,0 +1,37 @@
+{
+  "experiment_id": "formal_nine_zone_200_elder_combined_behavior_smoke_v1",
+  "description": "Paired joint smoke test of the final candidate elderly ride preference and health-sensitive weather exposure choice mechanism.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+  "sensitivity_parameter": "combined_elder_behavior",
+  "weather_exposure_disutility": {
+    "enabled": true,
+    "utility_penalty_per_outdoor_minute": {
+      "normal": 0.0,
+      "extreme_heat": 0.015,
+      "heavy_rain": 0.012
+    },
+    "age_vulnerability_weight": {"18-39": 1.0, "40-59": 1.1, "60+": 1.6}
+  },
+  "behavior_scenarios": {
+    "J0_reference_plus_0_1": {
+      "ride_hailing_mode_constant": 0.1,
+      "weather_exposure_choice_weight": 1.6,
+      "medical_need_level_weight": {"low": 1.0, "standard": 1.2, "high": 1.5}
+    },
+    "J1_candidate_plus_0_3": {
+      "ride_hailing_mode_constant": 0.3,
+      "weather_exposure_choice_weight": 1.6,
+      "medical_need_level_weight": {"low": 1.0, "standard": 1.2, "high": 1.5}
+    }
+  },
+  "scope_notes": [
+    "J0 and J1 share Agents, activities, OD, weather, fleet, random utility shocks and dispatch priorities.",
+    "Only the elderly ride-hailing mode constant changes from +0.1 to +0.3.",
+    "The comparison checks whether vulnerable accessible elderly can show stronger conditional demand without making the total elderly share exceed middle-aged demand by construction."
+  ]
+}

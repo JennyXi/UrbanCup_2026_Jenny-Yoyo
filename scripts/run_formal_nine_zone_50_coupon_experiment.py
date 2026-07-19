@@ -38,7 +38,8 @@ GROUPS = (
 )
 SYSTEM_METRICS = (
     "coupon_reached", "coupon_participated", "coupon_awarded", "coupon_redeemed",
-    "coupon_induced_requests", "coupon_subsidy_yuan",
+    "coupon_induced_requests", "coupon_ineligible_ride_requests",
+    "coupon_subsidy_yuan",
     "public_goods_linked_agents", "public_goods_total_contribution_tokens",
     "public_goods_mean_cooperation_score", "public_goods_mean_awarded_need_score",
     "public_goods_coupons_created_by_multiplier",
@@ -47,10 +48,13 @@ SYSTEM_METRICS = (
     "transport_unmet", "mandatory_activity_incomplete", "activity_completion_rate",
     "necessary_activity_completion_rate", "walking_mode_share", "bus_mode_share",
     "metro_mode_share", "ride_hailing_mode_share", "mean_total_travel_time",
-    "mean_road_speed_kmh", "total_outdoor_exposure_minutes", "total_heat_risk_burden",
+    "road_vehicle_volume", "mean_volume_capacity_ratio",
+    "mean_experienced_road_leg_speed_kmh", "mean_road_speed_kmh",
+    "total_outdoor_exposure_minutes", "total_heat_risk_burden",
 )
 GROUP_METRICS = (
     "coupon_awarded", "coupon_redeemed", "coupon_induced_requests",
+    "coupon_ineligible_ride_requests",
     "ride_hailing_requests", "successful_ride_hailing_requests",
     "failed_ride_hailing_requests", "mean_ride_hailing_wait_minutes_per_request",
     "fallback_attempts", "transport_unmet", "mandatory_activity_incomplete",
@@ -99,19 +103,34 @@ def _outcomes(
     policy: str, weather: str, seed: int,
 ) -> list[dict[str, Any]]:
     by_agent: dict[int, list[Mapping[str, Any]]] = defaultdict(list)
+    ineligible_by_agent: dict[int, list[Mapping[str, Any]]] = defaultdict(list)
     for row in choices:
-        if row["weather_scenario"] == weather and row["coupon_bound"]:
+        if row["weather_scenario"] != weather:
+            continue
+        if row["coupon_bound"]:
             by_agent[int(row["agent_id"])].append(row)
+        elif (
+            row.get("primary_mode") == "ride_hailing"
+            and row.get("coupon_ineligibility_reason")
+            == "minimum_original_fare_not_met"
+        ):
+            ineligible_by_agent[int(row["agent_id"])].append(row)
     rows = []
     for allocation in allocations:
         bound = sorted(
             by_agent.get(int(allocation["agent_id"]), []),
             key=lambda row: (row["departure_time"], row["leg_id"]),
         )
+        ineligible = sorted(
+            ineligible_by_agent.get(int(allocation["agent_id"]), []),
+            key=lambda row: (row["departure_time"], row["leg_id"]),
+        )
         first = bound[0] if bound else None
         awarded = bool(allocation["coupon_awarded"])
         if not awarded:
             status = "not_awarded"
+        elif first is None and ineligible:
+            status = "unused_ineligible_ride_request"
         elif first is None:
             status = "unused_no_ride_request"
         elif first["coupon_redeemed"]:
@@ -122,6 +141,11 @@ def _outcomes(
             "seed": seed, "policy": policy, "weather_scenario": weather,
             **dict(allocation), "coupon_status": status,
             "bound_leg_id": None if first is None else first["leg_id"],
+            "ineligible_ride_request_count": len(ineligible),
+            "first_ineligible_leg_id": None if not ineligible else ineligible[0]["leg_id"],
+            "coupon_ineligibility_reason": (
+                "" if not ineligible else "minimum_original_fare_not_met"
+            ),
             "coupon_redeemed": bool(first and first["coupon_redeemed"]),
             "coupon_subsidy_yuan": 0.0 if first is None else first["coupon_subsidy_yuan"],
         })
@@ -154,6 +178,9 @@ def _system_row(
             row["coupon_status"] == "expired_after_failed_request" for row in outcomes
         ),
         "coupon_induced_requests": sum(bool(row["coupon_induced_request"]) for row in scenario_choices),
+        "coupon_ineligible_ride_requests": sum(
+            int(row.get("ineligible_ride_request_count", 0)) for row in outcomes
+        ),
         "coupon_subsidy_yuan": round(sum(float(row["coupon_subsidy_yuan"]) for row in outcomes), 2),
         "public_goods_linked_agents": sum(
             bool(row["pg_linked_decision"]) for row in allocations
@@ -213,6 +240,10 @@ def _group_rows(
                 "coupon_awarded": sum(bool(row["coupon_awarded"]) for row in daily),
                 "coupon_redeemed": sum(bool(row["coupon_redeemed"]) for row in daily_outcomes),
                 "coupon_induced_requests": sum(bool(row["coupon_induced_request"]) for row in group_choices),
+                "coupon_ineligible_ride_requests": sum(
+                    int(row.get("ineligible_ride_request_count", 0))
+                    for row in daily_outcomes
+                ),
                 "coupon_subsidy_yuan": round(sum(float(row["coupon_subsidy_yuan"]) for row in daily_outcomes), 2),
                 "ride_hailing_requests": len(group_dispatch),
                 "successful_ride_hailing_requests": sum(row["succeeded"] for row in group_dispatch),

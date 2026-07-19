@@ -1,0 +1,29 @@
+{
+  "experiment_id": "formal_nine_zone_200_elder_ride_preference_confirmation_v1",
+  "description": "Paired 10-seed confirmation around the threshold found by the five-level elderly ride-hailing preference screen.",
+  "base_experiment_config": "config/formal_nine_zone_200_baseline.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "day_type": "workday",
+  "initial_vehicles": {"Z1": 6, "Z2": 6, "Z3": 3, "Z4": 3, "Z5": 3, "Z6": 3, "Z7": 6, "Z8": 3, "Z9": 3},
+  "weather_exposure_disutility": {
+    "enabled": true,
+    "utility_penalty_per_outdoor_minute": {
+      "normal": 0.0,
+      "extreme_heat": 0.015,
+      "heavy_rain": 0.012
+    },
+    "age_vulnerability_weight": {"18-39": 1.0, "40-59": 1.1, "60+": 1.3}
+  },
+  "preference_scenarios": {
+    "B0_lower_minus_0_1": -0.1,
+    "B1_candidate_plus_0_1": 0.1,
+    "B2_upper_plus_0_3": 0.3
+  },
+  "scope_notes": [
+    "This confirmation follows the paired five-level 3-seed screen and does not replace its output.",
+    "Only the 60+ ride-hailing age-mode constant changes; all non-age inputs and random values remain paired.",
+    "Selection must be based on behavioral plausibility and stability, not on maximizing elderly ride-hailing demand."
+  ]
+}

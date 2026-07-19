@@ -1,0 +1,18 @@
+{
+  "experiment_id": "formal_nine_zone_200_elder_behavior_joint_confirmation",
+  "seed_start": 47,
+  "seed_count": 10,
+  "agents": 200,
+  "fleet_total": 36,
+  "behavior_scenarios": {
+    "J_final_candidate": 3.0
+  },
+  "sensitivity_parameter": "elder_transfer_burden_minutes",
+  "weather_scenarios": [
+    "W0",
+    "W1",
+    "W2"
+  ],
+  "all_checks_passed": true,
+  "interpretation": "behavioral sensitivity, not a calibrated elderly ride-hailing share or health coefficient"
+}
