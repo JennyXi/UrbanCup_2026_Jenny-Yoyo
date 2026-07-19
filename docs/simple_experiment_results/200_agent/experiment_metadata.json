@@ -1,0 +1,31 @@
+{
+  "seed_start": 3001,
+  "seed_count": 30,
+  "total_agents": 200,
+  "coupon_experiment": {
+    "policies": [
+      "C0_no_coupon",
+      "C1_public_limited",
+      "C2_elder_limited",
+      "C3_mixed"
+    ],
+    "discount_multiplier": 0.8,
+    "daily_total_coupon_pool": 40,
+    "public_participation_probability": {
+      "18-39": 0.8,
+      "40-59": 0.65,
+      "60+": 0.45
+    },
+    "mixed_public_pool_share": 0.7,
+    "community_phone_coverage_rate": 0.4,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0,
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "interpretation": "Finite daily 20-percent-off coupon mechanism assumptions; not observed platform take-up, Shanghai subsidy, or welfare estimates. In C3, an awarded community/phone elder-reserve coupon includes one proxy booking without changing the elder's digital_access status."
+  },
+  "common_agents_activities_weather_fleet_seed_dispatch_priority": true,
+  "ride_hailing_noncapacity_failure_disabled": true,
+  "interpretation": "Mechanism experiment, not a calibrated Shanghai policy forecast."
+}

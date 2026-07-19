@@ -1,0 +1,15 @@
+{
+  "experiment_id": "coupon_coverage_threshold_200_agents",
+  "description": "Public 20-percent-off coupon coverage scan under fixed 200-agent demand and conserved fleet.",
+  "total_agents": 200,
+  "seed_start": 3001,
+  "default_seed_count": 3,
+  "coupon_pool_grid": [0, 20, 40, 60, 80],
+  "discount_multiplier": 0.8,
+  "initial_daily_vehicles_by_day_type": {
+    "workday": {"S1": 32, "S2": 20},
+    "rest_day": {"S1": 28, "S2": 16}
+  },
+  "turning_point_rule": "First adjacent coupon-pool increase where road vehicle volume rises and mean or total travel time also rises.",
+  "interpretation": "Mechanism threshold scan, not a calibrated Shanghai optimum, welfare estimate, or policy recommendation."
+}

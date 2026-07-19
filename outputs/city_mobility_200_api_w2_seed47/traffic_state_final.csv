@@ -1,0 +1,35 @@
+﻿shared_state_key,corridor_id,direction,time_bin_start,endogenous_flow_pcu_per_hour,state_version,source_leg_ids
+nine_zone_representative|all|2026-07-07T06:00,nine_zone_representative,all,2026-07-07 06:00:00,90.0,3,"[""12-2026-07-07-L01"", ""73-2026-07-07-L01"", ""69-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T06:30,nine_zone_representative,all,2026-07-07 06:30:00,90.0,3,"[""39-2026-07-07-L01"", ""85-2026-07-07-L01"", ""35-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T07:00,nine_zone_representative,all,2026-07-07 07:00:00,90.0,3,"[""137-2026-07-07-L01"", ""49-2026-07-07-L01"", ""104-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T07:30,nine_zone_representative,all,2026-07-07 07:30:00,240.0,8,"[""121-2026-07-07-L01"", ""81-2026-07-07-L01"", ""93-2026-07-07-L01"", ""50-2026-07-07-L01"", ""97-2026-07-07-L01"", ""92-2026-07-07-L01"", ""8-2026-07-07-L01"", ""24-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T08:00,nine_zone_representative,all,2026-07-07 08:00:00,90.0,3,"[""68-2026-07-07-L01"", ""152-2026-07-07-L01"", ""1-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T08:30,nine_zone_representative,all,2026-07-07 08:30:00,150.0,5,"[""125-2026-07-07-L01"", ""76-2026-07-07-L01"", ""28-2026-07-07-L01"", ""14-2026-07-07-L01"", ""54-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T09:00,nine_zone_representative,all,2026-07-07 09:00:00,30.0,1,"[""4-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T09:30,nine_zone_representative,all,2026-07-07 09:30:00,150.0,5,"[""19-2026-07-07-L01"", ""70-2026-07-07-L01"", ""59-2026-07-07-L01"", ""63-2026-07-07-L01"", ""159-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T10:00,nine_zone_representative,all,2026-07-07 10:00:00,30.0,1,"[""68-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T10:30,nine_zone_representative,all,2026-07-07 10:30:00,30.0,1,"[""155-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T11:00,nine_zone_representative,all,2026-07-07 11:00:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T11:30,nine_zone_representative,all,2026-07-07 11:30:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T12:00,nine_zone_representative,all,2026-07-07 12:00:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T12:30,nine_zone_representative,all,2026-07-07 12:30:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T13:00,nine_zone_representative,all,2026-07-07 13:00:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T13:30,nine_zone_representative,all,2026-07-07 13:30:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T14:00,nine_zone_representative,all,2026-07-07 14:00:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T14:30,nine_zone_representative,all,2026-07-07 14:30:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T15:00,nine_zone_representative,all,2026-07-07 15:00:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T15:30,nine_zone_representative,all,2026-07-07 15:30:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T16:00,nine_zone_representative,all,2026-07-07 16:00:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T16:30,nine_zone_representative,all,2026-07-07 16:30:00,0.0,0,[]
+nine_zone_representative|all|2026-07-07T17:00,nine_zone_representative,all,2026-07-07 17:00:00,150.0,5,"[""49-2026-07-07-L02"", ""97-2026-07-07-L02"", ""56-2026-07-07-L02"", ""96-2026-07-07-L02"", ""69-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T17:30,nine_zone_representative,all,2026-07-07 17:30:00,120.0,4,"[""47-2026-07-07-L02"", ""28-2026-07-07-L02"", ""113-2026-07-07-L01"", ""59-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T18:00,nine_zone_representative,all,2026-07-07 18:00:00,60.0,2,"[""8-2026-07-07-L02"", ""23-2026-07-07-L01""]"
+nine_zone_representative|all|2026-07-07T18:30,nine_zone_representative,all,2026-07-07 18:30:00,180.0,6,"[""16-2026-07-07-L02"", ""14-2026-07-07-L02"", ""50-2026-07-07-L02"", ""43-2026-07-07-L02"", ""118-2026-07-07-L02"", ""54-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T19:00,nine_zone_representative,all,2026-07-07 19:00:00,30.0,1,"[""13-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T19:30,nine_zone_representative,all,2026-07-07 19:30:00,90.0,3,"[""76-2026-07-07-L02"", ""65-2026-07-07-L02"", ""4-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T20:00,nine_zone_representative,all,2026-07-07 20:00:00,180.0,6,"[""88-2026-07-07-L03"", ""70-2026-07-07-L02"", ""85-2026-07-07-L03"", ""54-2026-07-07-L03"", ""39-2026-07-07-L02"", ""10-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T20:30,nine_zone_representative,all,2026-07-07 20:30:00,90.0,3,"[""27-2026-07-07-L03"", ""118-2026-07-07-L03"", ""19-2026-07-07-L02""]"
+nine_zone_representative|all|2026-07-07T21:00,nine_zone_representative,all,2026-07-07 21:00:00,120.0,4,"[""59-2026-07-07-L03"", ""17-2026-07-07-L03"", ""13-2026-07-07-L03"", ""64-2026-07-07-L03""]"
+nine_zone_representative|all|2026-07-07T21:30,nine_zone_representative,all,2026-07-07 21:30:00,60.0,2,"[""47-2026-07-07-L03"", ""68-2026-07-07-L03""]"
+nine_zone_representative|all|2026-07-07T22:00,nine_zone_representative,all,2026-07-07 22:00:00,90.0,3,"[""39-2026-07-07-L03"", ""23-2026-07-07-L02"", ""77-2026-07-07-L03""]"
+nine_zone_representative|all|2026-07-07T22:30,nine_zone_representative,all,2026-07-07 22:30:00,120.0,4,"[""10-2026-07-07-L03"", ""71-2026-07-07-L03"", ""69-2026-07-07-L03"", ""43-2026-07-07-L03""]"

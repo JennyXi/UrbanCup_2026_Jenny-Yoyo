@@ -1,0 +1,223 @@
+{
+  "experiment_id": "two_day_transport_emergence_v1",
+  "description": "Independent two-zone emergence experiment with one shared-state feedback iteration.",
+  "total_agents": 50,
+  "s2_home_share": 0.60,
+  "day_types": ["workday", "rest_day"],
+  "weather_weeks": ["W0", "W1", "W2"],
+  "time_bin_minutes": 30,
+  "representative_part_time_day": "scheduled_workday",
+  "optional_destination_s1_probability": {
+    "medical": 1.00,
+    "shopping": 0.40,
+    "social_leisure": 0.55,
+    "visit": 0.45,
+    "out_of_home_family_activity": 0.50,
+    "out_of_home_family_care": 0.60
+  },
+  "optional_departure_slots": {
+    "workday_nonworker": ["09:30", "12:00", "15:00", "18:00"],
+    "workday_after_work_offsets_min": [30, 90, 150],
+    "rest_day": ["10:00", "12:30", "15:00", "18:00"]
+  },
+  "activity_constraints": {
+    "necessary_max_leg_time_min": 90.0,
+    "necessary_max_leg_budget_yuan": 35.0,
+    "optional_max_leg_time_min": 75.0,
+    "optional_max_leg_budget_yuan": 28.0
+  },
+  "bus_feedback": {
+    "per_vehicle_capacity_representative_passengers": 6.0,
+    "crowding_threshold_ratio": 0.80,
+    "extra_wait_min_per_load_above_threshold": 10.0,
+    "maximum_extra_wait_min": 20.0,
+    "crowding_utility_penalty_per_load_above_threshold": 0.80
+  },
+  "bus_vehicle_schedule": {
+    "ordinary_vehicle_trips_per_30_min": 2.0,
+    "peak_vehicle_trips_per_30_min": 4.0,
+    "peak_windows": [["07:00", "10:00"], ["17:00", "20:00"]],
+    "frequency_policy_changes_vehicle_trips": true,
+    "definition": "Scheduled B1 vehicle trips across both directions. P1 changes frequency; per-vehicle passenger capacity remains fixed."
+  },
+  "ride_hailing_feedback": {
+    "initial_daily_vehicles_by_day_type": {
+      "workday": {"S1": 8, "S2": 5},
+      "rest_day": {"S1": 7, "S2": 4}
+    },
+    "vehicle_id_prefix": "RH",
+    "supply_multiplier_integer_rounding": "half_up",
+    "extra_wait_min_per_demand_supply_ratio": 4.0,
+    "maximum_system_extra_wait_min": 18.0,
+    "fleet_definition": "Integer daily fleet initialized once per day type and weather run. Vehicles remain at trip destinations; no driver shifts, empty return, or active repositioning."
+  },
+  "road_feedback": {
+    "reference_road_vehicles_per_30_min": 14.0,
+    "congestion_strength": 0.55,
+    "minimum_speed_multiplier": 0.65
+  },
+  "heat_exposure": {
+    "method": "utci_degree_minutes_above_threshold",
+    "enabled_weather_weeks": ["W1"],
+    "time_bin_minutes": 30,
+    "heat_stress_threshold_c": 26.0,
+    "heat_stress_threshold_sensitivity_c": [26.0, 32.0],
+    "daily_profile_mapping": "periodic_24_hour",
+    "default_utci_c": 25.0,
+    "utci_c_by_30_min": {
+      "00:00": 27.5,
+      "00:30": 27.2,
+      "01:00": 27.0,
+      "01:30": 26.8,
+      "02:00": 26.5,
+      "02:30": 26.3,
+      "03:00": 26.0,
+      "03:30": 26.0,
+      "04:00": 26.0,
+      "04:30": 26.0,
+      "05:00": 26.0,
+      "05:30": 26.5,
+      "06:00": 27.0,
+      "06:30": 27.5,
+      "07:00": 28.0,
+      "07:30": 29.0,
+      "08:00": 30.0,
+      "08:30": 31.0,
+      "09:00": 32.0,
+      "09:30": 33.0,
+      "10:00": 34.0,
+      "10:30": 35.0,
+      "11:00": 36.0,
+      "11:30": 37.0,
+      "12:00": 38.0,
+      "12:30": 39.0,
+      "13:00": 40.0,
+      "13:30": 41.0,
+      "14:00": 42.0,
+      "14:30": 42.0,
+      "15:00": 41.0,
+      "15:30": 40.5,
+      "16:00": 40.0,
+      "16:30": 39.0,
+      "17:00": 38.0,
+      "17:30": 37.0,
+      "18:00": 36.0,
+      "18:30": 35.0,
+      "19:00": 34.0,
+      "19:30": 33.0,
+      "20:00": 32.0,
+      "20:30": 31.0,
+      "21:00": 30.5,
+      "21:30": 30.0,
+      "22:00": 29.5,
+      "22:30": 29.0,
+      "23:00": 28.5,
+      "23:30": 28.0
+    },
+    "outdoor_segment_factor": {
+      "walk": 1.0,
+      "bus": 1.0,
+      "ride_hailing": 1.0
+    },
+    "age_vulnerability_weight": {
+      "18-39": 1.0,
+      "40-59": 1.1,
+      "60+": 1.3
+    },
+    "age_vulnerability_sensitivity": {
+      "18-39": [1.0, 1.0],
+      "40-59": [1.0, 1.2],
+      "60+": [1.15, 1.5]
+    },
+    "provenance": "Synthetic full-day W1 UTCI profile with periodic 24-hour mapping and scenario age weights for mechanism sensitivity only; not observed Shanghai meteorology or clinical risk ratios. W1 heat dose uses the full day; 11:00-18:00 only gates behavioral responses. Digital access does not change biological vulnerability."
+  },
+  "feedback_iterations": 1,
+  "extreme_heat_behavior_window": ["11:00", "18:00"],
+  "heat_threshold_sensitivity": {
+    "policy_scenarios": {
+      "P0_baseline": {"bus_frequency_multiplier": 1.0, "ride_supply_multiplier": 1.0},
+      "P1_bus_frequency_plus_50pct": {"bus_frequency_multiplier": 1.5, "ride_supply_multiplier": 1.0},
+      "P2_ride_supply_plus_40pct": {"bus_frequency_multiplier": 1.0, "ride_supply_multiplier": 1.4}
+    }
+  },
+  "ride_supply_threshold_experiment": {
+    "ride_supply_multipliers": [0.6, 0.8, 1.0, 1.2, 1.4, 1.6, 1.8, 2.0],
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_reference_road_vehicles_per_30_min": 10.0,
+    "accessibility_saturation_rule": {
+      "maximum_adjacent_necessary_completion_gain_percentage_points": 0.5,
+      "maximum_adjacent_ride_wait_reduction_percent": 5.0
+    },
+    "road_pressure_rule": {
+      "minimum_speed_decline_from_p0_percent": 10.0,
+      "minimum_mean_total_travel_time_increase_from_p0_percent": 5.0,
+      "peak_volume_capacity_ratio_threshold": 1.0
+    },
+    "interpretation": "Constrained-road mechanism stress test. The 10 vehicles/30 min reference applies only here; the formal baseline remains 14. Values are not calibrated Shanghai optimum or regulatory standards."
+  },
+  "elder_digital_access_experiment": {
+    "policies": {
+      "D0_baseline": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false
+      },
+      "D1_targeted_digital_training_75pct": {
+        "elder_digital_access_target": 0.75,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": true
+      },
+      "D2_family_assistance_90pct": {
+        "elder_digital_access_target": null,
+        "elder_family_assistance_target": 0.90,
+        "provide_smartphone_if_needed": false,
+        "prioritize_unassisted_for_training": false
+      },
+      "D3_universal_elder_digital_access": {
+        "elder_digital_access_target": 1.0,
+        "elder_family_assistance_target": null,
+        "provide_smartphone_if_needed": true,
+        "prioritize_unassisted_for_training": true
+      }
+    },
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "interpretation": "Scenario assumptions for a 50-agent mechanism experiment. D1 targets training to smartphone-owning unassisted elders first; D3 includes device provision. These are not observed Shanghai intervention rates."
+  },
+  "coupon_experiment": {
+    "policies": ["C0_no_coupon", "C1_public_limited", "C2_elder_limited", "C3_mixed"],
+    "discount_multiplier": 0.80,
+    "daily_total_coupon_pool": 10,
+    "public_participation_probability": {
+      "18-39": 0.80,
+      "40-59": 0.65,
+      "60+": 0.45
+    },
+    "mixed_public_pool_share": 0.70,
+    "community_phone_coverage_rate": 0.40,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0,
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "interpretation": "Finite daily 20-percent-off coupon mechanism assumptions; not observed platform take-up, Shanghai subsidy, or welfare estimates. In C3, an awarded community/phone elder-reserve coupon includes one proxy booking without changing the elder's digital_access status."
+  },
+  "agent_scale_screen": {
+    "agent_counts": [50, 100, 200, 500],
+    "default_seed_count": 3,
+    "fixed_bus_frequency_multiplier": 1.0,
+    "fixed_ride_supply_multiplier": 1.0,
+    "fixed_reference_road_vehicles_per_30_min": 14.0,
+    "competition_flags": {
+      "ride_demand_supply_ratio": 1.0,
+      "road_volume_capacity_ratio": 1.0,
+      "under60_ride_wait_increase_minutes": 0.1
+    },
+    "interpretation": "Fixed-supply demand stress screen. Agent counts are mechanism loads, not Shanghai population forecasts; supply is intentionally not scaled with agents."
+  },
+  "seed_start": 3001,
+  "seed_count": 30,
+  "provenance": "All supply, capacity and feedback values are transparent emergence-test assumptions, not calibrated Shanghai observations."
+}

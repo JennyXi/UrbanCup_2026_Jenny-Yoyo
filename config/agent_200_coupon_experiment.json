@@ -1,0 +1,13 @@
+{
+  "experiment_id": "agent_200_coupon_competition",
+  "description": "C0-C3 coupon competition at 200 agents using the proportional conserved-fleet baseline.",
+  "total_agents": 200,
+  "seed_start": 3001,
+  "default_seed_count": 3,
+  "daily_total_coupon_pool": 40,
+  "initial_daily_vehicles_by_day_type": {
+    "workday": {"S1": 32, "S2": 20},
+    "rest_day": {"S1": 28, "S2": 16}
+  },
+  "interpretation": "Mechanism smoke experiment. The 40-coupon pool preserves the 50-agent experiment's 20-percent daily coverage, and the fleet is the proportional baseline rather than a Shanghai estimate."
+}

@@ -1,0 +1,116 @@
+{
+  "experiment_id": "formal_nine_zone_four_mode_baseline_v2",
+  "description": "No-policy nine-zone Agent transport baseline using walking, bus, metro and ride_hailing.",
+  "total_agents": 50,
+  "seed": 47,
+  "week_start": "2026-07-06",
+  "enabled_modes": ["walk", "bus", "metro", "ride_hailing"],
+  "policy": "P0_no_policy",
+  "experiment_condition": "P0_baseline",
+  "selected_days": {
+    "workday": "2026-07-07",
+    "rest_day": "2026-07-11"
+  },
+  "weather_scenarios": {
+    "W0": {
+      "weather_type": "normal",
+      "windows_by_day_type": {"workday": [], "rest_day": []}
+    },
+    "W1": {
+      "weather_type": "extreme_heat",
+      "windows_by_day_type": {
+        "workday": [["11:00", "18:00"]],
+        "rest_day": [["11:00", "18:00"]]
+      }
+    },
+    "W2": {
+      "weather_type": "heavy_rain",
+      "windows_by_day_type": {
+        "workday": [["07:00", "10:00"], ["17:00", "20:00"]],
+        "rest_day": [["10:00", "14:00"]]
+      }
+    }
+  },
+  "activity_behavior_changes_enabled": false,
+  "mode_choice": {
+    "generalized_cost_weight": 0.12,
+    "random_scale": 0.6,
+    "value_of_time_yuan_per_hour": {"18-39": 45.0, "40-59": 38.0, "60+": 25.0},
+    "age_mode_constant": {
+      "18-39": {"walk": 1.0, "bus": 0.0, "metro": 0.0, "ride_hailing": 0.3},
+      "40-59": {"walk": 0.0, "bus": 0.5, "metro": 0.0, "ride_hailing": 0.5},
+      "60+": {"walk": -1.5, "bus": 1.0, "metro": 0.0, "ride_hailing": -0.5}
+    },
+    "weather_preference": {
+      "normal": {"walk": 0.0, "bus": 0.0, "metro": 0.0, "ride_hailing": 0.0},
+      "extreme_heat": {"walk": -0.75, "bus": -0.25, "metro": 0.0, "ride_hailing": 0.15},
+      "heavy_rain": {"walk": -1.5, "bus": -0.6, "metro": 0.0, "ride_hailing": 0.25}
+    }
+  },
+  "activity_time_linkage": {
+    "reliability_buffer_min": {
+      "walk": 3.0,
+      "bus": 10.0,
+      "metro": 5.0,
+      "ride_hailing": 8.0
+    },
+    "maximum_early_departure_min": 120.0,
+    "on_time_tolerance_min": 5.0,
+    "maximum_acceptable_lateness_min": 30.0,
+    "maximum_commute_time_min": 120.0,
+    "lateness_penalty_yuan_per_min": 1.0,
+    "departure_choice_iterations": 2,
+    "interpretation": "Scenario assumptions. Fixed activity start times are preserved; chosen expected door-to-door time and reliability buffer determine departure."
+  },
+  "departure_time_concentration": {
+    "enabled": false,
+    "compression_factor": 1.0,
+    "center_time_by_purpose": {
+      "work": "08:00",
+      "medical": "09:00"
+    }
+  },
+  "road_feedback": {
+    "iterations": 1,
+    "time_bin_minutes": 30,
+    "representative_corridor_id": "nine_zone_representative",
+    "representative_direction": "all",
+    "bus_vehicle_pcu": 2.0,
+    "ride_hailing_vehicle_pcu": 1.0,
+    "agent_trip_weight": 1.0,
+    "directional_divisor": 2.0,
+    "interpretation": "Citywide representative shared-road feedback. This first baseline is not a link-level assignment."
+  },
+  "ride_hailing_fleet": {
+    "initial_vehicles_by_day_type": {
+      "workday": {"Z1": 3, "Z2": 2, "Z3": 2, "Z4": 1, "Z5": 1, "Z6": 2, "Z7": 3, "Z8": 1, "Z9": 1},
+      "rest_day": {"Z1": 2, "Z2": 2, "Z3": 2, "Z4": 1, "Z5": 1, "Z6": 1, "Z7": 2, "Z8": 1, "Z9": 1}
+    },
+    "maximum_vehicle_wait_min": 20.0,
+    "non_capacity_success_probability": 1.0,
+    "vehicle_id_prefix": "N9RH"
+  },
+  "fallback": {
+    "maximum_attempts_after_primary": 1,
+    "preserve_consumed_wait": true,
+    "remove_failed_mode": true
+  },
+  "bus_system": {
+    "vehicle_capacity_passengers": 50.0,
+    "capacity_constraint_enabled": false,
+    "scheduled_routes_in_both_directions": true
+  },
+  "behavioral_scope_assumptions": {
+    "ride_hailing_rechoice_after_request": false,
+    "ride_hailing_request_accepted_until_maximum_wait_or_failure": true,
+    "bus_boarding_is_guaranteed": true,
+    "metro_boarding_is_guaranteed": true,
+    "interpretation": "After requesting ride-hailing, an Agent accepts the realized pickup ETA unless the configured wait limit or dispatch failure triggers fallback. Public transport crowding and denied boarding are outside this mechanism experiment."
+  },
+  "scope_notes": [
+    "Metro is a continuous cross-zone trunk network. Only Z1/Z2/Z3/Z7 have sufficient station density for modeled intrazonal metro trips.",
+    "The same Agents, activities and planned legs are paired across W0/W1/W2.",
+    "Weather-related activity cancellation and remote work are disabled in this transport baseline.",
+    "All numeric parameters are scenario assumptions for mechanism testing, not calibrated Shanghai forecasts."
+  ]
+}

@@ -37,7 +37,7 @@ T7本身是正常天气、无内生拥堵的静态基准网络。其上已新增
 - M2：Z6–Z3–Z1
 - M3：Z3–Z5–Z7
 
-每个分区内部都显式保留道路、公交和网约车服务，因此同区活动也能生成公交或网约车方案。区内地铁不再用一个布尔值解释为全区任意OD可达，而是使用可配置覆盖率：Z1 0.75，Z2/Z3 0.60，Z7 0.50，Z4/Z6 0.35，Z5 0.30，Z8 0.25，Z9 0。具体leg必须距离达到 `max(3 km, 0.75 × 本区mean_intrazonal_distance)`，并且基于稳定seed抽到起点和终点都在覆盖范围内，才提供区内地铁方案。覆盖率是参考上海轨道交通规划量级设置的简化模型假设，不是实测覆盖率。这里的Z1–Z9是分区面，质心只用于估算跨区边长，并不代表整个区域只有一个站点。
+每个分区内部都显式保留道路、公交和网约车服务，因此同区活动也能生成公交或网约车方案。Z1–Z9是连续城市中的功能分区和OD统计面，不是九个独立城镇；质心只用于估算跨区边长，不代表每区只有一个站点。地铁主干线连续穿越多个分区，但线路连通不再等于具体Agent能直接步行到站。具体地铁leg分别按起点和终点检查`metro_accessibility.coverage_probability`，稳定抽样键为seed、agent_id、zone、purpose；天气和政策标签不会改变结果。直接步行不可达的端点在正式Agent实验中改用简化的区内公交接驳，公交候车、车内时间、道路影响、票价和公交—地铁转换均进入门到门方案；T7无Agent的纯拓扑探针不进行这项抽样。只有站点较密的Z1、Z2、Z3、Z7提供抽象化区内地铁；Z4、Z5、Z6、Z8通过本区车站进行跨区地铁出行，普通区内出行仍由步行和公交承担；Z9通过B2接驳Z6。区内地铁leg还必须达到 `max(3 km, 0.75 × 本区mean_intrazonal_distance)`。所有覆盖概率和区内接驳距离都是机制实验假设，不是上海实测值。
 
 Z9没有本区地铁站。Z9的地铁方案先用B2公交接驳到Z6，再进入地铁网络；Z9→Z6公交段已经完整包含步行接驳、公交等待和公交车内时间，整体只计入一次，不再额外叠加固定14分钟。2元公交费计入 `access_fare`，公交—地铁只额外增加6分钟方式转换时间并计入一次 `mode_transfer_count`。Z9→Z9以及Z9→Z6这类没有实际地铁主行程的组合仍标记为不可用。
 
@@ -85,7 +85,7 @@ in_vehicle_time_min
 + transfer_time_min
 ```
 
-`line_transfer_count`只统计公交内部或地铁内部的线路换乘；`mode_transfer_count`统计公交接驳地铁等方式转换。`access_mode`说明接驳方式。`main_fare`是主方式票价，`access_fare`是接驳费用，`fare = main_fare + access_fare`。
+`line_transfer_count`只统计公交内部或地铁内部的线路换乘；`mode_transfer_count`统计公交接驳地铁等方式转换；兼容字段 `transfers = line_transfer_count + mode_transfer_count` 可直接提供给 Agent。`access_mode`说明接驳方式。`main_fare`是主方式票价，`access_fare`是接驳费用，`fare = main_fare + access_fare`。
 
 不可用方式保留该OD—方式行，`available=false`；OD本身的 `euclidean_distance_km` 与 `road_network_distance_km`仍保留，方式专属距离、时间、费用和换乘字段为空。旧的 `effective_distance_km` 不再写入leg或OD CSV；T6内部的 `effective_choice_distance()`只用于目的地概率评分，不属于正式交通距离字段。区级 `od_mode_options.csv` 表示该分区是否存在这种供给；具体 `leg_mode_options.csv` 才使用实际抽样道路距离和端点覆盖结果判断某条同区leg能否坐地铁。它为每条leg列出四种备选方案，但不替Agent选择方式。
 

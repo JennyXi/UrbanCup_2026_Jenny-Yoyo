@@ -1,0 +1,70 @@
+﻿seed,weather_scenario,check,passed,detail
+47,W0,agent_count_is_200,True,agents=200
+47,W0,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+47,W0,vehicle_conservation,True,"end_states=48, initial=48"
+47,W0,no_vehicle_double_service,True,successful_dispatches=27
+47,W0,successful_mode_accounting,True,successful_legs=395
+47,W0,mode_shares_sum_to_one,True,share_sum=0.999999
+47,W0,finite_nonnegative_outputs,True,choice_rows=395
+47,W1,agent_count_is_200,True,agents=200
+47,W1,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+47,W1,vehicle_conservation,True,"end_states=48, initial=48"
+47,W1,no_vehicle_double_service,True,successful_dispatches=27
+47,W1,successful_mode_accounting,True,successful_legs=392
+47,W1,mode_shares_sum_to_one,True,share_sum=1.000000
+47,W1,finite_nonnegative_outputs,True,choice_rows=392
+47,W2,agent_count_is_200,True,agents=200
+47,W2,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+47,W2,vehicle_conservation,True,"end_states=48, initial=48"
+47,W2,no_vehicle_double_service,True,successful_dispatches=47
+47,W2,successful_mode_accounting,True,successful_legs=374
+47,W2,mode_shares_sum_to_one,True,share_sum=1.000000
+47,W2,finite_nonnegative_outputs,True,choice_rows=374
+47,paired,paired_planned_activity_count,True,"W0=215, W1=215, W2=215"
+47,paired,public_transport_capacity_disabled,True,bus and metro boarding are guaranteed
+48,W0,agent_count_is_200,True,agents=200
+48,W0,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+48,W0,vehicle_conservation,True,"end_states=48, initial=48"
+48,W0,no_vehicle_double_service,True,successful_dispatches=21
+48,W0,successful_mode_accounting,True,successful_legs=385
+48,W0,mode_shares_sum_to_one,True,share_sum=1.000000
+48,W0,finite_nonnegative_outputs,True,choice_rows=385
+48,W1,agent_count_is_200,True,agents=200
+48,W1,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+48,W1,vehicle_conservation,True,"end_states=48, initial=48"
+48,W1,no_vehicle_double_service,True,successful_dispatches=19
+48,W1,successful_mode_accounting,True,successful_legs=373
+48,W1,mode_shares_sum_to_one,True,share_sum=1.000000
+48,W1,finite_nonnegative_outputs,True,choice_rows=373
+48,W2,agent_count_is_200,True,agents=200
+48,W2,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+48,W2,vehicle_conservation,True,"end_states=48, initial=48"
+48,W2,no_vehicle_double_service,True,successful_dispatches=48
+48,W2,successful_mode_accounting,True,successful_legs=363
+48,W2,mode_shares_sum_to_one,True,share_sum=0.999999
+48,W2,finite_nonnegative_outputs,True,choice_rows=363
+48,paired,paired_planned_activity_count,True,"W0=207, W1=207, W2=207"
+48,paired,public_transport_capacity_disabled,True,bus and metro boarding are guaranteed
+49,W0,agent_count_is_200,True,agents=200
+49,W0,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+49,W0,vehicle_conservation,True,"end_states=48, initial=48"
+49,W0,no_vehicle_double_service,True,successful_dispatches=27
+49,W0,successful_mode_accounting,True,successful_legs=391
+49,W0,mode_shares_sum_to_one,True,share_sum=1.000000
+49,W0,finite_nonnegative_outputs,True,choice_rows=391
+49,W1,agent_count_is_200,True,agents=200
+49,W1,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+49,W1,vehicle_conservation,True,"end_states=48, initial=48"
+49,W1,no_vehicle_double_service,True,successful_dispatches=31
+49,W1,successful_mode_accounting,True,successful_legs=388
+49,W1,mode_shares_sum_to_one,True,share_sum=1.000001
+49,W1,finite_nonnegative_outputs,True,choice_rows=388
+49,W2,agent_count_is_200,True,agents=200
+49,W2,all_nine_home_zones_present,True,"zones=['Z1', 'Z2', 'Z3', 'Z4', 'Z5', 'Z6', 'Z7', 'Z8', 'Z9']"
+49,W2,vehicle_conservation,True,"end_states=48, initial=48"
+49,W2,no_vehicle_double_service,True,successful_dispatches=52
+49,W2,successful_mode_accounting,True,successful_legs=371
+49,W2,mode_shares_sum_to_one,True,share_sum=1.000000
+49,W2,finite_nonnegative_outputs,True,choice_rows=371
+49,paired,paired_planned_activity_count,True,"W0=212, W1=212, W2=212"
+49,paired,public_transport_capacity_disabled,True,bus and metro boarding are guaranteed

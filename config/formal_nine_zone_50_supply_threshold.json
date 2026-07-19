@@ -1,0 +1,30 @@
+{
+  "experiment_id": "formal_nine_zone_50_supply_threshold_v1",
+  "description": "Paired 50-Agent workday screen for the onset of conserved ride-hailing fleet competition before policy experiments.",
+  "base_experiment_config": "config/formal_nine_zone_50_experiment.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": ["W0", "W2"],
+  "day_type": "workday",
+  "vehicle_pools_by_total": {
+    "16": {"Z1": 3, "Z2": 2, "Z3": 2, "Z4": 1, "Z5": 1, "Z6": 2, "Z7": 3, "Z8": 1, "Z9": 1},
+    "12": {"Z1": 2, "Z2": 2, "Z3": 1, "Z4": 1, "Z5": 1, "Z6": 1, "Z7": 2, "Z8": 1, "Z9": 1},
+    "10": {"Z1": 2, "Z2": 1, "Z3": 1, "Z4": 1, "Z5": 0, "Z6": 1, "Z7": 2, "Z8": 1, "Z9": 1},
+    "8":  {"Z1": 2, "Z2": 1, "Z3": 1, "Z4": 0, "Z5": 0, "Z6": 1, "Z7": 2, "Z8": 0, "Z9": 1},
+    "6":  {"Z1": 1, "Z2": 1, "Z3": 1, "Z4": 0, "Z5": 0, "Z6": 1, "Z7": 1, "Z8": 0, "Z9": 1}
+  },
+  "classification_rules": {
+    "stable_competition_min_seed_share": 0.50,
+    "widespread_competition_min_seed_share": 0.80,
+    "system_collapse_min_seed_share": 0.20,
+    "competition_event": "at least one ride-hailing capacity failure in the seed-weather run",
+    "collapse_event": "at least one final transport_unmet activity after fallback",
+    "candidate_rule": "highest fleet total with stable competition and below the collapse seed-share threshold"
+  },
+  "scope_notes": [
+    "All supply levels within a seed use identical Agents, activities, OD, weather and random priorities.",
+    "Vehicle maps are explicit scenario assumptions and are not calibrated Shanghai fleet counts.",
+    "Fleet levels are spatially nested: every lower-supply pool is formed only by removing vehicles from the next higher pool.",
+    "The candidate rule is fixed before observing results and is a mechanism screen, not an estimated real-world optimum."
+  ]
+}

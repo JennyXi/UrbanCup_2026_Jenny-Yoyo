@@ -225,6 +225,18 @@ class DynamicRoadCongestionTests(unittest.TestCase):
             self.congestion_config["shared_state_key"]["fields"],
             ["corridor_id", "direction", "time_bin"],
         )
+        self.assertTrue(
+            self.congestion_config["shared_state_key"]
+            ["global_state_registry_implemented"]
+        )
+        self.assertEqual(
+            self.congestion_config["shared_state_key"]["global_state_registry_owner"],
+            "custom.agents.interdependent_decision_system.SharedTrafficStateRegistry",
+        )
+        self.assertFalse(
+            self.congestion_config["shared_state_key"]
+            ["formal_batch_baseline_uses_registry"]
+        )
 
     def test_all_eight_t8_periods_require_explicit_baseline_vc(self):
         expected = {

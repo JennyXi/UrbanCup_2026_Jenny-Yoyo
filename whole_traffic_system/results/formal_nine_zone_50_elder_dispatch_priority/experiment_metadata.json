@@ -1,0 +1,37 @@
+{
+  "experiment_id": "formal_nine_zone_50_elder_dispatch_priority_v1",
+  "description": "Paired P0/P4 elder ride-hailing dispatch-priority experiment at the selected 12-vehicle nine-zone baseline.",
+  "base_experiment_config": "config/formal_nine_zone_50_experiment.json",
+  "seed_start": 47,
+  "seed_count": 10,
+  "weather_scenarios": [
+    "W0",
+    "W2"
+  ],
+  "day_type": "workday",
+  "initial_vehicles": {
+    "Z1": 2,
+    "Z2": 2,
+    "Z3": 1,
+    "Z4": 1,
+    "Z5": 1,
+    "Z6": 1,
+    "Z7": 2,
+    "Z8": 1,
+    "Z9": 1
+  },
+  "policies": {
+    "P0_first_come": {
+      "dispatch_priority_policy": "P0_first_come"
+    },
+    "P4_elder_priority": {
+      "dispatch_priority_policy": "P4_elder_priority"
+    }
+  },
+  "priority_scope": "An assignment already made is never revoked. When a vehicle becomes idle, P0 selects the earliest still-pending request, while P4 first selects an elder among all unexpired pending requests in that origin zone, then uses request time, the shared seed-based dispatch priority and leg_id.",
+  "scope_notes": [
+    "P4 does not add vehicles and does not change mode-choice utility, fares, digital access, activities, weather, fallback rules or base dispatch-priority draws.",
+    "Coupons are disabled and elder digital-access attributes remain at their generated baseline values.",
+    "This is a finite-resource redistribution mechanism test, not a calibrated Shanghai platform rule or forecast."
+  ]
+}

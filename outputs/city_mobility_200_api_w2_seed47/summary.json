@@ -1,0 +1,57 @@
+{
+  "status": "PASS",
+  "experiment": "GitHub nine-zone API-backed interdependent urban mobility",
+  "seed": 47,
+  "weather_scenario": "W2",
+  "day_type": "workday",
+  "agents": 200,
+  "agents_with_travel": 180,
+  "agents_without_workday_travel": 20,
+  "travel_decisions": 395,
+  "api_travel_decisions": 395,
+  "api_decision_failures": 0,
+  "model": "deepseek-v4-flash",
+  "api_base": "https://api.deepseek.com",
+  "api_key_present": true,
+  "api_key_persisted": false,
+  "usage": {
+    "calls": 395,
+    "input_tokens": 182689,
+    "output_tokens": 14839
+  },
+  "chosen_mode_counts": {
+    "walk": 2,
+    "bus": 129,
+    "metro": 188,
+    "ride_hailing": 76
+  },
+  "final_successful_mode_counts": {
+    "walk": 2,
+    "bus": 129,
+    "metro": 188,
+    "ride_hailing": 76
+  },
+  "ride_hailing_traffic_events": 76,
+  "affected_decisions": 230,
+  "maximum_absolute_probability_change": 0.115181362,
+  "influence_edges": 554,
+  "represented_trips_per_agent": 30.0,
+  "coupon_source": {
+    "source": "/mnt/d/代码/GIS competition/AgentSociety-local/runs/coupon_public_goods_200_llm_seed47/result.json",
+    "api_backed": true,
+    "api_contribution_decisions": 126,
+    "awarded": 40
+  },
+  "coupon_awarded": 40,
+  "coupon_binding_rule": "awarded coupon is offered on the first trip decision only",
+  "coupon_bound_to_ride_hailing": 9,
+  "coupon_redeemed": 9,
+  "ride_hailing_requests": 76,
+  "successful_ride_hailing_requests": 76,
+  "failed_ride_hailing_requests": 0,
+  "transport_success_rate": 1.0,
+  "necessary_activity_completion_rate": 0.946309,
+  "mean_total_travel_time": 65.293,
+  "initial_ride_hailing_vehicles": 48,
+  "elapsed_seconds": 350.936
+}

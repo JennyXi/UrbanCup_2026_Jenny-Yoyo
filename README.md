@@ -1,158 +1,174 @@
-# UrbanCup 2026：高温天气下的网约车出行公平模拟
+# UrbanCup 2026：极端天气下的网约车出行公平模拟
 
-本仓库正在构建一个以上海总体人口结构和空间趋势为参考的九区合成城市，用于研究极端夏季天气、数字接入和出行补贴政策对不同年龄人群潜在出行机会的影响。
+[![tests](https://github.com/JennyXi/UrbanCup_2026_Jenny-Yoyo/actions/workflows/tests.yml/badge.svg?branch=Yoyo)](https://github.com/JennyXi/UrbanCup_2026_Jenny-Yoyo/actions/workflows/tests.yml)
+![Python](https://img.shields.io/badge/Python-3.11--3.13-3776AB)
+![Model](https://img.shields.io/badge/model-auditable%20synthetic%20city-00A896)
 
-当前实现已覆盖 baseline population、home-zone 安置、七日基础活动、活动目的地区域、连续活动—leg时间链、九区多方式交通网络、正常天气分时段基础交通供给、天气响应规则、天气交通供给、动态道路拥堵和补贴资格规则。尚未实现 Agent 交通方式选择、订单或派单结果。
+本项目构建一个以上海人口结构和空间趋势为参考的九区合成城市，研究极端高温、强降雨、数字接入和网约车补贴如何共同影响不同年龄与数字能力人群的出行机会。
 
-## 已完成模块
+项目已经从人口与活动计划扩展为可运行的综合交通机制实验：Agent 会在步行、公交、地铁、公交—地铁接驳和网约车之间选择；网约车实行车辆级空间—时间守恒、派单等待与一次 fallback；C0–C4 优惠券（含官网 PublicGoodsAgent 适配）、老年数字接入和派单优先政策均有配对实验与审计输出。
 
-### T1：Agent population 与七日 baseline activities
+> 本项目是机制模拟，不是上海交通预测。九区边界、交通供给和行为系数均为透明、可审计的合成参数。
 
-- 按 `18–39`、`40–59`、`60+` 三个年龄层动态生成 Agent；
-- 工作状态和医疗需求等级按可配置比例稳定分配；
-- 读取真实 `home_zone` 生成 Monday–Sunday baseline activities；
-- 所有时间位于30分钟网格；
-- 每日活动通过 `sequence_order` 保存稳定顺序；
-- 区分 modeled candidate slot、`no_in_scope_trip` slot、空 Agent-day 和固定工作槽；
-- 固定 seed 可复现，Agent 输入顺序不影响个人计划。
+## 30 秒看懂结果
 
-详细说明见 [`docs/T1_trip_planning/README.md`](docs/T1_trip_planning/README.md)。
+![天气情景下的方式份额变化](docs/figures/weather_mode_shift.svg)
 
-### T2：极端天气行为规则
+在 200 Agents、10 seeds 的 C0 无券基线中，强降雨使公交份额下降，地铁与网约车承担更多出行。政策实验使用相同 Agents、活动、OD、天气和基础随机数做 seed 内配对比较。
 
-- 支持 W0、W1、W2 独立天气情景；
-- 根据天气、年龄层、活动目的和取消概率判断 `trip_continues`；
-- 不直接决定交通方式、订单或派单。
+| W2 强降雨政策 | 网约车请求 | 成功 | 失败 | 券核销 | 补贴支出 | 必要活动完成率 |
+|---|---:|---:|---:|---:|---:|---:|
+| C0 无券 | 56.4 | 55.2 | 1.2 | 0.0 | 0.0 元 | 96.81% |
+| C1 公共券 | 64.8 | 63.0 | 1.8 | 16.3 | 117.2 元 | 96.94% |
+| C2 老年定向券 | 57.4 | 56.2 | 1.2 | 1.3 | 6.0 元 | 96.81% |
+| C3 混合券 | 62.8 | 61.5 | 1.3 | 11.7 | 82.7 元 | 96.87% |
 
-详细说明见 [`docs/T2_weather/README.md`](docs/T2_weather/README.md)。
+![强降雨下的政策权衡](docs/figures/w2_policy_tradeoffs.svg)
 
-### T3：出行补贴政策规则
+当前结果支持四条机制结论：
 
-- 支持 P0–P4 五种政策情景；
-- 区分 policy scenario 与 low/high discount level；
-- 输出优惠资格、触达/领取状态、可用渠道和老年派单优先资格；
-- 不直接生成订单、优惠实际使用或派单成功结果。
+1. 强降雨降低道路公交吸引力，地铁稳定性和网约车门到门服务变得更重要。
+2. C1 与 C3 在 10/10 seeds 中增加网约车需求；有限车辆池使部分增量转化为局部派单失败。
+3. 一次 fallback 吸收了大部分局部失败，因此必要活动完成率没有出现稳定的大幅变化。
+4. 老年定向券名义覆盖高但核销低，说明“触达 → 获券 → 请求 → 成功服务”不能合并为一个指标。
 
-详细说明见 [`docs/T3_policy/README.md`](docs/T3_policy/README.md)。
+完整的配对 95% 区间、交叉公平性差距和描述性预算效率见[竞赛结果卡](docs/results/COMPETITION_RESULTS.md)。
 
-### T4：九区合成功能城市与 home-zone 安置
+## 九区合成城市
 
-- 参考上海“西部传统中心—东部综合副中心—外围新城—产业园区—远郊弱势区”的功能结构，不复刻真实行政区；
-- 使用显式目标面积、质心方向、交通邻接和道路绕行系数构建连续主体城市及远郊 Z9；
-- 跨区道路、公交和地铁均沿各自配置图寻路；公交距离与时间保留实际所选线路的分段累计结果；
-- 动态校准区域年龄构成并生成二维 `zone × age_group` 整数配额；
-- 按精确配额为每个 Agent 分配唯一 `home_zone`；
-- 使用稳定哈希，输入 Agent 或配额字典顺序不影响个人安置结果。
+![九区合成城市与多方式交通网络](docs/figures/nine_zone_network.svg)
 
-详细说明见 [`docs/T4_spatial/README.md`](docs/T4_spatial/README.md)。
+- Z1 为传统就业中心，Z7 为综合副中心，Z6 为产业新城。
+- Z2/Z3 为内城混合与老城区；Z4/Z5/Z8 为外围居住区。
+- Z9 是远郊交通薄弱区，只通过 Z6 接入主体网络。
+- 公交覆盖九区；地铁按线路和 Agent 两端可达性判断，不把“区内有站”解释为任意 OD 均可乘坐。
+- 交通方案同时保留线路换乘、方式换乘和兼容字段 `transfers = line_transfer_count + mode_transfer_count`。
 
-### T6：Baseline activity destination zone
+## 端到端机制
 
-- 使用purpose attraction与距离衰减为已有activity分配`destination_zone`；
-- 同区选择使用区内平均距离，不把同区视为0 km；
-- 普通活动使用可调同区偏好系数，提高本区购物、医疗、探访、家庭和社交休闲概率；work不加该系数，以保留年轻郊区居民跨区通勤；
-- 跨区距离考虑道路网络绕行；Z1、Z7、Z6分别承担主中心、副中心和产业就业节点作用；
-- work和medical destination按Agent固定；家庭活动约80%沿用主要亲属地点、约20%稳定抽取其他亲属地点；
-- 只更新destination字段，不生成origin、leg、正式OD或distance字段。
-
-详细说明见 [`docs/T6_destination/README.md`](docs/T6_destination/README.md)。
-
-### T7：九区多方式交通网络
-
-- 以Z1–Z9为节点，配置化生成道路、公交和地铁图；
-- 为81组OD生成walk、bus、metro、ride_hailing四种基准方案；
-- 输出距离、行驶、接驳、等待、换乘、总时间、费用和换乘次数；
-- 距离字段区分质心直线距离、合成道路距离、主方式走行距离和接驳距离，不再输出含义模糊的`effective_distance_km`；
-- 九区均有区内道路、公交和网约车；区内地铁按分区覆盖率、实际leg距离和稳定端点覆盖判断，不将有地铁解释为全区任意OD可达；
-- Z9无本区地铁站，但可经公交接驳Z6进入地铁；其公交等待和接驳负担更高；本阶段不进行Agent方式选择。
-
-详细说明见 [`docs/T7_transport_network/README.md`](docs/T7_transport_network/README.md)。
-
-### T8：分时段基础交通供给
-
-- 配置化定义早晚肩部、核心高峰、回落、日间平峰和跨午夜夜间共八段；
-- 为每条具体leg—mode保留静态基础时间，并另算分时等待、速度、换乘、运营状态和调整后总时间；
-- T7静态基础值定义为日间平峰；跨时段候车与车内行程均按实际边界和郊区方向偏移边界切段；
-- 正常基础速度与拥堵因子分离：公交/网约车按非高峰1.00、普通高峰0.85、最强方向0.75三选一，步行和地铁恒为1.00；
-- 早高峰外围→Z1/Z7/Z6、晚高峰反方向的负荷倍率按区域组生效，并对普通外围/Z9分别采用15/30分钟的小幅相位偏移；
-- 地铁按OD反推末班车最晚可行出发时间；Z9公交接驳也按实际时段计算；
-- 正常日内网约车车队总量保持不变，`baseline_availability`仅为描述字段且不参与计算；实际车辆占用、空间再分布和派单成功率留给后续供需模块；
-- 本层不含天气、Agent偏好、内生拥堵、动态加价或派单。
-
-详细说明见 [`docs/T8_time_supply/README.md`](docs/T8_time_supply/README.md)。
-
-### T9：天气对外生交通供给的影响层
-
-- 复用 T7 基础速度、T8 时段方向乘数和 T2 天气窗口，按 `base_speed × period_direction_multiplier × weather_speed_multiplier` 分段计算；
-- 暴雨降低步行、公交和网约车速度，地铁保持正常速度；道路容量使用独立乘数，不参与速度计算；
-- 暴雨结束后先进入恢复阶段；高温默认不改变速度；
-- 本层自身不实现车辆周转、派单、动态拥堵、活动取消或方式选择；其天气后自由流速度和道路容量信号供 T10 使用，重复运行也不会重复叠加天气影响。
-
-详细说明见 [`docs/T9_weather_supply/README.md`](docs/T9_weather_supply/README.md)。
-
-### T10：动态道路拥堵层
-
-- 采用方案 A：T8 固定表示正常早晚高峰背景，T10 只接收相对于该基准的 `excess_road_flow_pcu_per_hour`；
-- 接在 T9 天气供给之后，按代表性单向走廊逐段计算背景 v/c、天气容量、情景 v/c 和相对背景的边际 BPR 倍率；
-- 公交和网约车在相同走廊状态下共享容量、新增量与拥堵乘数，同时保留各自的基础速度；
-- 步行和地铁不参与机动车道路容量计算，动态拥堵乘数固定为 1.00；
-- 输入单位严格为 PCU/hour/direction；新增流量为 0 时 T10 严格为 1.00；跨时段、天气和恢复边界继续重算，并输出最终总旅行时间；
-- 本层不生成新增交通量，也不实现方式选择、车辆周转、派单、动态等待或动态加价。
-
-详细说明见 [`docs/T10_dynamic_congestion/README.md`](docs/T10_dynamic_congestion/README.md)。
-
-## 当前核心流程
-
-```text
-total_agents
-→ 三年龄层人口
-→ zone × age_group 精确配额
-→ Agent.home_zone
-→ Monday–Sunday baseline activities
-→ activity.destination_zone
-→ 连续outbound / between-activities / return-home legs
-→ 九区多方式OD备选方案
-→ 正常天气分时段leg—mode供给
-→ 天气对外生交通供给的分段影响
-→ 相对T8基准的新增走廊流量驱动额外拥堵
-→ T2天气继续/取消判断
-→ T3政策优惠与派单资格
+```mermaid
+flowchart LR
+    A[人口与年龄结构] --> B[home zone 与七日活动]
+    B --> C[活动目的地与连续 legs]
+    C --> D[步行/公交/地铁/网约车候选]
+    D --> E[天气、时段与道路供给]
+    E --> F[Agent 方式选择]
+    F --> G[车辆守恒、派单与 fallback]
+    G --> H[优惠券与数字接入政策]
+    H --> I[活动完成、暴露与公平性指标]
 ```
 
-开发联调显式使用 `total_agents=50`，机制调试建议逐步扩展至100和200；500或1000仅作为后续正式实验候选规模。代码不把50或1000硬编码为通用运行规模。
+核心实现包括：
 
-## 测试
+- T1：人口、就业状态、数字接入和七日 baseline activities；
+- T2：W0/W1/W2 天气下的活动继续与取消；
+- T3：补贴触达、资格、领取渠道与派单优先规则；
+- T4/T6：九区空间配置、home zone 和 activity destination；
+- T7–T10：多方式网络、分时供给、天气供给和动态道路拥堵；
+- 综合实验：方式选择、车辆级派单、等待、fallback、优惠券核销和政策配对比较。
 
-```powershell
-python -B -X utf8 -m unittest tests.test_agent_population_t1 -v
-python -B -X utf8 -m unittest tests.test_trip_planning_t1 -v
-python -B -X utf8 -m unittest tests.test_home_zone_assignment -v
-python -B -X utf8 -m unittest tests.test_zone_configuration -v
-python -B -X utf8 tests\test_weather_t2.py
-python -B -X utf8 -m unittest tests.test_policy_t3 -v
-python -B -X utf8 -m unittest tests.test_transport_network -v
-python -B -X utf8 -m unittest tests.test_time_dependent_transport_supply -v
-python -B -X utf8 -m unittest tests.test_weather_transport_supply -v
-python -B -X utf8 -m unittest tests.test_dynamic_road_congestion -v
+详细设计见[九区综合交通系统说明](whole_traffic_system/README.md)。
+
+## 快速复现
+
+核心模型与报告生成只依赖 Python 标准库，支持 Python 3.11–3.13。
+
+### 1. 运行全部测试
+
+```bash
+python -B -X utf8 -m unittest discover -s tests
 ```
 
-## 尚未实现
+### 2. 运行九区 50-Agent 综合实验
 
-- mode choice；
-- 网约车订单、价格计算和优惠实际使用；
-- 车辆竞争、派单成功、动态等待与内生交通量生成；
-- AgentSociety 端到端仿真。
+```bash
+python -B -X utf8 -m scripts.run_formal_nine_zone_50_experiment
+```
 
-下一阶段需要把每条Agent leg与多方式OD备选方案连接起来并实现mode choice；当前交通网络不读取Agent属性，也不生成订单或派单结果。
+输出默认写入 `outputs/`。该目录不会提交到 Git；已验收的归档结果位于 `whole_traffic_system/results/`。
 
-## 合成城市声明
+### 3. 重建竞赛结果卡与图表
 
-九个功能区、面积、质心、人口权重和年龄空间梯度均为可审计的合成参数，不代表上海真实行政区边界、真实行政区面积或实证通勤矩阵。
+```bash
+python -B -X utf8 -m scripts.build_competition_report
+python -B -X utf8 -m scripts.build_competition_report --check
+```
 
-## 2026-07-13 时间链更新
+生成内容：
 
-当前已生成可审计的活动—leg时间链：Agent身份字段逐行继承到activity；工作到岗、下班时间和工作地点按Agent保持周内一致；活动间保留实际旅行时间并从上一地点连续出发；天气暴露按leg的实际出发—到达区间判断。shopping受10:00–22:00商场营业时间限制。
+- `docs/results/competition_metrics.csv`：政策 × 天气的均值与 95% 区间；
+- `docs/results/paired_policy_effects.csv`：相对 C0 的 seed 内配对变化；
+- `docs/results/fairness_metrics.csv`：年龄—数字接入群体指标；
+- `docs/results/equity_gaps.csv`：脆弱组相对年轻组的必要活动完成率差距；
+- `docs/results/budget_efficiency.csv`：按实际核销与诱发请求计算的描述性支出指标；
+- `docs/figures/*.svg`：从配置和归档 CSV 确定性生成的竞赛图表。
 
-非工作活动按类型使用不同的离散时长分布，最短30分钟，不设置统一的8小时硬上限；较长的聚会休闲、探访和家庭活动可以超过8小时。若剩余时间窗口不足，程序会优先缩短到该活动类型允许的时长，仍不可行时取消非必要活动，绝不会把开始时间静默改为次日00:00。
+### 4. 重跑 200-Agent 优惠券实验
 
-返家到达上限为：18–39岁24:00、40–59岁22:00、60+ 20:00。无法同时满足活动时长、活动间旅行、营业时间和返家上限的非必要晚间活动不会生成。当前旅行时间是用于机制测试的generalized travel time（18 km/h、5分钟取整、10–90分钟），尚未替代未来的mode choice、拥堵、等车与派单模块。
+```bash
+python -B -X utf8 -m scripts.run_formal_nine_zone_200_coupon_experiment \
+  --seed-start 47 \
+  --seed-count 10 \
+  --workers 4 \
+  --output-dir outputs/formal_nine_zone_200_coupon_10seeds
+```
+
+Windows PowerShell 可将续行符替换为反引号，或把命令写成一行。
+
+更多环境、输入冻结与输出口径见[复现说明](docs/REPRODUCIBILITY.md)。
+
+## 实验设计与可信度
+
+- 固定 seed 可复现；Agent 输入顺序不改变个人规划。
+- 同一 seed 的政策共享人口、活动、OD、天气和基础派单优先值。
+- 网约车车辆逐车记录位置、占用状态、释放时间和目的地区域。
+- 每个正式实验同时输出车辆守恒、方式计数、政策配对和非负值检查。
+- 结果卡使用 Student t 区间，并明确区分均值、配对变化和区间是否跨越 0。
+- 目前 10 seeds 是机制证据；正式现实外推前仍需更多 seeds、观测校准和外部验证。
+
+## 优惠券公平性漏斗
+
+![优惠券从触达到核销的漏斗](docs/figures/coupon_funnel.svg)
+
+C1–C3 都配置为每日 40 张券，但实际核销量和支出差异明显，因此当前政策不是严格等预算。仓库同时报告“元/核销”和“元/诱发请求”，但不把它们解释为现实福利或因果成本效益。
+
+## 数据与参数证据
+
+`data_collection/` 保存上海公开证据的来源登记、检索日志、数据字典、质量报告和参数映射。合成城市中未获得统一观测支持的速度、等待、换乘和行为参数均明确标记为 `model_assumption`，避免把情景设定误写为实测事实。
+
+重建数据层：
+
+```bash
+cd data_collection
+python scripts/build_all_databases.py
+python -m pytest -q
+```
+
+数据层可能需要额外的 pandas、PyYAML、PyArrow 与 Git LFS；核心交通模型和竞赛结果卡不依赖这些包。
+
+## 结果索引
+
+- [Agent 决策关联与顺序共享状态系统](docs/interdependent_agent_decisions/README.md)
+- [PublicGoodsAgent 公共品博弈分券机制](docs/public_goods_coupon_agent/README.md)
+- [竞赛结果卡](docs/results/COMPETITION_RESULTS.md)
+- [九区综合系统与主要发现](whole_traffic_system/README.md)
+- [200-Agent机制与优惠券实验](whole_traffic_system/experiment_guides/formal_nine_zone_200_experiments.md)
+- [两区简化涌现实验技术档案](docs/emergence_experiment/README.md)
+- [数据质量报告](data_collection/docs/DATA_QUALITY_REPORT.md)
+- [模型参数映射](data_collection/docs/MODEL_PARAMETER_MAPPING.md)
+- [方法与边界声明](docs/METHOD_AND_LIMITATIONS.md)
+
+## 当前边界
+
+- 九区、OD、供给和行为系数是合成情景，不是上海行政区或实证通勤矩阵。
+- 公交与地铁默认保证上车，尚未模拟拥挤拒载和容量约束。
+- 道路反馈用于机制实验，不求解完整动态交通均衡。
+- 当前政策比较不是严格等财政预算，也没有货币化福利函数。
+- 200 Agents、10 seeds 不足以支持现实政策效应外推。
+- AgentSociety 大规模端到端运行尚未作为本仓库的正式竞赛结果发布。
+
+这些限制不是隐藏条件：所有正式结论必须同时引用结果卡的证据范围和不应支持的结论。
+
+## 引用
+
+仓库提供 `CITATION.cff`。若使用本项目，请同时说明使用的分支、提交 SHA、配置文件和 seed 范围。

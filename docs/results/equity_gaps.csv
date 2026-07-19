@@ -1,0 +1,13 @@
+policy,weather_scenario,vulnerable_group,reference_group,metric,paired_mean_gap,ci95_low,ci95_high,seed_count
+C0_no_coupon,W0,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C0_no_coupon,W1,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C0_no_coupon,W2,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,-1.845260,-14.003723,10.313203,10
+C1_public_limited,W0,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C1_public_limited,W1,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C1_public_limited,W2,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,-1.845260,-14.003723,10.313203,10
+C2_elder_limited,W0,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C2_elder_limited,W1,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C2_elder_limited,W2,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,-1.845260,-14.003723,10.313203,10
+C3_mixed,W0,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C3_mixed,W1,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,1.919830,1.094085,2.745575,10
+C3_mixed,W2,60+_nondigital_unassisted,18-39,necessary_activity_completion_rate_gap_percentage_points,-1.845260,-14.003723,10.313203,10

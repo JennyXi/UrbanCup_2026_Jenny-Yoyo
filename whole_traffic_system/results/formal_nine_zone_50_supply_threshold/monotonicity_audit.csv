@@ -1,0 +1,3 @@
+﻿weather_scenario,ride_failures_non_decreasing_as_supply_falls,successful_orders_non_increasing_as_supply_falls,request_wait_non_decreasing_as_supply_falls,all_monotonicity_checks_pass
+W0,True,True,True,True
+W2,True,True,True,True
