@@ -1,0 +1,94 @@
+{
+  "experiment_id": "city_mobility_1000_api_w2_seed47_v1",
+  "description": "1000-Agent real-API urban-mobility experiment using the 200-Agent W2 A0 baseline definitions, proportional fleet/coupon scaling, and aggregate-demand-preserving traffic representation.",
+  "formal_transport_config": "config/formal_nine_zone_agent_experiment.json",
+  "symmetric_behavior_config": "config/symmetric_weather_experiment.json",
+  "emergence_heat_config": "config/emergence_experiment.json",
+  "total_agents": 1000,
+  "seed": 47,
+  "seed_start": 47,
+  "smoke_seed_count": 1,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "run_weather_scenarios": ["W2"],
+  "day_types": ["workday", "rest_day"],
+  "run_day_types": ["workday"],
+  "policy": "P0_no_policy",
+  "formal_overrides": {
+    "ride_hailing_fleet": {
+      "initial_vehicles_by_day_type": {
+        "workday": {"Z1": 40, "Z2": 40, "Z3": 20, "Z4": 20, "Z5": 20, "Z6": 20, "Z7": 40, "Z8": 20, "Z9": 20},
+        "rest_day": {"Z1": 40, "Z2": 40, "Z3": 20, "Z4": 20, "Z5": 20, "Z6": 20, "Z7": 40, "Z8": 20, "Z9": 20}
+      },
+      "non_capacity_success_probability": 1.0
+    }
+  },
+  "activity_state_machine": {
+    "work_weather_cancellation_allowed": false,
+    "medical_weather_cancellation_allowed": false,
+    "optional_cancellation_requires_departure_in_weather_window": true,
+    "remote_work_probability": {
+      "normal": 0.0,
+      "extreme_heat": 0.02,
+      "heavy_rain": 0.05
+    },
+    "remote_work_is_activity_level_single_draw": true,
+    "schedule_shift_enabled": false
+  },
+  "coupon_experiment": {
+    "policies": ["C4_public_goods"],
+    "discount_multiplier": 0.8,
+    "daily_total_coupon_pool": 200,
+    "public_participation_probability": {"18-39": 0.8, "40-59": 0.65, "60+": 0.45},
+    "mixed_public_pool_share": 0.7,
+    "community_phone_coverage_rate": 0.4,
+    "maximum_coupons_per_agent_day": 1,
+    "maximum_redemptions_per_agent_day": 1,
+    "main_experiment_ride_hailing_noncapacity_success_probability": 1.0,
+    "public_goods_game": {
+      "official_parent_agent_class": "agentsociety2.contrib.agent.PublicGoodsAgent",
+      "adapter_agent_class": "integrations.agentsociety.coupon_public_goods_agent.CouponPublicGoodsAgent",
+      "num_rounds": 3,
+      "initial_endowment": 20,
+      "public_pool_multiplier": 1.6,
+      "base_cooperation_by_age": {"18-39": 0.55, "40-59": 0.6, "60+": 0.65},
+      "initial_cooperation_noise": 0.15,
+      "peer_reciprocity_weight": 0.4,
+      "need_priority_weight": 0.65,
+      "cooperation_priority_weight": 0.35,
+      "age_need_score": {"18-39": 0.1, "40-59": 0.25, "60+": 0.55},
+      "medical_need_score": {"none": 0.0, "low": 0.15, "standard": 0.35, "high": 0.75},
+      "nondigital_unassisted_need_score": 0.7,
+      "interpretation": "API-backed round-one contributions feed three linked public-goods rounds. The multiplier changes virtual payoff only and creates no physical coupon."
+    }
+  },
+  "comparability": {
+    "baseline_script": "scripts/run_city_mobility_200_api.py",
+    "baseline_output": "outputs/city_mobility_200_api_w2_seed47",
+    "age_weather_exposure_version": "A0_strict_200_api_baseline",
+    "age_weather_exposure_multiplier_loaded": false,
+    "age_weather_exposure_note": "The 200-Agent API baseline did not load the later A1 W2 age-vulnerability exposure multiplier. This 1000-Agent primary run deliberately keeps that term disabled for strict comparability.",
+    "population_age_shares": {"18-39": 0.4, "40-59": 0.33, "60+": 0.27},
+    "elder_digital_access_rate": 0.483,
+    "elder_smartphone_access_rate": 0.873,
+    "elder_family_assistance_rate": 0.68,
+    "fleet_scaling": "48/200 to 240/1000; constant 0.24 vehicles per Agent",
+    "coupon_scaling": "40/200 to 200/1000; constant 20 coupons per 100 Agents",
+    "traffic_representation": "200*30 and 1000*6 both represent 6000 trips; scaling increases Agent resolution without silently multiplying aggregate represented demand"
+  },
+  "scale_definition": {
+    "baseline_agents": 200,
+    "baseline_ride_hailing_vehicles": 48,
+    "agents": 1000,
+    "ride_hailing_vehicles": 240,
+    "vehicles_per_agent": 0.24,
+    "coupon_pool": 200,
+    "coupons_per_100_agents": 20,
+    "represented_trips_per_agent": 6.0,
+    "aggregate_represented_trips": 6000.0
+  },
+  "scope_notes": [
+    "Bus and metro timetables, mode-choice parameters, activity rules, weather windows, coupon binding rule, and Seed 47 remain aligned with the 200-Agent API baseline.",
+    "Bus and metro boarding remain guaranteed; ride-hailing uses a finite proportionally scaled vehicle pool.",
+    "This is a mechanism experiment, not a calibrated Shanghai traffic forecast."
+  ]
+}
