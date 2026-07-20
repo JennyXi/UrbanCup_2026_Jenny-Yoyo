@@ -69,8 +69,14 @@ def test_vehicle_conservation_and_mode_share_identity():
         shares = row["walking_mode_share"] + row["bus_mode_share"] + row["metro_mode_share"] + row["ride_hailing_mode_share"]
         assert abs(shares - 1.0) < 2e-6
         assert row["fallback_successes"] <= row["fallback_attempts"]
-        assert row["completed_activities"] + row["transport_unmet_activities"] == row["planned_activities"]
+        assert (
+            row["completed_activities"]
+            + row["transport_unmet_activities"]
+            + row["reached_but_activity_incomplete"]
+            == row["planned_activities"]
+        )
         assert row["weather_cancelled_activities"] == 0
+        assert row["mean_experienced_road_leg_speed_kmh"] == row["mean_road_speed_kmh"]
 
 
 def test_bus_peak_schedule_exceeds_off_peak_without_capacity_change():

@@ -269,7 +269,6 @@ async def _llm_choice(
             temperature=0.2,
             max_tokens=120,
             max_retries=2,
-            extra_body={"thinking": {"type": "disabled"}},
         )
         content = response.choices[0].message.content or ""
         parsed = _extract_json_object(content)
@@ -513,9 +512,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "mode_probabilities_without_prior_agents": _round_mapping(
                     uncoupled["probabilities"], precision
                 ),
-                "mode_probabilities_with_prior_agents": _round_mapping(
+                                "mode_probabilities_with_prior_agents": _round_mapping(
                     probabilities, precision
                 ),
+                "available_options": prompt["available_options"],
                 "probability_delta_from_prior_agents": _round_mapping(deltas, precision),
                 "maximum_absolute_probability_delta": round(max_delta, precision),
                 "affected_by_prior_agents": affected,
@@ -528,6 +528,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                     float(probabilities.get(chosen_mode, 0.0)), precision
                 ),
                 "llm_reason": api_result["reason"],
+                "raw_response": api_result["raw_response"],
                 "api_decision_succeeded": bool(api_result["api_succeeded"]),
                 "api_call_attempted": not args.dry_run,
                 "published_traffic_event": event is not None,

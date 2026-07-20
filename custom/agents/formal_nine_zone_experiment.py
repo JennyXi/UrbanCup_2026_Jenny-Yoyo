@@ -618,11 +618,127 @@ def _expected_outdoor_exposure_minutes(
     raise ValueError(f"unsupported mode for exposure forecast: {mode}")
 
 
+def _coupon_fare(
+    fare_before_coupon: float, config: Mapping[str, Any], coupon_available: bool,
+) -> Dict[str, Any]:
+    """Return an auditable coupon price without consuming an ineligible coupon."""
+    original = max(0.0, float(fare_before_coupon))
+    pricing = config.get("_coupon_pricing")
+    if pricing is None:
+        pricing = {
+            "pricing_type": "percentage",
+            "discount_multiplier": float(config.get("_coupon_discount_multiplier", 1.0)),
+        }
+    pricing_type = str(pricing.get("pricing_type", "percentage"))
+    eligible = bool(coupon_available)
+    reason = "" if eligible else "coupon_unavailable"
+    fare = original
+    if pricing_type == "percentage":
+        multiplier = float(pricing["discount_multiplier"])
+        if not 0.0 <= multiplier <= 1.0:
+            raise ValueError("coupon discount_multiplier must be in [0, 1]")
+        if eligible:
+            fare = original * multiplier
+    elif pricing_type == "flat_amount":
+        amount = float(pricing["discount_amount_yuan"])
+        if amount < 0.0:
+            raise ValueError("coupon discount_amount_yuan must be non-negative")
+        if eligible:
+            fare = max(0.0, original - amount)
+    elif pricing_type == "threshold_flat":
+        amount = float(pricing["discount_amount_yuan"])
+        threshold = float(pricing["minimum_original_fare_yuan"])
+        if amount < 0.0 or threshold < 0.0:
+            raise ValueError("threshold coupon values must be non-negative")
+        if eligible and original + 1e-9 < threshold:
+            eligible = False
+            reason = "minimum_original_fare_not_met"
+        elif eligible:
+            fare = max(0.0, original - amount)
+    else:
+        raise ValueError(f"unsupported coupon pricing_type: {pricing_type}")
+    maximum_discount = pricing.get("maximum_discount_amount_yuan")
+    if eligible and maximum_discount is not None:
+        maximum_discount = float(maximum_discount)
+        if maximum_discount < 0.0:
+            raise ValueError("maximum_discount_amount_yuan must be non-negative")
+        fare = max(fare, original - maximum_discount)
+    subsidy = max(0.0, original - fare) if eligible else 0.0
+    applied = bool(eligible and subsidy > 1e-9)
+    if eligible and not applied:
+        reason = "zero_discount"
+    return {
+        "fare": fare if applied else original,
+        "fare_before_coupon": original,
+        "coupon_applied_to_choice": applied,
+        "coupon_fare_eligible": eligible,
+        "coupon_ineligibility_reason": reason,
+        "coupon_pricing_type": pricing_type,
+        "coupon_scheme_id": str(pricing.get("scheme_id", pricing_type)),
+        "coupon_discount_multiplier": (
+            (fare / original) if applied and original > 0.0 else 1.0
+        ),
+        "coupon_subsidy_yuan": subsidy if applied else 0.0,
+    }
+
+
+def _medical_need_exposure_weight(
+    agent: Mapping[str, Any], exposure_config: Mapping[str, Any],
+) -> float:
+    """Return a choice-stage multiplier; it never changes physiological dose."""
+    if str(agent["age_group"]) != "60+":
+        return 1.0
+    level = agent.get("medical_need_level")
+    weight = float(
+        exposure_config.get("medical_need_level_weight", {}).get(level, 1.0)
+    )
+    if weight <= 0:
+        raise ValueError("medical-need exposure weights must be positive")
+    return weight
+
+
+def _conditional_fare_sensitivity_multiplier(
+    agent: Mapping[str, Any], leg: Mapping[str, Any], weather_type: str,
+    choice: Mapping[str, Any],
+) -> float:
+    """Lower perceived fare only for configured elderly necessary weather trips."""
+    config = choice.get("conditional_fare_sensitivity", {})
+    multiplier = 1.0
+    if (
+        config.get("enabled", False)
+        and str(agent["age_group"]) == "60+"
+        and str(leg.get("purpose")) in set(config.get("necessary_purposes", ()))
+        and weather_type in set(config.get("weather_types", ()))
+    ):
+        multiplier = float(config["elder_exposed_necessary_multiplier"])
+    if not 0 < multiplier <= 1:
+        raise ValueError("conditional fare-sensitivity multiplier must be in (0, 1]")
+    return multiplier
+
+
+def _age_transfer_burden_minutes(
+    agent: Mapping[str, Any], option: Mapping[str, Any],
+    choice: Mapping[str, Any],
+) -> float:
+    """Return perceived transfer burden; actual itinerary time is unchanged."""
+    config = choice.get("age_transfer_burden", {})
+    if not config.get("enabled", False):
+        return 0.0
+    transfer_count = int(option.get("bus_metro_transfer_count") or 0)
+    per_transfer = float(
+        config.get("minutes_per_transfer_by_age", {}).get(agent["age_group"], 0.0)
+    )
+    if transfer_count < 0 or per_transfer < 0:
+        raise ValueError("transfer count and age transfer burden must be non-negative")
+    return transfer_count * per_transfer
+
+
 def _score_options(
     leg: Mapping[str, Any], agent: Mapping[str, Any], options: Mapping[str, Mapping[str, Any]],
     events: Sequence[Mapping[str, Any]], config: Mapping[str, Any], seed: int,
     *, excluded_modes: Iterable[str] = (), coupon_available: bool = False,
-    coupon_proxy_access: bool = False, include_random_shock: bool = True,
+    coupon_proxy_access: bool = False,
+    include_random_shock: bool = True,
 ) -> list[Dict[str, Any]]:
     choice = config["mode_choice"]
     excluded = set(excluded_modes)
@@ -638,24 +754,33 @@ def _score_options(
         if not schedule["schedule_acceptable"]:
             continue
         fare_before_coupon = float(option["fare"])
-        coupon_applied = bool(mode == "ride_hailing" and coupon_available)
-        multiplier = float(config.get("_coupon_discount_multiplier", 1.0))
-        fare = fare_before_coupon * multiplier if coupon_applied else fare_before_coupon
-        time_cost = total_time / 60.0 * float(
+        coupon_price = _coupon_fare(
+            fare_before_coupon, config,
+            bool(mode == "ride_hailing" and coupon_available),
+        )
+        fare = float(coupon_price["fare"])
+        weather_type = _weather_at_departure(schedule["planned_departure_time"], events)
+        fare_sensitivity_multiplier = _conditional_fare_sensitivity_multiplier(
+            agent, leg, weather_type, choice,
+        )
+        perceived_fare_cost = fare * fare_sensitivity_multiplier
+        transfer_burden_minutes = _age_transfer_burden_minutes(
+            agent, option, choice,
+        )
+        perceived_time_minutes = total_time + transfer_burden_minutes
+        time_cost = perceived_time_minutes / 60.0 * float(
             choice["value_of_time_yuan_per_hour"][agent["age_group"]]
         )
         lateness_cost = (
             float(schedule["expected_arrival_delay_min"])
             * float(config["activity_time_linkage"]["lateness_penalty_yuan_per_min"])
         )
-        systematic_utility = -float(choice["generalized_cost_weight"]) * (
-            time_cost + fare + lateness_cost
-        )
-        systematic_utility += float(
-            choice["age_mode_constant"][agent["age_group"]][mode]
-        )
-        weather_type = _weather_at_departure(schedule["planned_departure_time"], events)
-        systematic_utility += float(choice["weather_preference"][weather_type][mode])
+        generalized_cost = time_cost + perceived_fare_cost + lateness_cost
+        generalized_cost_term = -float(choice["generalized_cost_weight"]) * generalized_cost
+        age_mode_constant = float(choice["age_mode_constant"][agent["age_group"]][mode])
+        utility = generalized_cost_term + age_mode_constant
+        weather_preference = float(choice["weather_preference"][weather_type][mode])
+        utility += weather_preference
         exposure_config = choice.get("weather_exposure_disutility", {})
         expected_outdoor = _expected_outdoor_exposure_minutes(mode, option)
         exposure_rate = float(
@@ -668,29 +793,142 @@ def _score_options(
                 agent["age_group"], 1.0,
             )
         )
-        exposure_disutility = expected_outdoor * exposure_rate * exposure_age_weight
-        systematic_utility -= exposure_disutility
-        random_utility = (
+        exposure_medical_weight = _medical_need_exposure_weight(
+            agent, exposure_config,
+        )
+        exposure_disutility = (
+            expected_outdoor * exposure_rate
+            * exposure_age_weight * exposure_medical_weight
+        )
+        utility -= exposure_disutility
+        systematic_utility = utility
+        random_utility_term = (
             float(choice["random_scale"])
             * _stable_gumbel(seed, agent["agent_id"], leg["leg_id"], mode)
-            if include_random_shock else 0.0
+            if include_random_shock
+            else 0.0
         )
-        utility = systematic_utility + random_utility
+        utility += random_utility_term
         rows.append({
             **dict(option), **schedule,
-            "fare": fare,
-            "fare_before_coupon": fare_before_coupon,
-            "coupon_applied_to_choice": coupon_applied,
-            "coupon_discount_multiplier": multiplier if coupon_applied else 1.0,
-            "coupon_subsidy_yuan": fare_before_coupon - fare,
+            **coupon_price,
             "expected_outdoor_exposure_minutes_at_choice": round(expected_outdoor, 6),
             "weather_exposure_age_weight": round(exposure_age_weight, 6),
+            "weather_exposure_medical_need_weight": round(
+                exposure_medical_weight, 6
+            ),
             "weather_exposure_disutility": round(exposure_disutility, 6),
+            "time_cost_yuan": round(time_cost, 6),
+            "age_transfer_burden_minutes": round(transfer_burden_minutes, 6),
+            "perceived_time_minutes": round(perceived_time_minutes, 6),
+            "fare_sensitivity_multiplier": round(fare_sensitivity_multiplier, 6),
+            "perceived_fare_cost_yuan": round(perceived_fare_cost, 6),
+            "lateness_cost_yuan": round(lateness_cost, 6),
+            "generalized_cost_yuan": round(generalized_cost, 6),
+            "generalized_cost_utility_term": round(generalized_cost_term, 6),
+            "age_mode_constant_utility_term": round(age_mode_constant, 6),
+            "weather_preference_utility_term": round(weather_preference, 6),
             "systematic_utility": round(systematic_utility, 6),
-            "random_utility": round(random_utility, 6),
+            "random_utility_term": round(random_utility_term, 6),
             "utility": round(utility, 6),
         })
     return sorted(rows, key=lambda row: (-row["utility"], ENABLED_MODES.index(row["mode"])))
+
+
+def _choice_option_audit_rows(
+    selected: Sequence[Mapping[str, Any]], agents: Mapping[Any, Mapping[str, Any]],
+    weather_scenario: str, day_type: str,
+) -> list[Dict[str, Any]]:
+    """Expose final choice-set scores without changing any behavior."""
+    rows: list[Dict[str, Any]] = []
+    for source in selected:
+        leg = source["leg"]
+        agent = agents[leg["agent_id"]]
+        scored = list(source.get("scored_options", ()))
+        by_mode = {str(row["mode"]): row for row in scored}
+        chosen = source.get("chosen_option")
+        chosen_utility = None if chosen is None else float(chosen["utility"])
+        for mode in ENABLED_MODES:
+            raw = source["options"][mode]
+            score = by_mode.get(mode)
+            if score is not None:
+                reason = ""
+            elif not bool(raw.get("available")):
+                reason = "network_or_station_unavailable"
+            elif mode == "ride_hailing" and not bool(
+                agent["digital_access"] or agent.get("family_assistance")
+            ):
+                reason = "ride_hailing_access_unavailable"
+            else:
+                reason = "schedule_unacceptable_or_policy_excluded"
+            utility = None if score is None else float(score["utility"])
+            rows.append({
+                "leg_id": leg["leg_id"], "activity_id": leg["activity_id"],
+                "agent_id": leg["agent_id"], "age_group": agent["age_group"],
+                "medical_need_level": agent.get("medical_need_level"),
+                "digital_access": bool(agent["digital_access"]),
+                "family_assistance": bool(agent.get("family_assistance")),
+                "purpose": leg["purpose"], "leg_role": leg["leg_role"],
+                "origin_zone": leg["origin_zone"], "destination_zone": leg["destination_zone"],
+                "departure_time": leg["departure_time"],
+                "weather_scenario": weather_scenario, "day_type": day_type,
+                "mode": mode, "mode_available": score is not None,
+                "unavailable_reason": reason,
+                "chosen_mode": source.get("chosen_mode", ""),
+                "utility_rank": (
+                    None if score is None else
+                    next(index for index, row in enumerate(scored, 1) if row["mode"] == mode)
+                ),
+                "utility": utility,
+                "utility_gap_to_selected_mode": (
+                    None if utility is None or chosen_utility is None
+                    else round(chosen_utility - utility, 6)
+                ),
+                "expected_total_time_min": None if score is None else score["final_total_time_min"],
+                "expected_wait_min": None if score is None else score["period_wait_time_min"],
+                "expected_fare_yuan": None if score is None else score["fare"],
+                "fare_sensitivity_multiplier": (
+                    None if score is None else score["fare_sensitivity_multiplier"]
+                ),
+                "perceived_fare_cost_yuan": (
+                    None if score is None else score["perceived_fare_cost_yuan"]
+                ),
+                "expected_outdoor_minutes": (
+                    None if score is None else score["expected_outdoor_exposure_minutes_at_choice"]
+                ),
+                "time_cost_yuan": None if score is None else score["time_cost_yuan"],
+                "bus_metro_transfer_count": (
+                    None if score is None else score.get("bus_metro_transfer_count", 0)
+                ),
+                "age_transfer_burden_minutes": (
+                    None if score is None else score["age_transfer_burden_minutes"]
+                ),
+                "perceived_time_minutes": (
+                    None if score is None else score["perceived_time_minutes"]
+                ),
+                "lateness_cost_yuan": None if score is None else score["lateness_cost_yuan"],
+                "generalized_cost_yuan": None if score is None else score["generalized_cost_yuan"],
+                "generalized_cost_utility_term": (
+                    None if score is None else score["generalized_cost_utility_term"]
+                ),
+                "age_mode_constant_utility_term": (
+                    None if score is None else score["age_mode_constant_utility_term"]
+                ),
+                "weather_preference_utility_term": (
+                    None if score is None else score["weather_preference_utility_term"]
+                ),
+                "weather_exposure_age_weight": (
+                    None if score is None else score["weather_exposure_age_weight"]
+                ),
+                "weather_exposure_medical_need_weight": (
+                    None if score is None else score["weather_exposure_medical_need_weight"]
+                ),
+                "weather_exposure_disutility": (
+                    None if score is None else score["weather_exposure_disutility"]
+                ),
+                "random_utility_term": None if score is None else score["random_utility_term"],
+            })
+    return rows
 
 
 def _scheduled_bus_trips_per_bin(
@@ -1139,6 +1377,7 @@ def _simulate_final_choices(
             consumed = float(dispatch["pickup_wait_min"]) if primary_failed else 0.0
             dispatch_rows.append({
                 "leg_id": leg["leg_id"], "agent_id": leg["agent_id"],
+                "leg_role": leg["leg_role"], "purpose": leg["purpose"],
                 "request_time": leg["departure_time"],
                 "dispatch_priority": round(base_dispatch_priority, 9),
                 "dispatch_priority_policy": dispatch_policy,
@@ -1149,8 +1388,15 @@ def _simulate_final_choices(
                 "age_group": agents[leg["agent_id"]]["age_group"],
                 "origin_zone": leg["origin_zone"], "destination_zone": leg["destination_zone"],
                 "coupon_bound": bool(row.get("coupon_bound_to_primary")),
+                "coupon_scheme_id": str(option.get("coupon_scheme_id", "")),
+                "coupon_pricing_type": str(option.get("coupon_pricing_type", "")),
+                "coupon_fare_eligible": bool(option.get("coupon_fare_eligible", False)),
+                "coupon_ineligibility_reason": str(option.get("coupon_ineligibility_reason", "")),
                 "fare_before_coupon_yuan": round(float(option.get("fare_before_coupon", option["fare"])), 2),
                 "fare_after_coupon_yuan": round(float(option["fare"]), 2),
+                "request_network_distance_km": round(
+                    float(option["network_distance_km"]), 3
+                ),
                 "coupon_subsidy_yuan": round(float(option.get("coupon_subsidy_yuan", 0.0)), 2),
                 **dispatch,
             })
@@ -1276,10 +1522,30 @@ def _simulate_final_choices(
             "in_vehicle_time_min": None if not succeeded else round(float(final_option["final_in_vehicle_time_min"]), 3),
             "total_travel_time_min": None if total_time is None else round(total_time, 3),
             "fare_yuan": None if fare is None else round(fare, 2),
+            "primary_network_distance_km": None if option is None else round(
+                float(option["network_distance_km"]), 3
+            ),
+            "final_network_distance_km": None if final_option is None else round(
+                float(final_option["network_distance_km"]), 3
+            ),
+            "primary_fare_before_coupon_yuan": None if option is None else round(
+                float(option.get("fare_before_coupon", option["fare"])), 2
+            ),
+            "primary_fare_after_coupon_yuan": None if option is None else round(
+                float(option["fare"]), 2
+            ),
             "fare_before_coupon_yuan": None if final_option is None else round(
                 float(final_option.get("fare_before_coupon", final_option["fare"])), 2
             ),
             "coupon_bound": bool(row.get("coupon_bound_to_primary")),
+            "coupon_scheme_id": "" if option is None else str(option.get("coupon_scheme_id", "")),
+            "coupon_pricing_type": "" if option is None else str(option.get("coupon_pricing_type", "")),
+            "coupon_fare_eligible": bool(
+                option is not None and option.get("coupon_fare_eligible", False)
+            ),
+            "coupon_ineligibility_reason": (
+                "" if option is None else str(option.get("coupon_ineligibility_reason", ""))
+            ),
             "coupon_redeemed": bool(
                 row.get("coupon_bound_to_primary") and mode == "ride_hailing"
                 and not primary_failed
@@ -1436,7 +1702,15 @@ def _scenario_summary(
         "successful_ride_hailing_vehicle_trips": len(successful_dispatch),
         "road_vehicle_volume": round(actual_road_vehicle_volume, 3),
         "mean_volume_capacity_ratio": round(mean(float(row["scenario_vc"]) for row in road_rows if row["scenario_vc"] is not None), 6) if any(row["scenario_vc"] is not None for row in road_rows) else None,
-        "mean_road_speed_kmh": round(mean(float(row["final_speed_kmh"]) for row in road_rows), 3) if road_rows else None,
+        # This is experienced-leg weighted and therefore composition-sensitive:
+        # a shift from slower bus legs to faster ride-hailing legs can raise it
+        # even while total road volume rises. Keep the old name as an alias.
+        "mean_experienced_road_leg_speed_kmh": round(
+            mean(float(row["final_speed_kmh"]) for row in road_rows), 3
+        ) if road_rows else None,
+        "mean_road_speed_kmh": round(
+            mean(float(row["final_speed_kmh"]) for row in road_rows), 3
+        ) if road_rows else None,
         "intrazonal_successful_legs": sum(row["origin_zone"] == row["destination_zone"] for row in successful),
         "interzonal_successful_legs": sum(row["origin_zone"] != row["destination_zone"] for row in successful),
         "initial_ride_hailing_vehicles": sum(int(value) for value in initial_counts.values()),
@@ -1561,6 +1835,9 @@ def run_formal_transport_scenario(
     final_choices = _refresh_locked_choices(
         scheduled_rows, agents, network, events, config, flow_by_bin, seed,
     )
+    option_audit = _choice_option_audit_rows(
+        final_choices, agents, weather_scenario, day_type,
+    )
     results, dispatch, states = _simulate_final_choices(
         final_choices, agents, network, events, config, flow_by_bin, day_type, seed,
     )
@@ -1583,6 +1860,7 @@ def run_formal_transport_scenario(
         })
     return {
         "mode_choices": results,
+        "choice_option_audit": option_audit,
         "activity_results": _activity_results(
             activities, results, config, weather_scenario, day_type,
         ),

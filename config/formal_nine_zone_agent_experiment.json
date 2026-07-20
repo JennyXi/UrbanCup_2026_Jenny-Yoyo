@@ -39,12 +39,44 @@
     "age_mode_constant": {
       "18-39": {"walk": 1.0, "bus": 0.0, "metro": 0.0, "ride_hailing": 0.3},
       "40-59": {"walk": 0.0, "bus": 0.5, "metro": 0.0, "ride_hailing": 0.5},
-      "60+": {"walk": -1.5, "bus": 1.0, "metro": 0.0, "ride_hailing": -0.5}
+      "60+": {"walk": -1.5, "bus": 1.0, "metro": 0.0, "ride_hailing": 0.3}
     },
     "weather_preference": {
       "normal": {"walk": 0.0, "bus": 0.0, "metro": 0.0, "ride_hailing": 0.0},
       "extreme_heat": {"walk": -0.75, "bus": -0.25, "metro": 0.0, "ride_hailing": 0.15},
       "heavy_rain": {"walk": -1.5, "bus": -0.6, "metro": 0.0, "ride_hailing": 0.25}
+    },
+    "weather_exposure_disutility": {
+      "enabled": true,
+      "utility_penalty_per_outdoor_minute": {
+        "normal": 0.0,
+        "extreme_heat": 0.025,
+        "heavy_rain": 0.035
+      },
+      "age_vulnerability_weight": {
+        "18-39": 1.0,
+        "40-59": 1.2,
+        "60+": 1.6
+      },
+      "medical_need_level_weight": {
+        "low": 1.0,
+        "standard": 1.2,
+        "high": 1.5
+      }
+    },
+    "conditional_fare_sensitivity": {
+      "enabled": true,
+      "necessary_purposes": ["work", "medical"],
+      "weather_types": ["extreme_heat", "heavy_rain"],
+      "elder_exposed_necessary_multiplier": 0.9
+    },
+    "age_transfer_burden": {
+      "enabled": true,
+      "minutes_per_transfer_by_age": {
+        "18-39": 0.0,
+        "40-59": 0.0,
+        "60+": 3.0
+      }
     }
   },
   "activity_time_linkage": {
@@ -111,6 +143,7 @@
     "Metro is a continuous cross-zone trunk network. Only Z1/Z2/Z3/Z7 have sufficient station density for modeled intrazonal metro trips.",
     "The same Agents, activities and planned legs are paired across W0/W1/W2.",
     "Weather-related activity cancellation and remote work are disabled in this transport baseline.",
+    "The selected elderly mode constant, exposure weight, conditional fare-sensitivity multiplier and transfer burden are stable scenario assumptions from the experiment branch, not observed Shanghai estimates.",
     "All numeric parameters are scenario assumptions for mechanism testing, not calibrated Shanghai forecasts."
   ]
 }
