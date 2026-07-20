@@ -4,6 +4,7 @@ import copy
 
 from custom.agents.formal_nine_zone_experiment import (
     ENABLED_MODES,
+    _arrival_completion_flags,
     build_formal_nine_zone_inputs,
     load_formal_nine_zone_config,
     run_formal_nine_zone_baseline,
@@ -19,6 +20,22 @@ def _small_config():
         for day_type in ("workday", "rest_day")
     }
     return config
+
+
+def test_excessive_commute_is_a_burden_not_an_activity_completion_failure():
+    linkage = {
+        "maximum_commute_time_min": 90.0,
+        "maximum_acceptable_lateness_min": 30.0,
+    }
+    long_but_on_time = _arrival_completion_flags(120.0, 1.0, linkage)
+    assert long_but_on_time["maximum_commute_time_exceeded"]
+    assert not long_but_on_time["maximum_lateness_exceeded"]
+    assert long_but_on_time["activity_completed"]
+    assert long_but_on_time["completion_failure_reason"] == ""
+
+    too_late = _arrival_completion_flags(60.0, 31.0, linkage)
+    assert not too_late["activity_completed"]
+    assert too_late["completion_failure_reason"] == "maximum_lateness_exceeded"
 
 
 def test_formal_baseline_enables_four_modes_and_uses_all_nine_zones():

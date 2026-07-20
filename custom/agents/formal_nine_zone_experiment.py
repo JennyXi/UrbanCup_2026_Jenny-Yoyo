@@ -1335,6 +1335,27 @@ def _itinerary_pattern(mode: str, option: Mapping[str, Any] | None) -> str:
     return "walk-metro-walk"
 
 
+def _arrival_completion_flags(
+    total_time_min: float, arrival_delay_min: float,
+    activity_time_linkage: Mapping[str, Any],
+) -> Dict[str, Any]:
+    """Separate excessive commute burden from activity completion."""
+    maximum_commute_time_exceeded = total_time_min > float(
+        activity_time_linkage["maximum_commute_time_min"]
+    )
+    maximum_lateness_exceeded = arrival_delay_min > float(
+        activity_time_linkage["maximum_acceptable_lateness_min"]
+    )
+    return {
+        "maximum_commute_time_exceeded": maximum_commute_time_exceeded,
+        "maximum_lateness_exceeded": maximum_lateness_exceeded,
+        "activity_completed": not maximum_lateness_exceeded,
+        "completion_failure_reason": (
+            "maximum_lateness_exceeded" if maximum_lateness_exceeded else ""
+        ),
+    }
+
+
 def _simulate_final_choices(
     selected: Sequence[Mapping[str, Any]], agents: Mapping[Any, Mapping[str, Any]],
     network: Mapping[str, Any], events: Sequence[Mapping[str, Any]], config: Mapping[str, Any],
@@ -1445,21 +1466,19 @@ def _simulate_final_choices(
                     config["activity_time_linkage"]["on_time_tolerance_min"]
                 )
                 late_but_reached = not on_time_arrival
-                maximum_commute_time_exceeded = total_time > float(
-                    config["activity_time_linkage"]["maximum_commute_time_min"]
+                completion = _arrival_completion_flags(
+                    total_time, arrival_delay, config["activity_time_linkage"]
                 )
-                maximum_lateness_exceeded = arrival_delay > float(
-                    config["activity_time_linkage"]["maximum_acceptable_lateness_min"]
+                maximum_commute_time_exceeded = bool(
+                    completion["maximum_commute_time_exceeded"]
                 )
-                activity_completed = not (
-                    maximum_commute_time_exceeded or maximum_lateness_exceeded
+                maximum_lateness_exceeded = bool(
+                    completion["maximum_lateness_exceeded"]
                 )
-                if maximum_commute_time_exceeded and maximum_lateness_exceeded:
-                    completion_failure_reason = "commute_and_lateness_limits_exceeded"
-                elif maximum_commute_time_exceeded:
-                    completion_failure_reason = "maximum_commute_time_exceeded"
-                elif maximum_lateness_exceeded:
-                    completion_failure_reason = "maximum_lateness_exceeded"
+                activity_completed = bool(completion["activity_completed"])
+                completion_failure_reason = str(
+                    completion["completion_failure_reason"]
+                )
         metro_access = row["options"]["metro"]
         results.append({
             "leg_id": leg["leg_id"], "agent_id": leg["agent_id"],
@@ -1670,6 +1689,10 @@ def _scenario_summary(
         "late_but_reached": sum(
             row["late_but_reached"] for row in results if row["leg_role"] != "return_home"
         ),
+        "excessive_commute_time_arrivals": sum(
+            row["transport_succeeded"] and row["maximum_commute_time_exceeded"]
+            for row in results if row["leg_role"] != "return_home"
+        ),
         "reached_but_activity_incomplete": sum(
             row["transport_succeeded"] and not row["activity_completed"]
             for row in results if row["leg_role"] != "return_home"
@@ -1756,6 +1779,15 @@ def _activity_results(
             "transport_succeeded": transport_succeeded,
             "activity_completed": completed,
             "late_but_reached": False if leg is None else leg["late_but_reached"],
+            "maximum_commute_time_exceeded": (
+                False if leg is None else leg["maximum_commute_time_exceeded"]
+            ),
+            "excessive_commute_time": (
+                False if leg is None else leg["maximum_commute_time_exceeded"]
+            ),
+            "maximum_lateness_exceeded": (
+                False if leg is None else leg["maximum_lateness_exceeded"]
+            ),
             "mandatory_activity_incomplete": bool(activity["is_mandatory"] and not completed),
             "completion_failure_reason": None if leg is None else leg["completion_failure_reason"],
             "actual_arrival_time": None if leg is None else leg["actual_arrival_time"],
