@@ -57,8 +57,9 @@ def load_formal_50_config(path: Path | str = DEFAULT_CONFIG_PATH) -> Dict[str, A
 
 
 def validate_formal_50_config(config: Mapping[str, Any]) -> None:
-    if int(config["total_agents"]) not in {50, 200}:
-        raise ValueError("formal staged experiment must use 50 or 200 Agents")
+    total_agents = int(config["total_agents"])
+    if total_agents <= 0:
+        raise ValueError("formal staged experiment must use a positive Agent count")
     if tuple(config["weather_scenarios"]) != WEATHER_SCENARIOS:
         raise ValueError("formal experiment weather scenarios must be W0/W1/W2")
     if tuple(config["day_types"]) != ("workday", "rest_day"):

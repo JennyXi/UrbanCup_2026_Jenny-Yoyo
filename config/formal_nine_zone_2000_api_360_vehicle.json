@@ -1,0 +1,95 @@
+{
+  "experiment_id": "formal_nine_zone_2000_api_360_vehicle_v1",
+  "description": "First 2000-Agent API-backed scale-transfer experiment using a 360-vehicle conserved fleet and unchanged formal behavior rules.",
+  "formal_transport_config": "config/formal_nine_zone_agent_experiment.json",
+  "symmetric_behavior_config": "config/symmetric_weather_experiment.json",
+  "emergence_heat_config": "config/emergence_experiment.json",
+  "total_agents": 2000,
+  "seed": 47,
+  "seed_start": 47,
+  "smoke_seed_count": 3,
+  "weather_scenarios": [
+    "W0",
+    "W1",
+    "W2"
+  ],
+  "run_weather_scenarios": [
+    "W0",
+    "W1",
+    "W2"
+  ],
+  "day_types": [
+    "workday",
+    "rest_day"
+  ],
+  "run_day_types": [
+    "workday"
+  ],
+  "policy": "P0_no_policy",
+  "formal_overrides": {
+    "ride_hailing_fleet": {
+      "initial_vehicles_by_day_type": {
+        "workday": {
+          "Z1": 60,
+          "Z2": 60,
+          "Z3": 30,
+          "Z4": 30,
+          "Z5": 30,
+          "Z6": 30,
+          "Z7": 60,
+          "Z8": 30,
+          "Z9": 30
+        },
+        "rest_day": {
+          "Z1": 60,
+          "Z2": 60,
+          "Z3": 30,
+          "Z4": 30,
+          "Z5": 30,
+          "Z6": 30,
+          "Z7": 60,
+          "Z8": 30,
+          "Z9": 30
+        }
+      },
+      "non_capacity_success_probability": 1.0
+    }
+  },
+  "activity_state_machine": {
+    "work_weather_cancellation_allowed": false,
+    "medical_weather_cancellation_allowed": false,
+    "optional_cancellation_requires_departure_in_weather_window": true,
+    "remote_work_probability": {
+      "normal": 0.0,
+      "extreme_heat": 0.02,
+      "heavy_rain": 0.05
+    },
+    "remote_work_is_activity_level_single_draw": true,
+    "schedule_shift_enabled": false
+  },
+  "outdoor_exposure": {
+    "walk": "entire final walking attempt",
+    "bus": "origin access walk plus wait plus destination access walk",
+    "metro": "station access and egress walking only; platform wait is indoors",
+    "ride_hailing": "pickup wait",
+    "failed_ride_hailing": "consumed wait before fallback",
+    "w1_heat_method": "utci_degree_minutes_above_threshold",
+    "w2_rain_method": "outdoor minutes overlapping active heavy-rain windows"
+  },
+  "scale_definition": {
+    "reference_agents": 200,
+    "reference_vehicles": 36,
+    "scaled_agents": 2000,
+    "scaled_vehicles": 360,
+    "vehicles_per_agent": 0.18,
+    "represented_trips_per_agent": 3.0,
+    "same_represented_city": true,
+    "interpretation": "Scale-transfer starting point preserving the 200-Agent mechanism ratio and approximate aggregate road-pressure representation; not a calibrated Shanghai fleet estimate."
+  },
+  "scope_notes": [
+    "The 200-Agent population and 48-vehicle fleet are a proportional mechanism scale-up from the selected 50-Agent/12-vehicle setting.",
+    "Bus and metro timetables, mode-choice parameters, activity rules and weather rules are unchanged.",
+    "Bus and metro boarding remain guaranteed; only ride-hailing has a finite vehicle pool.",
+    "W0, W1 and W2 use the same seed, Agents and planned activities. This smoke test is not a calibrated population threshold or Shanghai forecast."
+  ]
+}
