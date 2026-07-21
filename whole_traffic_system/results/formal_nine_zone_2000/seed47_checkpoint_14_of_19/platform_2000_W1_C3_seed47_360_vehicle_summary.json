@@ -1,0 +1,57 @@
+{
+  "status": "PASS",
+  "experiment": "GitHub nine-zone API-backed interdependent urban mobility",
+  "seed": 47,
+  "weather_scenario": "W1",
+  "day_type": "workday",
+  "agents": 2000,
+  "agents_with_travel": 1778,
+  "agents_without_workday_travel": 222,
+  "travel_decisions": 3925,
+  "api_travel_decisions": 3925,
+  "api_decision_failures": 0,
+  "model": "qwen3.6-35b-a3b-no-think",
+  "api_base": "https://llmapi.fiblab.net",
+  "api_key_present": true,
+  "api_key_persisted": false,
+  "usage": {
+    "calls": 3925,
+    "input_tokens": 1928664,
+    "output_tokens": 151288
+  },
+  "chosen_mode_counts": {
+    "walk": 38,
+    "bus": 1591,
+    "metro": 1637,
+    "ride_hailing": 659
+  },
+  "final_successful_mode_counts": {
+    "walk": 38,
+    "bus": 1591,
+    "metro": 1637,
+    "ride_hailing": 659
+  },
+  "ride_hailing_traffic_events": 659,
+  "affected_decisions": 3569,
+  "maximum_absolute_probability_change": 0.064254311,
+  "influence_edges": 39888,
+  "represented_trips_per_agent": 3.0,
+  "coupon_source": {
+    "source": "/home/coder/UrbanCup_2026_Jenny-Yoyo/outputs/platform_2000_W0_C3_seed47_360_vehicle/c3_coupon_allocations.json",
+    "api_backed": false,
+    "api_contribution_decisions": 0,
+    "awarded": 400
+  },
+  "coupon_awarded": 400,
+  "coupon_binding_rule": "awarded coupon is offered on the first trip decision only",
+  "coupon_bound_to_ride_hailing": 190,
+  "coupon_redeemed": 190,
+  "ride_hailing_requests": 659,
+  "successful_ride_hailing_requests": 659,
+  "failed_ride_hailing_requests": 0,
+  "transport_success_rate": 1.0,
+  "necessary_activity_completion_rate": 0.999318,
+  "mean_total_travel_time": 57.923,
+  "initial_ride_hailing_vehicles": 360,
+  "elapsed_seconds": 1540.709
+}

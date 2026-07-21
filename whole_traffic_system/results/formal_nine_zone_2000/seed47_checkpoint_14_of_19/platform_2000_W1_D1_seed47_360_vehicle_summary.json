@@ -1,0 +1,66 @@
+{
+  "status": "PASS",
+  "experiment": "GitHub nine-zone API-backed interdependent urban mobility",
+  "seed": 47,
+  "weather_scenario": "W1",
+  "day_type": "workday",
+  "agents": 2000,
+  "agents_with_travel": 1778,
+  "agents_without_workday_travel": 222,
+  "travel_decisions": 3925,
+  "api_travel_decisions": 3925,
+  "api_decision_failures": 0,
+  "model": "qwen3.6-35b-a3b-no-think",
+  "api_base": "https://llmapi.fiblab.net",
+  "api_key_present": true,
+  "api_key_persisted": false,
+  "usage": {
+    "calls": 3925,
+    "input_tokens": 1934784,
+    "output_tokens": 152023
+  },
+  "chosen_mode_counts": {
+    "walk": 37,
+    "bus": 1675,
+    "metro": 1693,
+    "ride_hailing": 520
+  },
+  "final_successful_mode_counts": {
+    "walk": 37,
+    "bus": 1675,
+    "metro": 1693,
+    "ride_hailing": 520
+  },
+  "ride_hailing_traffic_events": 520,
+  "affected_decisions": 3432,
+  "maximum_absolute_probability_change": 0.057633375,
+  "influence_edges": 29053,
+  "represented_trips_per_agent": 3.0,
+  "elder_access_intervention": {
+    "policy": "D1_targeted_digital_training_75pct",
+    "config_source": "/home/coder/UrbanCup_2026_Jenny-Yoyo/config/formal_nine_zone_50_elder_digital_access.json",
+    "elder_count": 540,
+    "baseline_elder_digital_count": 261,
+    "policy_elder_digital_count": 405,
+    "newly_digital_elder_count": 144,
+    "baseline_elder_smartphone_count": 471,
+    "policy_elder_smartphone_count": 471,
+    "nonelder_profile_changes": 0
+  },
+  "coupon_source": {
+    "source": null,
+    "api_backed": false
+  },
+  "coupon_awarded": 0,
+  "coupon_binding_rule": "awarded coupon is offered on the first trip decision only",
+  "coupon_bound_to_ride_hailing": 0,
+  "coupon_redeemed": 0,
+  "ride_hailing_requests": 520,
+  "successful_ride_hailing_requests": 520,
+  "failed_ride_hailing_requests": 0,
+  "transport_success_rate": 1.0,
+  "necessary_activity_completion_rate": 0.997273,
+  "mean_total_travel_time": 58.747,
+  "initial_ride_hailing_vehicles": 360,
+  "elapsed_seconds": 2628.631
+}
