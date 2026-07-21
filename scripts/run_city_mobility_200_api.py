@@ -29,6 +29,7 @@ from custom.agents.formal_nine_zone_50_experiment import (  # noqa: E402
     _deep_merge,
     load_formal_50_config,
 )
+from custom.agents.agent_population import AgentProfile  # noqa: E402
 from custom.agents.formal_nine_zone_experiment import (  # noqa: E402
     ENABLED_MODES,
     _activity_results,
@@ -52,11 +53,23 @@ from custom.agents.interdependent_decision_system import (  # noqa: E402
     validate_interdependent_decision_config,
 )
 from custom.transport.network import build_transport_network  # noqa: E402
+from scripts.run_elder_digital_access_experiment import (  # noqa: E402
+    apply_digital_policy,
+)
 
 
 DEFAULT_FORMAL_EXPERIMENT = ROOT / "config" / "formal_nine_zone_200_baseline.json"
 DEFAULT_COUPLING_CONFIG = ROOT / "config" / "interdependent_agent_decisions.json"
+DEFAULT_ELDER_ACCESS_CONFIG = (
+    ROOT / "config" / "formal_nine_zone_50_elder_digital_access.json"
+)
 DEFAULT_OUTPUT = ROOT / "outputs" / "city_mobility_200_api_w2_seed47"
+
+ELDER_ACCESS_POLICY_ALIASES = {
+    "D0": "D0_baseline",
+    "D1": "D1_targeted_digital_training_75pct",
+    "D3": "D3_universal_elder_digital_access",
+}
 
 
 def _serial(value: Any) -> Any:
@@ -96,6 +109,90 @@ def _load_coupon_allocations(path: Path | None) -> tuple[dict[int, dict[str, Any
         ),
         "awarded": sum(bool(row.get("coupon_awarded")) for row in rows),
     }
+
+
+def _apply_elder_access_policy(
+    agent_rows: Iterable[Mapping[str, Any]],
+    policy_name: str,
+    *,
+    seed: int,
+    config_path: Path,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, Any]]:
+    """Apply D0/D1/D3 after population generation without changing activities or OD."""
+    resolved_policy = ELDER_ACCESS_POLICY_ALIASES.get(policy_name, policy_name)
+    allowed = set(ELDER_ACCESS_POLICY_ALIASES.values())
+    if resolved_policy not in allowed:
+        raise ValueError(
+            "elder access policy must be D0, D1, D3 or its full configured name"
+        )
+    config = json.loads(config_path.read_text(encoding="utf-8-sig"))
+    configured = config["elder_digital_access_experiment"]["policies"]
+    if resolved_policy not in configured:
+        raise ValueError(f"elder access policy is missing from config: {resolved_policy}")
+
+    baseline = [AgentProfile(**dict(row)) for row in agent_rows]
+    policy_profiles = apply_digital_policy(
+        baseline,
+        resolved_policy,
+        seed=seed,
+        config=config,
+    )
+    baseline_by_id = {row.agent_id: row for row in baseline}
+    roster = []
+    for profile in policy_profiles:
+        if not profile.is_elder:
+            continue
+        before = baseline_by_id[profile.agent_id]
+        roster.append({
+            "agent_id": profile.agent_id,
+            "elder_access_policy": resolved_policy,
+            "baseline_smartphone_access": before.smartphone_access,
+            "baseline_digital_access": before.digital_access,
+            "baseline_family_assistance": before.family_assistance,
+            "policy_smartphone_access": profile.smartphone_access,
+            "policy_digital_access": profile.digital_access,
+            "policy_family_assistance": profile.family_assistance,
+            "newly_independent_digital": bool(
+                profile.digital_access and not before.digital_access
+            ),
+        })
+
+    baseline_elders = [row for row in baseline if row.is_elder]
+    policy_elders = [row for row in policy_profiles if row.is_elder]
+    baseline_nonelders = {
+        row.agent_id: row.to_dict() for row in baseline if not row.is_elder
+    }
+    policy_nonelders = {
+        row.agent_id: row.to_dict() for row in policy_profiles if not row.is_elder
+    }
+    audit = {
+        "policy": resolved_policy,
+        "config_source": str(config_path.resolve()),
+        "elder_count": len(policy_elders),
+        "baseline_elder_digital_count": sum(
+            bool(row.digital_access) for row in baseline_elders
+        ),
+        "policy_elder_digital_count": sum(
+            bool(row.digital_access) for row in policy_elders
+        ),
+        "newly_digital_elder_count": sum(
+            bool(row.digital_access and not baseline_by_id[row.agent_id].digital_access)
+            for row in policy_elders
+        ),
+        "baseline_elder_smartphone_count": sum(
+            bool(row.smartphone_access) for row in baseline_elders
+        ),
+        "policy_elder_smartphone_count": sum(
+            bool(row.smartphone_access) for row in policy_elders
+        ),
+        "nonelder_profile_changes": sum(
+            baseline_nonelders[agent_id] != row
+            for agent_id, row in policy_nonelders.items()
+        ),
+    }
+    if audit["nonelder_profile_changes"]:
+        raise AssertionError("elder access policy changed a nonelder profile")
+    return [row.to_dict() for row in policy_profiles], roster, audit
 
 
 def _build_formal_config(
@@ -314,7 +411,19 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     weather_scenario = str(args.weather_scenario)
     day_type = str(args.day_type)
     inputs = build_formal_nine_zone_inputs(config=formal, seed=seed)
-    agents = {int(row["agent_id"]): row for row in inputs["agents"]}
+    policy_agent_rows, elder_access_roster, elder_access_audit = (
+        _apply_elder_access_policy(
+            inputs["agents"],
+            getattr(args, "elder_access_policy", "D0"),
+            seed=seed,
+            config_path=getattr(
+                args,
+                "elder_access_config",
+                DEFAULT_ELDER_ACCESS_CONFIG,
+            ),
+        )
+    )
+    agents = {int(row["agent_id"]): row for row in policy_agent_rows}
     selected_date = date.fromisoformat(formal["selected_days"][day_type])
     activities = [
         row for row in inputs["activities"]
@@ -491,6 +600,8 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
                 "agent_id": agent_id,
                 "age_group": agent["age_group"],
                 "digital_access": bool(agent["digital_access"]),
+                "family_assistance": bool(agent.get("family_assistance")),
+                "elder_access_policy": elder_access_audit["policy"],
                 "leg_id": str(leg["leg_id"]),
                 "purpose": leg.get("purpose"),
                 "origin_zone": leg["origin_zone"],
@@ -718,6 +829,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "represented_trips_per_agent": float(
             coupling["shared_traffic_state"]["represented_trips_per_agent"]
         ),
+        "elder_access_intervention": elder_access_audit,
         "coupon_source": coupon_source,
         "coupon_awarded": sum(
             bool(row.get("coupon_awarded")) for row in coupon_allocations.values()
@@ -748,6 +860,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _write_csv(output / "vehicle_end_states.csv", vehicle_states)
     _write_csv(output / "activity_results.csv", activity_results)
     _write_csv(output / "coupon_allocations.csv", coupon_allocations.values())
+    _write_csv(
+        output / "elder_access_intervention_roster.csv",
+        elder_access_roster,
+    )
     (output / "summary.json").write_text(
         json.dumps(summary, ensure_ascii=False, indent=2),
         encoding="utf-8",
@@ -768,6 +884,23 @@ def main() -> None:
         default=DEFAULT_COUPLING_CONFIG,
     )
     parser.add_argument("--coupon-result", type=Path, default=None)
+    parser.add_argument(
+        "--elder-access-policy",
+        choices=(
+            "D0",
+            "D1",
+            "D3",
+            "D0_baseline",
+            "D1_targeted_digital_training_75pct",
+            "D3_universal_elder_digital_access",
+        ),
+        default="D0",
+    )
+    parser.add_argument(
+        "--elder-access-config",
+        type=Path,
+        default=DEFAULT_ELDER_ACCESS_CONFIG,
+    )
     parser.add_argument("--output-dir", type=Path, default=DEFAULT_OUTPUT)
     parser.add_argument("--seed", type=int, default=47)
     parser.add_argument("--weather-scenario", choices=("W0", "W1", "W2"), default="W2")
