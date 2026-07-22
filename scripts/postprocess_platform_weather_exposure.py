@@ -251,6 +251,7 @@ def calculate_leg_exposure_rows(
 
 def _summarize_group(rows: Sequence[Mapping[str, Any]], group: str, value: str) -> dict[str, Any]:
     return {
+        "scenario_id": rows[0].get("scenario_id", ""),
         "weather_scenario": rows[0]["weather_scenario"],
         "day_type": rows[0]["day_type"],
         "policy": rows[0]["policy"],
@@ -290,7 +291,15 @@ def scenario_summary(
         row for row in necessary
         if (int(row["agent_id"]), str(row["activity_id"])) in legs_by_activity
     ]
-    completed_travel_required = [row for row in planned_travel_required if row.get("completed", False)]
+    # Runs produced before the activity-semantics repair labelled a reached
+    # activity as incomplete solely because its commute exceeded the reporting
+    # threshold.  The repaired rule treats that as a burden indicator, not a
+    # failed activity.  Apply that same definition consistently to old outputs.
+    completed_travel_required = [
+        row for row in planned_travel_required
+        if row.get("completed", False)
+        or str(row.get("completion_failure_reason") or "") == "maximum_commute_time_exceeded"
+    ]
     necessary_keys = {(int(row["agent_id"]), str(row["activity_id"])) for row in necessary}
     necessary_legs = [
         row for row in leg_rows
@@ -301,6 +310,7 @@ def scenario_summary(
     def safe_div(numerator: float, denominator: int) -> float | None:
         return round(numerator / denominator, 6) if denominator else None
     return {
+        "scenario_id": leg_rows[0].get("scenario_id", ""),
         "weather_scenario": leg_rows[0]["weather_scenario"],
         "day_type": leg_rows[0]["day_type"],
         "policy": leg_rows[0]["policy"],
@@ -336,8 +346,12 @@ def process_run(input_dir: Path, platform_config: Path) -> dict[str, Any]:
     legs = calculate_leg_exposure_rows(mode_rows, audit_rows, formal, heat)
     if len(legs) != int(original_summary["travel_decisions"]):
         raise ValueError("leg count changed during postprocessing")
+    scenario_id = input_dir.name
+    for row in legs:
+        row["scenario_id"] = scenario_id
     groups = group_summaries(legs)
     scenario = scenario_summary(legs, activity_rows)
+    scenario["scenario_id"] = scenario_id
     _write_csv(input_dir / OUTPUT_LEGS, legs)
     _write_csv(input_dir / OUTPUT_GROUPS, groups)
     _write_csv(input_dir / OUTPUT_SCENARIO, [scenario])

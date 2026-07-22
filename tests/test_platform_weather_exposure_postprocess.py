@@ -7,6 +7,7 @@ from custom.agents.formal_nine_zone_experiment import load_formal_nine_zone_conf
 from scripts.postprocess_platform_weather_exposure import (
     _rain_overlap_minutes,
     calculate_leg_exposure_rows,
+    scenario_summary,
 )
 
 
@@ -90,6 +91,22 @@ class PlatformWeatherExposurePostprocessTests(unittest.TestCase):
         ], self._audit(), formal, load_emergence_config())[0]
         self.assertEqual(result["failed_attempt_outdoor_exposure_minutes"], 10.0)
         self.assertAlmostEqual(result["outdoor_exposure_minutes"], 21.0)
+
+    def test_long_commute_is_burden_not_activity_failure_in_denominator(self):
+        leg = {
+            "agent_id": 1, "activity_id": "A1", "weather_scenario": "W1",
+            "day_type": "workday", "policy": "P0", "outdoor_exposure_minutes": 1.0,
+            "heat_hazard_dose_c_min_threshold_26": 1.0,
+            "heat_hazard_dose_c_min_threshold_32": 0.0,
+            "heat_risk_burden_threshold_26": 1.3,
+            "heat_risk_burden_threshold_32": 0.0, "rain_exposure_minutes": 0.0,
+        }
+        activity = {
+            "agent_id": "1", "activity_id": "A1", "is_mandatory": "True",
+            "completed": "False", "completion_failure_reason": "maximum_commute_time_exceeded",
+        }
+        result = scenario_summary([leg], [activity])
+        self.assertEqual(result["completed_travel_required_necessary_activities"], 1)
 
 
 if __name__ == "__main__":
