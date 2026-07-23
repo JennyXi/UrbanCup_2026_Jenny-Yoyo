@@ -30,9 +30,11 @@ from custom.agents.formal_nine_zone_50_experiment import (  # noqa: E402
     _deep_merge,
     _final_activity_results,
     _rebuild_travel_legs,
+    apply_weekend_activity_participation,
     load_formal_50_config,
 )
 from custom.agents.agent_population import AgentProfile  # noqa: E402
+from custom.agents.leg_generation import build_time_feasible_legs  # noqa: E402
 from custom.agents.formal_nine_zone_experiment import (  # noqa: E402
     ENABLED_MODES,
     _activity_results,
@@ -509,6 +511,23 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         row for row in inputs["legs"]
         if row["departure_time"].date() == selected_date
     ]
+    activities, weekend_participation_audit, weekend_participation_summary = (
+        apply_weekend_activity_participation(
+            activities,
+            day_type=day_type,
+            experiment=experiment,
+            seed=seed,
+        )
+    )
+    if weekend_participation_summary["enabled"]:
+        rebuilt = build_time_feasible_legs(
+            profile_objects,
+            activities,
+            inputs["spatial_by_id"],
+            seed=seed,
+        )
+        activities = rebuilt["activities"]
+        legs = rebuilt["legs"]
     network = build_transport_network()
     events = _events_for(formal, weather_scenario, day_type)
     preliminary_mode_informed_legs = _prepare_legs(
@@ -954,6 +973,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
             coupling["shared_traffic_state"]["represented_trips_per_agent"]
         ),
         "dispatch_priority_policy": dispatch_priority_policy,
+        "weekend_activity_participation": weekend_participation_summary,
         "elder_access_intervention": elder_access_audit,
         "coupon_source": coupon_source,
         "coupon_awarded": sum(
@@ -1007,6 +1027,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _write_csv(output / "vehicle_end_states.csv", vehicle_states)
     _write_csv(output / "activity_states.csv", activity_states)
     _write_csv(output / "activity_results.csv", activity_results)
+    _write_csv(
+        output / "weekend_activity_participation_audit.csv",
+        weekend_participation_audit,
+    )
     _write_csv(output / "coupon_allocations.csv", coupon_allocations.values())
     _write_csv(
         output / "elder_access_intervention_roster.csv",

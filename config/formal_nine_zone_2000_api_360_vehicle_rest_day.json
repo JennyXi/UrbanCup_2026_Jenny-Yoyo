@@ -13,6 +13,14 @@
   "day_types": ["workday", "rest_day"],
   "run_day_types": ["rest_day"],
   "policy": "P0_no_policy",
+  "weekend_activity_participation": {
+    "enabled": true,
+    "optional_agent_day_probability": 0.9,
+    "preserve_mandatory_activities": true,
+    "ordinary_baseline_cancellation_enabled": false,
+    "common_random_rule": "seed + agent_id + date; identical across weather and policy scenarios",
+    "calibration_note": "Selected from a local 200-Agent, 10-seed sensitivity comparison of 1.0, 0.9 and 0.8. This is a scenario calibration parameter, not a Shanghai estimate."
+  },
   "formal_overrides": {
     "ride_hailing_fleet": {
       "initial_vehicles_by_day_type": {
@@ -70,6 +78,7 @@
     "The representative rest day is 2026-07-11, as configured in the formal nine-zone transport model.",
     "W1 uses the all-day UTCI curve and the 11:00-18:00 behavioral heat window; W2 uses the configured rest-day 10:00-14:00 rain window.",
     "The same seed, Agents, seven-day activity plans, transport rules and 360-vehicle spatial pool are shared across paired policy scenarios.",
+    "A stable 0.90 Agent-day participation gate is applied only to optional rest-day activities before transport legs are rebuilt; mandatory medical activities are preserved and ordinary baseline cancellation remains disabled.",
     "Holding the fleet equal to the workday experiment is an experimental control. A lower weekend fleet should be studied separately as a supply sensitivity, not mixed into the main day-type comparison.",
     "Bus and metro boarding remain guaranteed; only ride-hailing has a finite conserved vehicle pool.",
     "Every completed platform run is postprocessed offline for heat and rain exposure without additional LLM calls."

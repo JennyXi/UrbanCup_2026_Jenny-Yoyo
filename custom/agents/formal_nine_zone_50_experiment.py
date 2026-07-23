@@ -20,6 +20,7 @@ from custom.agents.formal_nine_zone_experiment import (
     ROOT,
     WEATHER_SCENARIOS,
     _events_for,
+    _stable_uniform,
     build_formal_nine_zone_inputs,
     load_formal_nine_zone_config,
     run_formal_transport_scenario,
@@ -74,6 +75,111 @@ def validate_formal_50_config(config: Mapping[str, Any]) -> None:
         raise ValueError("formal remote-work probabilities must be 0/2/5 percent")
     if not state["remote_work_is_activity_level_single_draw"] or state["schedule_shift_enabled"]:
         raise ValueError("remote work must use one activity-level draw and schedule shift stays off")
+    participation = config.get("weekend_activity_participation")
+    if participation is not None:
+        probability = float(participation["optional_agent_day_probability"])
+        if not 0 <= probability <= 1:
+            raise ValueError("weekend optional Agent-day probability must be in [0, 1]")
+        if participation.get("ordinary_baseline_cancellation_enabled"):
+            raise ValueError("weekend calibration uses participation, not baseline cancellation")
+        if not participation.get("preserve_mandatory_activities"):
+            raise ValueError("weekend participation must preserve mandatory activities")
+
+
+def apply_weekend_activity_participation(
+    activities: Sequence[Mapping[str, Any]],
+    *,
+    day_type: str,
+    experiment: Mapping[str, Any],
+    seed: int,
+) -> tuple[list[Dict[str, Any]], list[Dict[str, Any]], Dict[str, Any]]:
+    """Apply one stable optional-activity participation draw per Agent-day.
+
+    This is an ex-ante activity-plan gate, not an activity cancellation. It is
+    applied before the retained day's transport legs are rebuilt. Mandatory
+    activities are always preserved.
+    """
+    config = experiment.get("weekend_activity_participation")
+    enabled = bool(config and config.get("enabled") and day_type == "rest_day")
+    probability = (
+        float(config["optional_agent_day_probability"]) if enabled else 1.0
+    )
+    grouped: Dict[tuple[int, date], list[Mapping[str, Any]]] = {}
+    for activity in activities:
+        key = (int(activity["agent_id"]), _activity_day(activity))
+        grouped.setdefault(key, []).append(activity)
+
+    retained: list[Dict[str, Any]] = []
+    audit: list[Dict[str, Any]] = []
+    for (agent_id, activity_date), rows in sorted(grouped.items()):
+        draw = _stable_uniform(
+            seed,
+            agent_id,
+            activity_date.isoformat(),
+            "weekend-optional-agent-day-participation-v1",
+        )
+        optional_participates = not enabled or draw < probability
+        mandatory = [row for row in rows if bool(row["is_mandatory"])]
+        optional = [row for row in rows if not bool(row["is_mandatory"])]
+        kept = mandatory + (optional if optional_participates else [])
+        excluded = [] if optional_participates else optional
+        retained.extend(dict(row) for row in kept)
+        audit.append({
+            "agent_id": agent_id,
+            "age_group": rows[0]["age_group"],
+            "date": activity_date,
+            "day_type": day_type,
+            "enabled": enabled,
+            "optional_agent_day_probability": probability,
+            "participation_draw": draw,
+            "optional_participates": optional_participates,
+            "mandatory_activity_count": len(mandatory),
+            "optional_activity_count_before": len(optional),
+            "optional_activity_count_after": (
+                len(optional) if optional_participates else 0
+            ),
+            "excluded_optional_activity_count": (
+                0 if optional_participates else len(optional)
+            ),
+            "excluded_optional_activity_ids": ";".join(
+                str(row["activity_id"]) for row in excluded
+            ),
+            "participation_status": (
+                "base_plan_retained"
+                if optional_participates
+                else "optional_activities_not_entered_into_daily_plan"
+            ),
+        })
+
+    retained.sort(
+        key=lambda row: (
+            int(row["agent_id"]),
+            row["planned_start_datetime"],
+            int(row["sequence_order"]),
+        )
+    )
+    summary = {
+        "enabled": enabled,
+        "optional_agent_day_probability": probability,
+        "agent_days_with_planned_activity_before": len(grouped),
+        "agent_days_with_activity_after": len({
+            (int(row["agent_id"]), _activity_day(row)) for row in retained
+        }),
+        "activities_before": len(activities),
+        "activities_after": len(retained),
+        "mandatory_activities_before": sum(
+            bool(row["is_mandatory"]) for row in activities
+        ),
+        "mandatory_activities_after": sum(
+            bool(row["is_mandatory"]) for row in retained
+        ),
+        "excluded_optional_activities": len(activities) - len(retained),
+        "common_random_key": "seed + agent_id + date",
+        "ordinary_baseline_cancellation_enabled": False,
+    }
+    if summary["mandatory_activities_before"] != summary["mandatory_activities_after"]:
+        raise AssertionError("weekend participation removed a mandatory activity")
+    return retained, audit, summary
 
 
 def _profile(row: Mapping[str, Any]) -> AgentProfile:
