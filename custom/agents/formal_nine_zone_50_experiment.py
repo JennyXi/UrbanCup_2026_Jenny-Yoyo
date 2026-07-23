@@ -99,6 +99,7 @@ def _activity_states(
     profiles: Mapping[int, AgentProfile], weather_scenario: str, day_type: str,
     *, formal_config: Mapping[str, Any], experiment: Mapping[str, Any],
     symmetric: Mapping[str, Any], seed: int,
+    departure_time_source: str = "preliminary_leg_departure",
 ) -> list[Dict[str, Any]]:
     events = _events_for(formal_config, weather_scenario, day_type)
     inbound = _inbound_by_activity(legs)
@@ -139,6 +140,8 @@ def _activity_states(
             **dict(activity),
             "weather_scenario": weather_scenario, "day_type": day_type,
             "weather_type": weather_type, "departure_time": departure,
+            "weather_decision_departure_time": departure,
+            "weather_decision_departure_time_source": departure_time_source,
             "weather_exposed": exposed,
             "remote_work_applicable": remote_applicable,
             "remote_work_probability_source": remote_source if remote_applicable else "not_applicable",
@@ -343,6 +346,7 @@ def _final_activity_results(
         results.append({
             **dict(state),
             "final_status": final_status,
+            "weather_cancelled": final_status == "weather_cancelled",
             "completed": final_status == "completed",
             "transport_unmet": final_status == "transport_unmet",
             "transport_succeeded": transport_row.get("transport_succeeded", False),

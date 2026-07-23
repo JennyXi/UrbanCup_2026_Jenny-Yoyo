@@ -26,7 +26,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from custom.agents.formal_nine_zone_50_experiment import (  # noqa: E402
+    _activity_states,
     _deep_merge,
+    _final_activity_results,
+    _rebuild_travel_legs,
     load_formal_50_config,
 )
 from custom.agents.agent_population import AgentProfile  # noqa: E402
@@ -55,6 +58,9 @@ from custom.agents.interdependent_decision_system import (  # noqa: E402
 from custom.transport.network import build_transport_network  # noqa: E402
 from scripts.run_elder_digital_access_experiment import (  # noqa: E402
     apply_digital_policy,
+)
+from custom.agents.symmetric_weather_experiment import (  # noqa: E402
+    load_symmetric_experiment_config,
 )
 
 
@@ -103,6 +109,7 @@ def _load_coupon_allocations(path: Path | None) -> tuple[dict[int, dict[str, Any
     source_summary = dict(payload.get("summary", {}))
     return by_id, {
         "source": str(path.resolve()),
+        "policy": source_summary.get("policy"),
         "api_backed": bool(source_summary.get("api_contribution_decisions")),
         "api_contribution_decisions": int(
             source_summary.get("api_contribution_decisions", 0)
@@ -212,6 +219,67 @@ def _build_formal_config(
     formal["_coupon_discount_multiplier"] = float(discount_multiplier)
     validate_formal_nine_zone_config(formal)
     return experiment, formal
+
+
+def _scenario_policy_label(
+    coupon_source: Mapping[str, Any],
+    elder_access_audit: Mapping[str, Any],
+    dispatch_priority_policy: str,
+) -> str:
+    if coupon_source.get("policy"):
+        return str(coupon_source["policy"])
+    elder_policy = str(elder_access_audit.get("policy", "D0_baseline"))
+    if elder_policy != "D0_baseline":
+        return elder_policy
+    if dispatch_priority_policy == "P4_elder_priority":
+        return dispatch_priority_policy
+    return "C0_no_coupon"
+
+
+def _activity_outcome_summary(
+    rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    necessary = [row for row in rows if row["is_mandatory"]]
+    completed = [row for row in rows if row["completed"]]
+    completed_necessary = [row for row in necessary if row["completed"]]
+    return {
+        "planned_activities": len(rows),
+        "completed_activities": len(completed),
+        "activity_completion_rate": (
+            round(len(completed) / len(rows), 6) if rows else None
+        ),
+        "planned_necessary_activities": len(necessary),
+        "completed_necessary_activities": len(completed_necessary),
+        "necessary_activity_completion_rate": (
+            round(len(completed_necessary) / len(necessary), 6)
+            if necessary else None
+        ),
+        "weather_cancelled_activities": sum(
+            bool(row["weather_cancellation"]) for row in rows
+        ),
+        "remote_work": sum(bool(row["remote_work"]) for row in rows),
+        "travel_required_activities": sum(
+            bool(row["travel_required"]) for row in rows
+        ),
+        "transport_related_unmet": sum(
+            bool(row["transport_unmet"]) for row in rows
+        ),
+        "necessary_transport_related_unmet": sum(
+            bool(row["transport_unmet"]) for row in necessary
+        ),
+        "mandatory_activity_incomplete": sum(
+            bool(row["mandatory_activity_incomplete"]) for row in rows
+        ),
+    }
+
+
+def _apply_dispatch_priority_policy(
+    formal: dict[str, Any], policy: str,
+) -> None:
+    """Expose the existing formal P0/P4 dispatch rule to the API runner."""
+    if policy not in {"P0_first_come", "P4_elder_priority"}:
+        raise ValueError(f"unknown dispatch priority policy: {policy}")
+    formal["ride_hailing_fleet"]["dispatch_priority_policy"] = policy
 
 
 def _evaluate(
@@ -400,6 +468,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         coupon_allocations,
         args.discount_multiplier,
     )
+    dispatch_priority_policy = getattr(
+        args, "dispatch_priority_policy", "P0_first_come"
+    )
+    _apply_dispatch_priority_policy(formal, dispatch_priority_policy)
     coupling = load_interdependent_decision_config(args.coupling_config)
     coupling = json.loads(json.dumps(coupling))
     # Preserve the 50-Agent mechanism's represented demand when scaling to 200.
@@ -424,6 +496,10 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         )
     )
     agents = {int(row["agent_id"]): row for row in policy_agent_rows}
+    profile_objects = [
+        AgentProfile(**dict(row)) for row in policy_agent_rows
+    ]
+    profiles = {int(row.agent_id): row for row in profile_objects}
     selected_date = date.fromisoformat(formal["selected_days"][day_type])
     activities = [
         row for row in inputs["activities"]
@@ -435,10 +511,39 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     ]
     network = build_transport_network()
     events = _events_for(formal, weather_scenario, day_type)
-    planned_legs = _prepare_legs(
+    preliminary_mode_informed_legs = _prepare_legs(
         agents,
         activities,
         legs,
+        network,
+        events,
+        formal,
+        seed,
+    )
+    symmetric = load_symmetric_experiment_config(
+        ROOT / experiment["symmetric_behavior_config"]
+    )
+    activity_states = _activity_states(
+        activities,
+        preliminary_mode_informed_legs,
+        profiles,
+        weather_scenario,
+        day_type,
+        formal_config=formal,
+        experiment=experiment,
+        symmetric=symmetric,
+        seed=seed,
+        departure_time_source="mode_informed_prechoice_departure",
+    )
+    retained_activities, travel_legs = _rebuild_travel_legs(
+        activity_states,
+        profile_objects,
+        inputs["spatial_by_id"],
+    )
+    planned_legs = _prepare_legs(
+        agents,
+        retained_activities,
+        travel_legs,
         network,
         events,
         formal,
@@ -738,36 +843,47 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         day_type,
         seed,
     )
+    policy_label = _scenario_policy_label(
+        coupon_source,
+        elder_access_audit,
+        dispatch_priority_policy,
+    )
     for row in mode_choices:
         row.update({
             "weather_scenario": weather_scenario,
             "day_type": day_type,
-            "policy": "C4_public_goods",
+            "policy": policy_label,
             "experiment_condition": "API_interdependent_city_mobility",
         })
     for row in dispatch:
         row.update({
             "weather_scenario": weather_scenario,
             "day_type": day_type,
-            "policy": "C4_public_goods",
+            "policy": policy_label,
             "experiment_condition": "API_interdependent_city_mobility",
         })
     for row in vehicle_states:
         row.update({
             "weather_scenario": weather_scenario,
-            "policy": "C4_public_goods",
+            "policy": policy_label,
             "experiment_condition": "API_interdependent_city_mobility",
         })
-    activity_results = _activity_results(
-        activities,
+    transport_activity_results = _activity_results(
+        retained_activities,
         mode_choices,
         formal,
         weather_scenario,
         day_type,
     )
+    activity_results = _final_activity_results(
+        activity_states,
+        transport_activity_results,
+    )
+    for row in activity_results:
+        row["policy"] = policy_label
     formal_summary = _scenario_summary(
         mode_choices,
-        activities,
+        retained_activities,
         dispatch,
         vehicle_states,
         network,
@@ -777,6 +893,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         unique_bins,
         seed,
     )
+    formal_summary.update(_activity_outcome_summary(activity_results))
 
     usage = {"calls": 0, "input_tokens": 0, "output_tokens": 0}
     model = "dry-run"
@@ -806,9 +923,16 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "seed": seed,
         "weather_scenario": weather_scenario,
         "day_type": day_type,
+        "policy": policy_label,
         "agents": len(agents),
         "agents_with_travel": len({int(row["agent_id"]) for row in ordered_legs}),
-        "agents_without_workday_travel": len(agents) - len({int(row["agent_id"]) for row in ordered_legs}),
+        "agents_without_travel": (
+            len(agents) - len({int(row["agent_id"]) for row in ordered_legs})
+        ),
+        # Compatibility alias retained for existing workday result readers.
+        "agents_without_workday_travel": (
+            len(agents) - len({int(row["agent_id"]) for row in ordered_legs})
+        ),
         "travel_decisions": len(decisions),
         "api_travel_decisions": sum(row["api_call_attempted"] for row in decisions),
         "api_decision_failures": api_failures,
@@ -829,6 +953,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "represented_trips_per_agent": float(
             coupling["shared_traffic_state"]["represented_trips_per_agent"]
         ),
+        "dispatch_priority_policy": dispatch_priority_policy,
         "elder_access_intervention": elder_access_audit,
         "coupon_source": coupon_source,
         "coupon_awarded": sum(
@@ -844,6 +969,28 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
         "necessary_activity_completion_rate": formal_summary[
             "necessary_activity_completion_rate"
         ],
+        "planned_activities": formal_summary["planned_activities"],
+        "completed_activities": formal_summary["completed_activities"],
+        "activity_completion_rate": formal_summary["activity_completion_rate"],
+        "planned_necessary_activities": formal_summary[
+            "planned_necessary_activities"
+        ],
+        "completed_necessary_activities": formal_summary[
+            "completed_necessary_activities"
+        ],
+        "weather_cancelled_activities": formal_summary[
+            "weather_cancelled_activities"
+        ],
+        "remote_work": formal_summary["remote_work"],
+        "travel_required_activities": formal_summary[
+            "travel_required_activities"
+        ],
+        "transport_related_unmet": formal_summary[
+            "transport_related_unmet"
+        ],
+        "necessary_transport_related_unmet": formal_summary[
+            "necessary_transport_related_unmet"
+        ],
         "mean_total_travel_time": formal_summary["mean_total_travel_time"],
         "initial_ride_hailing_vehicles": formal_summary["initial_ride_hailing_vehicles"],
         "elapsed_seconds": round(time.perf_counter() - started, 3),
@@ -858,6 +1005,7 @@ async def run(args: argparse.Namespace) -> dict[str, Any]:
     _write_csv(output / "mode_choices.csv", mode_choices)
     _write_csv(output / "ride_hailing_dispatch.csv", dispatch)
     _write_csv(output / "vehicle_end_states.csv", vehicle_states)
+    _write_csv(output / "activity_states.csv", activity_states)
     _write_csv(output / "activity_results.csv", activity_results)
     _write_csv(output / "coupon_allocations.csv", coupon_allocations.values())
     _write_csv(
@@ -906,6 +1054,11 @@ def main() -> None:
     parser.add_argument("--weather-scenario", choices=("W0", "W1", "W2"), default="W2")
     parser.add_argument("--day-type", choices=("workday", "rest_day"), default="workday")
     parser.add_argument("--discount-multiplier", type=float, default=0.8)
+    parser.add_argument(
+        "--dispatch-priority-policy",
+        choices=("P0_first_come", "P4_elder_priority"),
+        default="P0_first_come",
+    )
     parser.add_argument("--represented-trips-per-agent", type=float, default=30.0)
     parser.add_argument("--max-decisions", type=int, default=None)
     parser.add_argument("--progress-every", type=int, default=10)

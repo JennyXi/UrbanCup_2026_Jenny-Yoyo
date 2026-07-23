@@ -39,6 +39,13 @@ MEDICAL_WEEKLY_COUNT_OPTIONS = {
     "standard": (0, 1, 2),
     "high": (1, 2, 3),
 }
+# Scenario assumptions for an additional weekend medical need. These preserve
+# the existing weekday medical schedule used by completed workday experiments.
+ELDER_WEEKEND_MEDICAL_PROBABILITY = {
+    "low": 0.01,
+    "standard": 0.03,
+    "high": 0.06,
+}
 
 # Total modeled out-of-home activities per day. Work and scheduled elder
 # medical visits count toward these totals. Weekends are more active; age
@@ -330,10 +337,33 @@ def _weekday_templates(age_group: str, work_status: str, elder_schedule: Dict[in
     return sorted(activities, key=lambda item: (item[1], item[2], item[0]))
 
 
-def _weekend_templates(age_group: str, rng: random.Random) -> List[Tuple[str, time, time]]:
-    count = _sample_activity_count(rng, age_group, weekend=True)
+def _weekend_templates(
+    age_group: str, rng: random.Random, medical_need_level: str | None = None,
+) -> List[Tuple[str, time, time]]:
+    activities: List[Tuple[str, time, time]] = []
+    weekend_medical = (
+        age_group == "60+"
+        and medical_need_level is not None
+        and rng.random()
+        < ELDER_WEEKEND_MEDICAL_PROBABILITY[medical_need_level]
+    )
+    if weekend_medical:
+        start = _sample_half_hour_time(rng, time(9, 0), time(14, 0))
+        activities.append(
+            ("medical", start, _add_minutes(start, _sample_duration(rng, "medical")))
+        )
+    count = max(len(activities), _sample_activity_count(rng, age_group, weekend=True))
+    activities.extend(
+        _schedule_optional_templates(
+            rng,
+            age_group,
+            count - len(activities),
+            activities,
+            weekend=True,
+        )
+    )
     return sorted(
-        _schedule_optional_templates(rng, age_group, count, (), weekend=True),
+        activities,
         key=lambda item: (item[1], item[2], item[0]),
     )
 
@@ -392,7 +422,11 @@ def generate_weekly_activity_plan_with_audit(agent: Any, simulation_week_start: 
             category = "weekday_activity"
             capacity = 3
         else:
-            templates = _weekend_templates(age_group, rng)
+            templates = _weekend_templates(
+                age_group,
+                rng,
+                medical_need_level if age_group == "60+" else None,
+            )
             category = "weekend_activity"
             capacity = 4
         fixed_activity_slot_count += sum(purpose in MANDATORY_PURPOSES for purpose, _, _ in templates)

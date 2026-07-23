@@ -168,10 +168,45 @@ class BaselineActivityPlanningTests(unittest.TestCase):
     def test_standard_elder_has_at_most_two_nonconsecutive_medical_days(self):
         for agent_id in range(1, 100):
             records = generate_weekly_activity_plan(placed_agent(agent_id, "60+", medical_need_level="standard"), WEEK_START, 47)
-            medical = [item for item in records if item["activity_purpose"] == "medical"]
+            medical = [
+                item for item in records
+                if item["activity_purpose"] == "medical"
+                and not item["is_weekend"]
+            ]
             self.assertLessEqual(len(medical), 2)
             weekdays = [item["planned_start_datetime"].weekday() for item in medical]
             self.assertTrue(all(b - a > 1 for a, b in zip(weekdays, weekdays[1:])))
+
+    def test_elder_weekend_medical_is_possible_without_changing_weekday_schedule(self):
+        weekend_medical = []
+        for agent_id in range(1, 200):
+            records = generate_weekly_activity_plan(
+                placed_agent(
+                    agent_id,
+                    "60+",
+                    medical_need_level="standard",
+                ),
+                WEEK_START,
+                47,
+            )
+            weekday_medical = [
+                item for item in records
+                if item["activity_purpose"] == "medical"
+                and not item["is_weekend"]
+            ]
+            self.assertIn(
+                len(weekday_medical),
+                set(MEDICAL_WEEKLY_COUNT_OPTIONS["standard"]),
+            )
+            weekend_medical.extend(
+                item for item in records
+                if item["activity_purpose"] == "medical"
+                and item["is_weekend"]
+            )
+        self.assertTrue(weekend_medical)
+        self.assertTrue(
+            all(item["is_mandatory"] for item in weekend_medical)
+        )
 
     def test_medical_need_levels_define_distributions_not_fixed_counts(self):
         expected = {"low": {0, 1}, "standard": {0, 1, 2}, "high": {1, 2, 3}}
@@ -181,7 +216,11 @@ class BaselineActivityPlanningTests(unittest.TestCase):
             for seed in range(10, 30):
                 for agent_id in range(1, 25):
                     records = generate_weekly_activity_plan(placed_agent(agent_id, "60+", medical_need_level=level), WEEK_START, seed)
-                    observed[level].add(sum(item["activity_purpose"] == "medical" for item in records))
+                    observed[level].add(sum(
+                        item["activity_purpose"] == "medical"
+                        and not item["is_weekend"]
+                        for item in records
+                    ))
         self.assertEqual(observed, expected)
 
     def test_elder_part_time_work_schedule_is_stable_and_one_or_two_days(self):

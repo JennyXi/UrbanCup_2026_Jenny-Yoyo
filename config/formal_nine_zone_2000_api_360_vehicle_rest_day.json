@@ -1,0 +1,77 @@
+{
+  "experiment_id": "formal_nine_zone_2000_api_360_vehicle_rest_day_v1",
+  "description": "Paired 2000-Agent API-backed rest-day experiment with the same 360-vehicle fleet and behavior parameters as the workday experiment.",
+  "formal_transport_config": "config/formal_nine_zone_agent_experiment.json",
+  "symmetric_behavior_config": "config/symmetric_weather_experiment.json",
+  "emergence_heat_config": "config/emergence_experiment.json",
+  "total_agents": 2000,
+  "seed": 47,
+  "seed_start": 47,
+  "smoke_seed_count": 3,
+  "weather_scenarios": ["W0", "W1", "W2"],
+  "run_weather_scenarios": ["W0", "W1", "W2"],
+  "day_types": ["workday", "rest_day"],
+  "run_day_types": ["rest_day"],
+  "policy": "P0_no_policy",
+  "formal_overrides": {
+    "ride_hailing_fleet": {
+      "initial_vehicles_by_day_type": {
+        "workday": {
+          "Z1": 60, "Z2": 60, "Z3": 30, "Z4": 30, "Z5": 30,
+          "Z6": 30, "Z7": 60, "Z8": 30, "Z9": 30
+        },
+        "rest_day": {
+          "Z1": 60, "Z2": 60, "Z3": 30, "Z4": 30, "Z5": 30,
+          "Z6": 30, "Z7": 60, "Z8": 30, "Z9": 30
+        }
+      },
+      "non_capacity_success_probability": 1.0,
+      "dispatch_priority_policy": "P0_first_come"
+    }
+  },
+  "activity_state_machine": {
+    "work_weather_cancellation_allowed": false,
+    "medical_weather_cancellation_allowed": false,
+    "optional_cancellation_requires_departure_in_weather_window": true,
+    "remote_work_probability": {
+      "normal": 0.0,
+      "extreme_heat": 0.02,
+      "heavy_rain": 0.05
+    },
+    "remote_work_is_activity_level_single_draw": true,
+    "schedule_shift_enabled": false
+  },
+  "outdoor_exposure": {
+    "walk": "entire final walking attempt",
+    "bus": "origin access walk plus wait plus destination access walk",
+    "metro": "station access and egress walking only; platform wait is indoors",
+    "ride_hailing": "pickup wait",
+    "failed_ride_hailing": "consumed wait before fallback",
+    "w1_heat_method": "utci_degree_minutes_above_threshold",
+    "w2_rain_method": "outdoor minutes overlapping active heavy-rain windows"
+  },
+  "large_scale_policy_design": {
+    "coupon_pool_size": 400,
+    "coupon_discount_multiplier": 0.8,
+    "coupon_pool_fraction_of_agents": 0.2,
+    "full_matrix_scenarios": 19
+  },
+  "scale_definition": {
+    "reference_agents": 200,
+    "reference_vehicles": 36,
+    "scaled_agents": 2000,
+    "scaled_vehicles": 360,
+    "vehicles_per_agent": 0.18,
+    "represented_trips_per_agent": 3.0,
+    "same_represented_city": true,
+    "interpretation": "The rest-day run holds the 360-vehicle fleet constant to isolate day-type demand and timing effects. It is not a calibrated Shanghai weekend fleet estimate."
+  },
+  "scope_notes": [
+    "The representative rest day is 2026-07-11, as configured in the formal nine-zone transport model.",
+    "W1 uses the all-day UTCI curve and the 11:00-18:00 behavioral heat window; W2 uses the configured rest-day 10:00-14:00 rain window.",
+    "The same seed, Agents, seven-day activity plans, transport rules and 360-vehicle spatial pool are shared across paired policy scenarios.",
+    "Holding the fleet equal to the workday experiment is an experimental control. A lower weekend fleet should be studied separately as a supply sensitivity, not mixed into the main day-type comparison.",
+    "Bus and metro boarding remain guaranteed; only ride-hailing has a finite conserved vehicle pool.",
+    "Every completed platform run is postprocessed offline for heat and rain exposure without additional LLM calls."
+  ]
+}
