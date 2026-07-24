@@ -1,0 +1,7 @@
+﻿contrast,target_scenario,reference_scenario,delta_walking,delta_bus,delta_metro,delta_ride_hailing,delta_walking_share,delta_bus_share,delta_metro_share,delta_ride_hailing_share,delta_ride_requests,delta_ride_successes,delta_ride_failures,delta_fallback_attempts,delta_mean_total_travel_time,delta_mean_cumulative_wait_minutes,delta_activity_completion_rate,delta_necessary_activity_completion_rate,delta_transport_related_unmet,delta_total_outdoor_exposure_minutes,delta_total_rain_exposure_minutes
+D1_weather_W2_minus_W1,E15,E14,-15.0,-734.0,117.0,480.0,-0.003693,-0.181595,0.049538,0.13575,480.0,470.0,10.0,10.0,1.209,1.353566,-0.020628,-0.006189,0.0,2117.131,46475.222479
+D3_weather_W1_minus_W0,E17,E16,-5.0,-188.0,4.0,114.0,-0.001093,-0.040047,0.009428,0.031712,114.0,114.0,0.0,0.0,-0.735,-0.026696,-0.022035,0.0,0.0,-2693.079,0.0
+D3_weather_W2_minus_W0,E18,E16,-20.0,-909.0,110.0,592.0,-0.004764,-0.218417,0.056262,0.166919,592.0,578.0,14.0,14.0,0.608,1.353134,-0.043132,-0.006189,0.0,-494.095,46483.315479
+D3_weather_W2_minus_W1,E18,E17,-15.0,-721.0,106.0,478.0,-0.003671,-0.17837,0.046834,0.135207,478.0,464.0,14.0,14.0,1.343,1.37983,-0.021097,-0.006189,0.0,2198.984,46483.315479
+W1_D3_minus_D1,E17,E14,2.0,-28.0,26.0,0.0,0.000521,-0.007294,0.006773,0.0,0.0,0.0,0.0,0.0,-0.1,0.011289,0.000469,0.0,0.0,236.224,0.0
+W2_D3_minus_D1,E18,E15,2.0,-15.0,15.0,-2.0,0.000543,-0.004069,0.004069,-0.000543,-2.0,-6.0,4.0,4.0,0.034,0.037553,0.0,0.0,0.0,318.077,8.093
